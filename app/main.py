@@ -31,6 +31,7 @@ from app.core.middleware import (
     MetricsMiddleware,
 )
 from app.services.database import database_service
+from app.core.scheduler import setup_scheduler
 
 # Load environment variables
 load_dotenv()
@@ -52,7 +53,11 @@ async def lifespan(app: FastAPI):
         version=settings.VERSION,
         api_prefix=settings.API_V1_STR,
     )
+    scheduler = setup_scheduler()
+    scheduler.start()
+    logger.info("scheduler_started")
     yield
+    scheduler.shutdown()
     logger.info("application_shutdown")
 
 
