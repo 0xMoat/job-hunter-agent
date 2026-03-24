@@ -228,18 +228,19 @@ class LangGraphAgent:
             raise Exception(f"failed to get llm response after trying all models: {str(e)}")
 
     # Define our tool node
-    async def _tool_call(self, state: GraphState) -> Command:
+    async def _tool_call(self, state: GraphState, config: RunnableConfig) -> Command:
         """Process tool calls from the last message.
 
         Args:
             state: The current agent state containing messages and tool calls.
+            config: The LangGraph runnable config, forwarded to each tool.
 
         Returns:
             Command: Command object with updated messages and routing back to chat.
         """
         outputs = []
         for tool_call in state.messages[-1].tool_calls:
-            tool_result = await self.tools_by_name[tool_call["name"]].ainvoke(tool_call["args"])
+            tool_result = await self.tools_by_name[tool_call["name"]].ainvoke(tool_call["args"], config=config)
             outputs.append(
                 ToolMessage(
                     content=tool_result,
@@ -313,7 +314,7 @@ class LangGraphAgent:
         if self._graph is None:
             self._graph = await self.create_graph()
         config = {
-            "configurable": {"thread_id": session_id},
+            "configurable": {"thread_id": session_id, "user_id": user_id},
             "callbacks": [CallbackHandler()],
             "metadata": {
                 "user_id": user_id,
@@ -354,7 +355,7 @@ class LangGraphAgent:
             str: Tokens of the LLM response.
         """
         config = {
-            "configurable": {"thread_id": session_id},
+            "configurable": {"thread_id": session_id, "user_id": user_id},
             "callbacks": [
                 CallbackHandler(
                     environment=settings.ENVIRONMENT.value, debug=False, user_id=user_id, session_id=session_id
