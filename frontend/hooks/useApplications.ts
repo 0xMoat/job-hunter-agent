@@ -42,9 +42,13 @@ export function useApplications() {
     ): Promise<Application | undefined> => {
       const token = getSessionToken()
       if (!token) return
-      const app = await apiAddApplication(token, { company, title, url, notes })
-      setApplications((prev) => [app, ...prev])
-      return app
+      try {
+        const app = await apiAddApplication(token, { company, title, url, notes })
+        setApplications((prev) => [app, ...prev])
+        return app
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to add application")
+      }
     },
     [],
   )
@@ -53,8 +57,12 @@ export function useApplications() {
     async (id: number, status: ApplicationStatus): Promise<void> => {
       const token = getSessionToken()
       if (!token) return
-      const updated = await apiUpdateApplication(token, id, { status })
-      setApplications((prev) => prev.map((a) => (a.id === id ? updated : a)))
+      try {
+        const updated = await apiUpdateApplication(token, id, { status })
+        setApplications((prev) => prev.map((a) => (a.id === id ? updated : a)))
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to update application")
+      }
     },
     [],
   )
@@ -62,8 +70,12 @@ export function useApplications() {
   const deleteApplication = useCallback(async (id: number): Promise<void> => {
     const token = getSessionToken()
     if (!token) return
-    await apiDeleteApplication(token, id)
-    setApplications((prev) => prev.filter((a) => a.id !== id))
+    try {
+      await apiDeleteApplication(token, id)
+      setApplications((prev) => prev.filter((a) => a.id !== id))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete application")
+    }
   }, [])
 
   return {
