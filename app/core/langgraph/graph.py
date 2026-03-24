@@ -1,6 +1,7 @@
 """This file contains the LangGraph Agent/workflow and interactions with the LLM."""
 
 import asyncio
+import json as _json
 from typing import (
     AsyncGenerator,
     Optional,
@@ -9,10 +10,12 @@ from urllib.parse import quote_plus
 
 from asgiref.sync import sync_to_async
 from langchain_core.messages import (
+    AIMessageChunk,
     BaseMessage,
     ToolMessage,
     convert_to_openai_messages,
 )
+from langchain_core.messages import ToolMessage as LCToolMessage
 from langfuse.langchain import CallbackHandler
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.graph import (
@@ -399,10 +402,33 @@ class LangGraphAgent:
                 stream_mode="messages",
             ):
                 try:
-                    yield token.content
+                    if isinstance(token, AIMessageChunk):
+                        if token.tool_call_chunks:
+                            for tc in token.tool_call_chunks:
+                                if tc.get("name"):
+                                    yield _json.dumps({
+                                        "type": "tool_call",
+                                        "content": f"Calling {tc['name']}...",
+                                        "tool_name": tc["name"],
+                                        "tool_call_id": tc.get("id", ""),
+                                        "done": False,
+                                    })
+                        elif token.content:
+                            yield _json.dumps({
+                                "type": "text",
+                                "content": token.content,
+                                "done": False,
+                            })
+                    elif isinstance(token, LCToolMessage):
+                        yield _json.dumps({
+                            "type": "tool_result",
+                            "content": str(token.content)[:200],
+                            "tool_name": token.name,
+                            "tool_call_id": token.tool_call_id,
+                            "done": False,
+                        })
                 except Exception as token_error:
-                    logger.error("Error processing token", error=str(token_error), session_id=session_id)
-                    # Continue with next token even if current one fails
+                    logger.error("error_processing_token", error=str(token_error), session_id=session_id)
                     continue
 
             # After streaming completes, get final state and update memory in background

@@ -4,6 +4,7 @@ import re
 from typing import (
     List,
     Literal,
+    Optional,
 )
 
 from pydantic import (
@@ -84,4 +85,28 @@ class StreamResponse(BaseModel):
     """
 
     content: str = Field(default="", description="The content of the current chunk")
+    done: bool = Field(default=False, description="Whether the stream is complete")
+
+
+class StreamChunk(BaseModel):
+    """A typed chunk in the SSE stream.
+
+    Extends StreamResponse with a type field to distinguish text tokens from
+    tool calls and tool results, enabling frontend to render inline tool cards.
+    The done field mirrors StreamResponse for backwards compatibility.
+
+    Attributes:
+        type: Chunk type — text, tool_call, tool_result, or done.
+        content: Text content or tool call summary.
+        tool_name: Tool name (for tool_call and tool_result chunks).
+        tool_call_id: Tool call correlation ID.
+        done: Whether this is the final chunk.
+    """
+
+    type: Literal["text", "tool_call", "tool_result", "done"] = Field(
+        default="text", description="Chunk type"
+    )
+    content: str = Field(default="", description="Chunk content")
+    tool_name: Optional[str] = Field(default=None, description="Tool name")
+    tool_call_id: Optional[str] = Field(default=None, description="Tool call ID")
     done: bool = Field(default=False, description="Whether the stream is complete")
