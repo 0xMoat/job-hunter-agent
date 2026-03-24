@@ -251,8 +251,13 @@ class LangGraphAgent:
                     )
                 )
                 continue
-            tool_result = await self.tools_by_name[tool_name].ainvoke(tool_call["args"], config=config)
-            logger.info("tool_called", tool_name=tool_name, session_id=config.get("configurable", {}).get("thread_id"))
+            logger.info("tool_dispatch", tool_name=tool_name, session_id=config.get("configurable", {}).get("thread_id"))
+            try:
+                tool_result = await self.tools_by_name[tool_name].ainvoke(tool_call["args"], config=config)
+            except Exception:
+                logger.exception("tool_invocation_failed", tool_name=tool_name)
+                raise
+            logger.info("tool_completed", tool_name=tool_name, session_id=config.get("configurable", {}).get("thread_id"))
             outputs.append(
                 ToolMessage(
                     content=tool_result,
