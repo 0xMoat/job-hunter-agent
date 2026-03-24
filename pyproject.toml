@@ -38,6 +38,7 @@ dependencies = [
     "tenacity>=9.1.2",
     "mem0ai>=1.0.0",
     "uvloop>=0.22.1",
+    "apscheduler>=3.11.2",
 ]
 
 [project.optional-dependencies]

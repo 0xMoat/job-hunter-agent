@@ -23,6 +23,11 @@ from app.core.logging import logger
 from app.models.session import Session as ChatSession
 from app.models.user import User
 
+# Import new models so SQLModel registers them before create_all
+from app.models.application import Application  # noqa: F401
+from app.models.job_listing import JobListing  # noqa: F401
+from app.models.job_preference import JobPreference  # noqa: F401
+
 
 class DatabaseService:
     """Service class for database operations.
