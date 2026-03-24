@@ -15,7 +15,6 @@ from langchain_core.messages import (
     ToolMessage,
     convert_to_openai_messages,
 )
-from langchain_core.messages import ToolMessage as LCToolMessage
 from langfuse.langchain import CallbackHandler
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.graph import (
@@ -419,7 +418,7 @@ class LangGraphAgent:
                                 "content": token.content,
                                 "done": False,
                             })
-                    elif isinstance(token, LCToolMessage):
+                    elif isinstance(token, ToolMessage):
                         yield _json.dumps({
                             "type": "tool_result",
                             "content": str(token.content)[:200],
@@ -428,7 +427,7 @@ class LangGraphAgent:
                             "done": False,
                         })
                 except Exception as token_error:
-                    logger.error("error_processing_token", error=str(token_error), session_id=session_id)
+                    logger.exception("error_processing_token", session_id=session_id)
                     continue
 
             # After streaming completes, get final state and update memory in background

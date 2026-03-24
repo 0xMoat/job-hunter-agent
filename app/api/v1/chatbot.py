@@ -4,7 +4,6 @@ This module provides endpoints for chat interactions, including regular chat,
 streaming chat, message history management, and chat history clearing.
 """
 
-import json
 import json as _json
 from typing import List
 
@@ -116,22 +115,18 @@ async def chat_stream(
                 yield f"data: {_json.dumps({'type': 'done', 'content': '', 'done': True})}\n\n"
 
             except Exception as e:
-                logger.error(
+                logger.exception(
                     "stream_chat_request_failed",
                     session_id=session.id,
-                    error=str(e),
-                    exc_info=True,
                 )
                 yield f"data: {_json.dumps({'type': 'done', 'content': str(e), 'done': True})}\n\n"
 
         return StreamingResponse(event_generator(), media_type="text/event-stream")
 
     except Exception as e:
-        logger.error(
+        logger.exception(
             "stream_chat_request_failed",
             session_id=session.id,
-            error=str(e),
-            exc_info=True,
         )
         raise HTTPException(status_code=500, detail=str(e))
 
