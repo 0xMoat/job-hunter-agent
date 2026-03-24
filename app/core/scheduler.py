@@ -1,6 +1,7 @@
 """APScheduler setup for daily automated job search."""
 
 import asyncio
+import functools
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -35,7 +36,7 @@ async def _daily_job_search() -> None:
             # DuckDuckGoSearchAPIWrapper.results() is synchronous — run in executor
             # to avoid blocking the async event loop during the scheduled window.
             raw_results = await asyncio.get_event_loop().run_in_executor(
-                None, lambda: _wrapper.results(query, num_results=10)
+                None, functools.partial(_wrapper.results, query, num_results=10)
             )
             listings = [
                 {

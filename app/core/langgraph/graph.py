@@ -426,7 +426,7 @@ class LangGraphAgent:
                             "tool_call_id": token.tool_call_id,
                             "done": False,
                         })
-                except Exception as token_error:
+                except Exception:
                     logger.exception("error_processing_token", session_id=session_id)
                     continue
 
