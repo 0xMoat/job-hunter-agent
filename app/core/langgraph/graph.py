@@ -240,11 +240,23 @@ class LangGraphAgent:
         """
         outputs = []
         for tool_call in state.messages[-1].tool_calls:
-            tool_result = await self.tools_by_name[tool_call["name"]].ainvoke(tool_call["args"], config=config)
+            tool_name = tool_call["name"]
+            if tool_name not in self.tools_by_name:
+                logger.warning("unknown_tool_called", tool_name=tool_name)
+                outputs.append(
+                    ToolMessage(
+                        content=f"Tool '{tool_name}' not found.",
+                        name=tool_name,
+                        tool_call_id=tool_call["id"],
+                    )
+                )
+                continue
+            tool_result = await self.tools_by_name[tool_name].ainvoke(tool_call["args"], config=config)
+            logger.info("tool_called", tool_name=tool_name, session_id=config.get("configurable", {}).get("thread_id"))
             outputs.append(
                 ToolMessage(
                     content=tool_result,
-                    name=tool_call["name"],
+                    name=tool_name,
                     tool_call_id=tool_call["id"],
                 )
             )
