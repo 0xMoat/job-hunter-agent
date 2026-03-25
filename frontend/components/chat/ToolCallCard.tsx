@@ -65,6 +65,7 @@ export function ToolCallCard({ entry, isStreaming }: Props) {
         <button
           onClick={() => !isRunning && setExpanded((e) => !e)}
           disabled={isRunning}
+          aria-expanded={expanded}
           className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors ${
             !isRunning ? "hover:bg-white/20 cursor-pointer" : "cursor-default"
           } ${expanded ? "border-b border-[var(--border)]" : ""}`}
