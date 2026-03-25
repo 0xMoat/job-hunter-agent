@@ -376,9 +376,7 @@ class LangGraphAgent:
         config = {
             "configurable": {"thread_id": session_id, "user_id": user_id},
             "callbacks": [
-                CallbackHandler(
-                    environment=settings.ENVIRONMENT.value, debug=False, user_id=user_id, session_id=session_id
-                )
+                CallbackHandler()
             ],
             "metadata": {
                 "user_id": user_id,
@@ -394,6 +392,9 @@ class LangGraphAgent:
             await self._get_relevant_memory(user_id, messages[-1].content)
         ) or "No relevant memory found."
 
+        # Accumulate tool call args per tool_call_id across streaming chunks
+        tool_call_args: dict[str, str] = {}
+
         try:
             async for token, _ in self._graph.astream(
                 {"messages": dump_messages(messages), "long_term_memory": relevant_memory},
@@ -404,14 +405,20 @@ class LangGraphAgent:
                     if isinstance(token, AIMessageChunk):
                         if token.tool_call_chunks:
                             for tc in token.tool_call_chunks:
+                                tool_call_id = tc.get("id", "")
                                 if tc.get("name"):
+                                    # First chunk for this tool call — emit the card, start accumulating args
+                                    tool_call_args[tool_call_id] = tc.get("args", "")
                                     yield _json.dumps({
                                         "type": "tool_call",
-                                        "content": f"Calling {tc['name']}...",
+                                        "content": "",
                                         "tool_name": tc["name"],
-                                        "tool_call_id": tc.get("id", ""),
+                                        "tool_call_id": tool_call_id,
                                         "done": False,
                                     })
+                                elif tool_call_id in tool_call_args:
+                                    # Subsequent arg chunks — accumulate, don't emit
+                                    tool_call_args[tool_call_id] += tc.get("args", "")
                         elif token.content:
                             yield _json.dumps({
                                 "type": "text",
@@ -421,7 +428,8 @@ class LangGraphAgent:
                     elif isinstance(token, ToolMessage):
                         yield _json.dumps({
                             "type": "tool_result",
-                            "content": str(token.content)[:200],
+                            "content": str(token.content),
+                            "calling_args": tool_call_args.get(token.tool_call_id, ""),
                             "tool_name": token.name,
                             "tool_call_id": token.tool_call_id,
                             "done": False,

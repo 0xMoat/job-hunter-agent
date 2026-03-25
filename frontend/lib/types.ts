@@ -24,6 +24,7 @@ export interface StreamChunk {
   content: string
   tool_name?: string
   tool_call_id?: string
+  calling_args?: string
   done: boolean
 }
 

@@ -159,7 +159,12 @@ export function useChat({
                     ...m,
                     toolCalls: m.toolCalls.map((tc) =>
                       tc.toolCallId === chunk.tool_call_id
-                        ? { ...tc, resultContent: chunk.content, status: "done" as const }
+                        ? {
+                            ...tc,
+                            resultContent: chunk.content,
+                            callingContent: chunk.calling_args ?? tc.callingContent,
+                            status: "done" as const,
+                          }
                         : tc,
                     ),
                   }
