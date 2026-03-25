@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef } from "react"
+import { useLanguage } from "@/contexts/LanguageContext"
 
 interface Props {
   onSend: (text: string) => void
@@ -8,6 +9,7 @@ interface Props {
 }
 
 export function ChatInput({ onSend, disabled }: Props) {
+  const { t } = useLanguage()
   const [text, setText] = useState("")
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -36,7 +38,7 @@ export function ChatInput({ onSend, disabled }: Props) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex items-end gap-2 p-3 border-t border-slate-700"
+      className="glass flex items-end gap-2 p-3 rounded-b-3xl"
     >
       <textarea
         ref={textareaRef}
@@ -45,15 +47,25 @@ export function ChatInput({ onSend, disabled }: Props) {
         onKeyDown={handleKeyDown}
         disabled={disabled}
         rows={1}
-        placeholder="输入消息… (Enter 发送，Shift+Enter 换行)"
-        className="flex-1 resize-none rounded-xl bg-slate-700 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 min-h-[44px] max-h-[120px] leading-relaxed"
+        placeholder={t('chat_placeholder')}
+        className="flex-1 resize-none rounded-xl bg-black/[0.04] px-4 py-2.5
+                   font-body font-light text-sm text-[var(--text)]
+                   placeholder:text-[var(--text-3)]
+                   border border-[var(--border-strong)]
+                   focus-visible:outline-none focus-visible:ring-2
+                   focus-visible:ring-[#141210]/30
+                   disabled:opacity-50 min-h-[44px] max-h-[120px] leading-relaxed"
       />
       <button
         type="submit"
         disabled={disabled || !text.trim()}
-        className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-xl text-sm font-medium transition-colors min-h-[44px]"
+        className="px-4 py-2.5 bg-[var(--accent)] hover:opacity-90
+                   disabled:bg-[var(--border-strong)] disabled:text-[var(--text-3)]
+                   disabled:cursor-not-allowed
+                   text-[var(--accent-fg)] rounded-xl
+                   font-body font-medium text-sm transition-opacity min-h-[44px]"
       >
-        {disabled ? "…" : "发送"}
+        {disabled ? t('chat_sending') : t('chat_send')}
       </button>
     </form>
   )
