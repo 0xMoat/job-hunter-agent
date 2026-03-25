@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { apiRegister, apiLogin, apiCreateSession } from "@/lib/api"
-import { setAccessToken, setSessionToken } from "@/lib/auth"
+import { setAccessToken, setSessionToken, setSessionId } from "@/lib/auth"
 import { useLanguage } from "@/contexts/LanguageContext"
 
 type Mode = "login" | "register"
@@ -33,6 +33,7 @@ export default function LoginPage() {
       setAccessToken(accessToken)
       const session = await apiCreateSession(accessToken)
       setSessionToken(session.token.access_token)
+      setSessionId(session.session_id)
       router.push("/chat")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to authenticate")
