@@ -67,6 +67,11 @@ const zh: Dict = {
   login_submit_login: '登录',
   login_submit_register: '创建账号',
   login_loading: '请稍候…',
+  // Sidebar
+  sidebar_new_chat: '＋ 新建对话',
+  sidebar_empty: '还没有对话记录',
+  sidebar_today: '今天',
+  sidebar_yesterday: '昨天',
 }
 
 const en: Dict = {
@@ -131,6 +136,11 @@ const en: Dict = {
   login_submit_login: 'Login',
   login_submit_register: 'Create Account',
   login_loading: 'Please wait…',
+  // Sidebar
+  sidebar_new_chat: '+ New Chat',
+  sidebar_empty: 'No conversations yet',
+  sidebar_today: 'Today',
+  sidebar_yesterday: 'Yesterday',
 }
 
 const dicts: Record<Locale, Dict> = { 'zh-CN': zh, en }
