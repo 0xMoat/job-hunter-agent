@@ -116,7 +116,7 @@ export function ApplicationTracker() {
         <div className="flex-1 overflow-y-auto px-4 py-4">
           {loading ? (
             <p className="font-body font-light text-xs text-[var(--text-3)] text-center mt-6">
-              {t('listings_loading')}
+              {t('tracker_loading')}
             </p>
           ) : (
             <div className="space-y-5">

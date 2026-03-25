@@ -27,6 +27,7 @@ const zh: Dict = {
   // Tool call card
   tool_running: '运行中…',
   // Tracker
+  tracker_loading: '加载中…',
   tracker_title: '投递记录',
   tracker_sub_n: (n: number) => `${n} 个进行中`,
   tracker_add: '+ 添加',
@@ -90,6 +91,7 @@ const en: Dict = {
   // Tool call card
   tool_running: 'running…',
   // Tracker
+  tracker_loading: 'Loading…',
   tracker_title: 'Applications',
   tracker_sub_n: (n: number) => `${n} tracked`,
   tracker_add: '+ Add',
