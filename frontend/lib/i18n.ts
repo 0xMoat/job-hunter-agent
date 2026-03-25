@@ -26,6 +26,12 @@ const zh: Dict = {
   quick_prompt_3: '帮我制定本周的投递计划',
   // Tool call card
   tool_running: '运行中…',
+  tool_expand: '展开',
+  tool_collapse: '收起',
+  tool_request: '请求参数',
+  tool_response: '响应结果',
+  tool_no_content: '（无内容）',
+  tool_fetching: '获取中…',
   // Tracker
   tracker_loading: '加载中…',
   tracker_title: '投递记录',
@@ -72,6 +78,7 @@ const zh: Dict = {
   sidebar_empty: '还没有对话记录',
   sidebar_today: '今天',
   sidebar_yesterday: '昨天',
+  sidebar_unnamed: '新对话',
 }
 
 const en: Dict = {
@@ -95,6 +102,12 @@ const en: Dict = {
   quick_prompt_3: 'Help me plan my applications this week',
   // Tool call card
   tool_running: 'running…',
+  tool_expand: 'Show',
+  tool_collapse: 'Hide',
+  tool_request: 'Request',
+  tool_response: 'Response',
+  tool_no_content: '(empty)',
+  tool_fetching: 'Fetching…',
   // Tracker
   tracker_loading: 'Loading…',
   tracker_title: 'Applications',
@@ -141,6 +154,7 @@ const en: Dict = {
   sidebar_empty: 'No conversations yet',
   sidebar_today: 'Today',
   sidebar_yesterday: 'Yesterday',
+  sidebar_unnamed: 'New Chat',
 }
 
 const dicts: Record<Locale, Dict> = { 'zh-CN': zh, en }
