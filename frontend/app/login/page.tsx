@@ -4,11 +4,13 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { apiRegister, apiLogin, apiCreateSession } from "@/lib/api"
 import { setAccessToken, setSessionToken } from "@/lib/auth"
+import { useLanguage } from "@/contexts/LanguageContext"
 
 type Mode = "login" | "register"
 
 export default function LoginPage() {
   const router = useRouter()
+  const { t, locale, setLocale } = useLanguage()
   const [mode, setMode] = useState<Mode>("login")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -19,10 +21,8 @@ export default function LoginPage() {
     e.preventDefault()
     setError("")
     setLoading(true)
-
     try {
       let accessToken: string
-
       if (mode === "register") {
         const data = await apiRegister(email, password)
         accessToken = data.token.access_token
@@ -30,13 +30,9 @@ export default function LoginPage() {
         const data = await apiLogin(email, password)
         accessToken = data.access_token
       }
-
       setAccessToken(accessToken)
-
-      // Create a chat session. The session token is used for all agent API calls.
       const session = await apiCreateSession(accessToken)
       setSessionToken(session.token.access_token)
-
       router.push("/chat")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to authenticate")
@@ -46,58 +42,100 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-900">
-      <div className="w-full max-w-md p-8 bg-slate-800 rounded-xl shadow-2xl">
-        <h1 className="text-2xl font-bold text-white mb-1">Job Hunter Agent</h1>
-        <p className="text-slate-400 mb-6 text-sm">AI-powered job hunting assistant</p>
+    <div className="min-h-screen flex items-center justify-center">
+      {/* Language toggle — top-right */}
+      <button
+        onClick={() => setLocale(locale === 'zh-CN' ? 'en' : 'zh-CN')}
+        className="fixed top-4 right-4 text-xs font-body font-medium
+                   text-[var(--text-3)] hover:text-[var(--text-2)]
+                   px-3 py-1.5 rounded-full hover:bg-black/5 transition-colors"
+        aria-label="Switch language"
+      >
+        {t('lang_toggle')}
+      </button>
 
-        <div className="flex gap-2 mb-6">
+      <div className="glass-strong rounded-3xl p-10 w-full max-w-md">
+        <h1 className="font-heading italic text-3xl tracking-tight text-[var(--text)] mb-1">
+          {t('login_title')}
+        </h1>
+        <p className="font-body font-light text-sm text-[var(--text-3)] mb-8">
+          {t('login_sub')}
+        </p>
+
+        {/* Mode toggle */}
+        <div className="flex gap-2 mb-8">
           {(["login", "register"] as Mode[]).map((m) => (
             <button
               key={m}
               type="button"
               onClick={() => setMode(m)}
-              className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`flex-1 py-2 rounded-full text-sm font-body font-medium transition-colors ${
                 mode === m
-                  ? "bg-blue-600 text-white"
-                  : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                  ? "bg-[var(--accent)] text-[var(--accent-fg)]"
+                  : "glass text-[var(--text-2)] hover:text-[var(--text)]"
               }`}
             >
-              {m === "login" ? "Login" : "Register"}
+              {m === "login" ? t('login_mode_login') : t('login_mode_register')}
             </button>
           ))}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm text-slate-300 mb-1">Email</label>
+            <label
+              htmlFor="email"
+              className="block font-body text-sm text-[var(--text-2)] mb-1.5"
+            >
+              {t('login_email')}
+            </label>
             <input
+              id="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-blue-500 text-sm"
+              autoComplete="email"
               placeholder="you@example.com"
+              className="w-full px-4 py-2.5 bg-black/[0.04] text-[var(--text)] rounded-xl
+                         border border-[var(--border-strong)]
+                         font-body font-light text-sm placeholder:text-[var(--text-3)]
+                         focus-visible:outline-none focus-visible:ring-2
+                         focus-visible:ring-[#141210]/30"
             />
           </div>
           <div>
-            <label className="block text-sm text-slate-300 mb-1">Password</label>
+            <label
+              htmlFor="password"
+              className="block font-body text-sm text-[var(--text-2)] mb-1.5"
+            >
+              {t('login_password')}
+            </label>
             <input
+              id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-blue-500 text-sm"
+              autoComplete={mode === "register" ? "new-password" : "current-password"}
               placeholder={
                 mode === "register"
-                  ? "≥8 chars, A-Z, a-z, 0-9, special (!@#…)"
-                  : "Your password"
+                  ? t('login_pw_placeholder_new')
+                  : t('login_pw_placeholder_existing')
               }
+              className="w-full px-4 py-2.5 bg-black/[0.04] text-[var(--text)] rounded-xl
+                         border border-[var(--border-strong)]
+                         font-body font-light text-sm placeholder:text-[var(--text-3)]
+                         focus-visible:outline-none focus-visible:ring-2
+                         focus-visible:ring-[#141210]/30"
             />
           </div>
 
           {error && (
-            <p className="text-red-400 text-sm bg-red-900/20 border border-red-800 rounded-lg px-3 py-2">
+            <p
+              role="alert"
+              className="text-red-600 text-sm bg-red-50 border border-red-200
+                         rounded-xl px-4 py-2.5 font-body font-light"
+            >
               {error}
             </p>
           )}
@@ -105,13 +143,16 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-600 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors text-sm"
+            className="w-full py-2.5 bg-[var(--accent)] hover:opacity-90
+                       disabled:opacity-40 disabled:cursor-not-allowed
+                       text-[var(--accent-fg)] rounded-full font-body font-medium
+                       text-sm transition-opacity mt-2"
           >
             {loading
-              ? "Please wait…"
+              ? t('login_loading')
               : mode === "login"
-              ? "Login"
-              : "Create Account"}
+              ? t('login_submit_login')
+              : t('login_submit_register')}
           </button>
         </form>
       </div>
