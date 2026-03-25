@@ -20,7 +20,7 @@ export function MessageBubble({ message, isStreaming }: Props) {
         {message.toolCalls.length > 0 && (
           <div className="mb-2 space-y-1">
             {message.toolCalls.map((tc) => (
-              <ToolCallCard key={tc.toolCallId} entry={tc} />
+              <ToolCallCard key={tc.toolCallId} entry={tc} isStreaming={isStreaming} />
             ))}
           </div>
         )}
