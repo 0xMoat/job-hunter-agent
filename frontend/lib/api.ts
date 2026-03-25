@@ -3,6 +3,16 @@
 
 import type { Application, JobListing } from "./types"
 
+export interface SessionItem {
+  session_id: string
+  name: string
+  token: {
+    access_token: string
+    token_type: string
+    expires_at: string
+  }
+}
+
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
 
 async function req(
@@ -141,4 +151,42 @@ export async function apiGetListings(
 ): Promise<{ listings: JobListing[]; count: number }> {
   const res = await req("/api/v1/listings", {}, sessionToken)
   return res.json()
+}
+
+// ── Sessions ──────────────────────────────────────────────────────────────
+
+export async function apiGetSessions(
+  accessToken: string,
+): Promise<SessionItem[]> {
+  const res = await req("/api/v1/auth/sessions", {}, accessToken)
+  return res.json()
+}
+
+export async function apiGetMessages(
+  sessionToken: string,
+): Promise<Array<{ role: string; content: string }>> {
+  const res = await req("/api/v1/chatbot/messages", {}, sessionToken)
+  const data = await res.json()
+  return data.messages
+}
+
+// IMPORTANT: name must be sent as application/x-www-form-urlencoded, NOT JSON.
+// Authorization uses the session JWT (not user JWT).
+// The sessionId in the path must match the session encoded in sessionToken.
+export async function apiUpdateSessionName(
+  sessionToken: string,
+  sessionId: string,
+  name: string,
+): Promise<void> {
+  const form = new URLSearchParams()
+  form.set("name", name)
+  await req(
+    `/api/v1/auth/session/${sessionId}/name`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: form.toString(),
+    },
+    sessionToken,
+  )
 }
