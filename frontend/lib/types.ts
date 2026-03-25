@@ -16,6 +16,7 @@ export interface ChatMessage {
   role: MessageRole
   textContent: string
   toolCalls: ToolCallEntry[]
+  timestamp?: Date
 }
 
 export interface StreamChunk {
