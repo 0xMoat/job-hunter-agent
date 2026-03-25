@@ -1,11 +1,77 @@
 @import "tailwindcss";
 
-:root {
-  --background: #0f172a;
-  --foreground: #f1f5f9;
+/* ── Font tokens (Tailwind v4 @theme — generates font-heading / font-body utilities) ── */
+@theme {
+  --font-heading: 'Instrument Serif', serif;
+  --font-body: 'Barlow', sans-serif;
 }
 
+/* ── Color palette ── */
+:root {
+  --bg:             #EFECE6;
+  --surface:        rgba(255,255,255,0.65);
+  --surface-strong: rgba(255,255,255,0.88);
+  --border:         rgba(0,0,0,0.07);
+  --border-strong:  rgba(0,0,0,0.11);
+  --text:           #141210;
+  --text-2:         rgba(20,18,16,0.55);
+  --text-3:         rgba(20,18,16,0.38);
+  --accent:         #141210;
+  --accent-fg:      #EFECE6;
+}
+
+/* ── Body background ── */
 body {
-  background-color: var(--background);
-  color: var(--foreground);
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(ellipse 80% 50% at 20% 10%, rgba(255,255,255,0.5) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 90%, rgba(210,200,185,0.4) 0%, transparent 60%);
+  color: var(--text);
+}
+
+/* ── Liquid Glass ── */
+/* IMPORTANT: never add overflow-hidden to .glass or .glass-strong directly —
+   it clips the ::before gradient border. Use an inner wrapper for content clipping. */
+@layer components {
+  .glass {
+    background: var(--surface);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 1px 0 rgba(255,255,255,0.9) inset, 0 2px 12px rgba(0,0,0,0.05);
+    position: relative;
+  }
+  .glass::before {
+    content: '';
+    position: absolute; inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(170deg,
+      rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.3) 25%,
+      rgba(0,0,0,0.04) 50%, rgba(255,255,255,0.7) 100%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  .glass-strong {
+    background: var(--surface-strong);
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
+    box-shadow: 0 1px 0 rgba(255,255,255,1) inset, 0 4px 24px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.05);
+    position: relative;
+  }
+  .glass-strong::before {
+    content: '';
+    position: absolute; inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(170deg,
+      rgba(255,255,255,1) 0%, rgba(255,255,255,0.4) 25%,
+      rgba(0,0,0,0.05) 50%, rgba(255,255,255,0.85) 100%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
 }
