@@ -5,9 +5,17 @@ import { MessageBubble } from "./MessageBubble"
 import { ChatInput } from "./ChatInput"
 import { useChat } from "@/hooks/useChat"
 import { useLanguage } from "@/contexts/LanguageContext"
+import { useSession } from "@/contexts/SessionContext"
 
-export function ChatPanel() {
-  const { messages, streaming, error, sendMessage } = useChat()
+export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boolean) => void }) {
+  const { currentSessionToken, currentSessionId, sessions, renameSession } = useSession()
+  const currentSession = sessions.find((s) => s.session_id === currentSessionId)
+  const { messages, streaming, error, historyLoading, sendMessage } = useChat({
+    sessionToken: currentSessionToken,
+    currentSessionId,
+    currentSessionName: currentSession?.name ?? "",
+    renameSession,
+  })
   const { t } = useLanguage()
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -21,10 +29,12 @@ export function ChatPanel() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
+  useEffect(() => {
+    onStreamingChange?.(streaming)
+  }, [streaming, onStreamingChange])
+
   return (
-    /* Outer: glass-strong, NO overflow-hidden — preserves ::before gradient border */
     <div className="glass-strong rounded-3xl flex flex-col h-full">
-      {/* Inner: overflow-hidden clips scroll without clipping the border */}
       <div className="flex flex-col h-full overflow-hidden">
 
         {/* Header */}
@@ -43,7 +53,17 @@ export function ChatPanel() {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-5 py-4">
-          {messages.length === 0 && (
+          {historyLoading && (
+            <div className="flex items-center justify-center py-8 text-[var(--text-3)] text-sm font-body">
+              <span className="flex gap-1 mr-2" aria-hidden="true">
+                <span className="w-1.5 h-1.5 bg-[var(--text-3)] rounded-full animate-bounce [animation-delay:0ms]" />
+                <span className="w-1.5 h-1.5 bg-[var(--text-3)] rounded-full animate-bounce [animation-delay:150ms]" />
+                <span className="w-1.5 h-1.5 bg-[var(--text-3)] rounded-full animate-bounce [animation-delay:300ms]" />
+              </span>
+            </div>
+          )}
+
+          {!historyLoading && messages.length === 0 && (
             <div className="flex flex-col items-center gap-5 max-w-xs mx-auto mt-12">
               <h3 className="font-heading italic text-2xl tracking-tight text-[var(--text)] text-center">
                 {t('chat_empty_heading')}
