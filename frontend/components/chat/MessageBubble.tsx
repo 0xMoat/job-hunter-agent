@@ -1,5 +1,8 @@
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 import { ToolCallCard } from "./ToolCallCard"
 import type { ChatMessage } from "@/lib/types"
+import { useLanguage } from "@/contexts/LanguageContext"
 
 interface Props {
   message: ChatMessage
@@ -7,12 +10,13 @@ interface Props {
 }
 
 export function MessageBubble({ message, isStreaming }: Props) {
+  const { locale } = useLanguage()
   const isUser = message.role === "user"
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"} mb-3`}>
       <div className="max-w-[85%]">
-        {/* Tool call cards (assistant only, above text bubble) */}
+        {/* Tool call cards (assistant only) */}
         {message.toolCalls.length > 0 && (
           <div className="mb-2 space-y-1">
             {message.toolCalls.map((tc) => (
@@ -24,16 +28,51 @@ export function MessageBubble({ message, isStreaming }: Props) {
         {/* Text bubble */}
         {(message.textContent || isStreaming) && (
           <div
-            className={`rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
+            className={`rounded-[18px] px-4 py-2.5 text-sm leading-relaxed font-body ${
               isUser
-                ? "bg-blue-600 text-white rounded-br-sm"
-                : "bg-slate-700 text-slate-100 rounded-bl-sm"
+                ? "bg-[var(--accent)] text-[var(--accent-fg)] rounded-br-[4px]"
+                : "glass text-[var(--text)] font-light rounded-bl-[4px]"
             }`}
           >
-            {message.textContent}
+            <div className="[&_li>p]:my-0 [&_li>p]:inline">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  a: ({ href, children }) => (
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline underline-offset-2 opacity-80 hover:opacity-100 break-all"
+                    >
+                      {children}
+                    </a>
+                  ),
+                  p: ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
+                  ul: ({ children }) => <ul className="list-disc pl-4 mb-1 space-y-0.5">{children}</ul>,
+                  ol: ({ children }) => <ol className="list-decimal pl-4 mb-1 space-y-0.5">{children}</ol>,
+                  li: ({ children }) => <li className="leading-snug">{children}</li>,
+                  strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                  code: ({ children }) => (
+                    <code className="px-1 py-0.5 rounded text-xs font-mono bg-black/10">{children}</code>
+                  ),
+                }}
+              >
+                {message.textContent}
+              </ReactMarkdown>
+            </div>
             {isStreaming && (
               <span className="inline-block w-1 h-4 bg-current ml-0.5 animate-pulse rounded-sm align-middle" />
             )}
+          </div>
+        )}
+
+        {/* Timestamp */}
+        {message.timestamp && (
+          <div className={`mt-1 text-[10px] font-body font-light text-[var(--text-3)] ${
+            isUser ? "text-right" : "text-left"
+          }`}>
+            {message.timestamp.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })}
           </div>
         )}
       </div>
