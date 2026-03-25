@@ -174,7 +174,7 @@ All user-visible strings use `t()` via `useLanguage()`. New keys to add to `fron
 | `tool_request` | `请求参数` | `Request` |
 | `tool_response` | `响应结果` | `Response` |
 | `tool_no_content` | `（无内容）` | `(empty)` |
-| `tool_fetching` | `获取中...` | `Fetching...` |
+| `tool_fetching` | `获取中…` | `Fetching…` |
 
 ---
 
