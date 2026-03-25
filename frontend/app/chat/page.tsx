@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { isAuthenticated, clearAuth } from "@/lib/auth"
 import { ChatPanel } from "@/components/chat/ChatPanel"
@@ -119,7 +119,9 @@ function ChatPageInner() {
 export default function ChatPage() {
   return (
     <SessionProvider>
-      <ChatPageInner />
+      <Suspense>
+        <ChatPageInner />
+      </Suspense>
     </SessionProvider>
   )
 }
