@@ -21,16 +21,14 @@ function ChatPageInner() {
     const p = searchParams.get("tab")
     return p === "picks" ? "picks" : "chat"
   })
-  const [ready, setReady] = useState(false)
+  const [ready] = useState(() => isAuthenticated())
   const [streaming, setStreaming] = useState(false)
 
   useEffect(() => {
-    if (!isAuthenticated()) {
+    if (!ready) {
       router.replace("/login")
-    } else {
-      setReady(true)
     }
-  }, [router])
+  }, [ready, router])
 
   function handleTabChange(key: Tab) {
     setTab(key)
