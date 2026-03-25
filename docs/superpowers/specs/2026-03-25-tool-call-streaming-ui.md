@@ -34,16 +34,47 @@ Upgrade `ToolCallCard` to display full request/response details with:
 ### Behavior: Expand / Collapse Lifecycle
 
 ```
-tool_call chunk arrives   →  card created, expanded = true
-tool_result chunk arrives →  card updated with result, still expanded = true
-streaming ends            →  all cards auto-collapse (expanded = false)
+tool_call chunk arrives   →  card created, expanded = true  (isStreaming is true at this point)
+tool_result chunk arrives →  card updated with result, expanded unchanged
+streaming ends            →  all cards auto-collapse (expanded → false)
 user clicks header        →  toggle expanded state manually
 ```
 
-- `expanded` is **local state** in `ToolCallCard` (`useState(true)`)
-- A `useEffect` watching `isStreaming` fires when `true → false` and sets `expanded = false`
-- The toggle button is **hidden while running** (no manual collapse mid-execution)
-- Historical messages loaded from API start with `expanded = false` because `isStreaming` is `false` at mount time
+**State management:**
+
+- `expanded` is **local state** in `ToolCallCard`, initialized from the `isStreaming` prop:
+  ```ts
+  const [expanded, setExpanded] = useState(isStreaming === true)
+  ```
+  This means:
+  - Cards created during an active stream initialize as `expanded = true`
+  - Historical cards loaded with `isStreaming = false` initialize as `expanded = false`
+
+- A `useEffect` watching `isStreaming` fires and sets `expanded = false` whenever `isStreaming` is falsy.
+  Use a ref to guard against the redundant fire on initial mount for historical cards:
+  ```ts
+  const wasStreamingRef = useRef(isStreaming === true)
+  useEffect(() => {
+    if (wasStreamingRef.current && !isStreaming) {
+      setExpanded(false)
+    }
+    if (isStreaming) wasStreamingRef.current = true
+  }, [isStreaming])
+  ```
+  This ensures historical cards (which mount with `isStreaming = false`) are never affected by the effect,
+  and only cards that have seen a `true → false` transition are auto-collapsed.
+
+**Clarification — two separate signals:**
+
+| Rule | Signal used |
+|---|---|
+| Auto-collapse on stream end | `isStreaming` prop (`true → false`) |
+| Hide toggle button | `entry.status === "calling"` |
+| Show bounce-dot animation instead of result | `entry.status === "calling"` |
+
+`isStreaming` controls the lifecycle; `entry.status` controls per-card running state. They are independent: a card can be `status: "done"` while `isStreaming` is still `true` (subsequent tools are still running).
+
+**Error path:** When the stream fails, `useChat.ts` removes the assistant message entirely (`filter`). The `ToolCallCard` components are unmounted and their effects cleaned up — no visible state problem.
 
 ### ToolCallCard Structure
 
@@ -51,11 +82,11 @@ user clicks header        →  toggle expanded state manually
 ┌──────────────────────────────────────────────────────┐
 │ [●] duckduckgo_search   query: "SWE jobs..."  [收起∧] │  ← Header (always visible)
 ├──────────────────────────────────────────────────────│
-│ 请求参数                                              │  ← shown when expanded
+│ 请求参数                                              │  ← shown when expanded AND callingContent non-empty
 │   { "query": "software engineer", "max_results": 5 } │
 ├──────────────────────────────────────────────────────│
-│ 响应结果                                              │  ← shown when expanded AND done
-│   [{ "title": "...", "url": "..." }]                 │
+│ 响应结果                                              │  ← shown when expanded (always, see below)
+│   [{ "title": "...", "url": "..." }]                 │    running: bounce dots; done: result content
 └──────────────────────────────────────────────────────┘
 ```
 
@@ -63,27 +94,52 @@ user clicks header        →  toggle expanded state manually
 
 | Element | Description |
 |---|---|
-| Status dot | Amber pulse = running; green glow = done |
+| Status dot | Amber pulse = `status === "calling"`; green glow = `status === "done"` |
 | Tool name | `font-weight: 600`, `color: var(--text-2)` |
-| Key param preview | First key-value from parsed `callingContent` JSON, format: `key: "value"`, truncated with ellipsis; hidden if `callingContent` is empty or unparseable |
-| Toggle button | `展开 ∨` / `收起 ∧`; hidden while `status === "calling"` |
+| Key param preview | See "Key Param Preview" section below |
+| Toggle button | `t('tool_expand')` / `t('tool_collapse')`; **hidden** when `entry.status === "calling"` |
 
-**Body sections (expanded only):**
+**Body sections visibility rules:**
 
-- **请求参数**: renders `callingContent`. Hidden entirely if empty string.
-- **响应结果**: renders `resultContent`. While `status === "calling"`, shows bounce-dot animation with italic placeholder text instead. `max-h-48 overflow-y-auto` to handle long output.
+- **请求参数 section**: show when `expanded && callingContent.length > 0`
+- **响应结果 section**: show when `expanded`, always present in expanded state:
+  - If `entry.status === "calling"`: show bounce-dot animation + italic placeholder text
+  - If `entry.status === "done"`: show result content (highlighted or plain)
+  - If `resultContent` is `undefined` or empty string and `status === "done"`: show a muted "（无内容）" placeholder
+
+**Result section overflow:** `max-h-48 overflow-y-auto` — scrollable, never truncated.
+
+### Key Param Preview
+
+Extracted from `callingContent`. Rules in order:
+
+1. Try `JSON.parse(callingContent)`
+2. If successful, find the first key whose value is a string or number
+3. Render as `key: "value"` (string) or `key: value` (number)
+4. If the first string/number value is not found (e.g. all values are arrays/objects), render nothing
+5. If `JSON.parse` fails or `callingContent` is empty, render nothing
+6. Truncation: CSS `max-w-[180px] truncate` (single line, ellipsis via Tailwind)
 
 ### JSON Syntax Highlighting
 
 A standalone utility `frontend/lib/highlightJson.ts` exports:
 
 ```ts
-function highlightJson(input: string): string
+export function highlightJson(input: string): string
 // Returns HTML string with <span> tags for syntax coloring.
-// Returns the raw input unchanged if JSON.parse fails (plain-text fallback).
+// Returns HTML-escaped raw input if JSON.parse fails (plain-text fallback).
 ```
 
-Rendered via `dangerouslySetInnerHTML` inside a `<pre>` tag. Input is the raw string from `callingContent` / `resultContent`.
+Rendered via `dangerouslySetInnerHTML` inside a `<pre>` tag.
+
+**Security requirement:** All text content (keys and string values) must be HTML-escaped before being wrapped in `<span>` tags. This prevents XSS from tool outputs that contain HTML/script content from external sources (e.g. DuckDuckGo search results).
+
+Escaping function required inside `highlightJson`:
+```ts
+function escapeHtml(s: string): string {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+}
+```
 
 **Color tokens (warm palette matching project):**
 
@@ -104,8 +160,21 @@ Matches existing `ToolCallCard` base (`.glass`, `.rounded-xl`) with these additi
 - **Header**: `border-b border-[var(--border)]` when expanded; `hover:bg-white/20` on cursor hover
 - **Section label**: `9px uppercase tracking-widest text-[var(--text-3)] bg-black/[0.02]`
 - **Code area**: `font-mono text-[11px] leading-relaxed text-[var(--text-strong-2)]`
-- **Running state**: bounce dots + italic `text-[var(--text-3)]`, no result section shown
+- **Running state**: reuse the existing bounce-dot pattern from `ChatPanel.tsx` — three `w-1.5 h-1.5 bg-[var(--text-3)] rounded-full animate-bounce` spans with `[animation-delay:0ms]`, `[animation-delay:150ms]`, `[animation-delay:300ms]`, followed by italic `t('tool_fetching')` text in `text-[var(--text-3)]`
 - **Result area**: `max-h-48 overflow-y-auto`
+
+### i18n
+
+All user-visible strings use `t()` via `useLanguage()`. New keys to add to `frontend/lib/i18n.ts`:
+
+| Key | zh-CN | en |
+|---|---|---|
+| `tool_expand` | `展开` | `Show` |
+| `tool_collapse` | `收起` | `Hide` |
+| `tool_request` | `请求参数` | `Request` |
+| `tool_response` | `响应结果` | `Response` |
+| `tool_no_content` | `（无内容）` | `(empty)` |
+| `tool_fetching` | `获取中...` | `Fetching...` |
 
 ---
 
@@ -113,11 +182,13 @@ Matches existing `ToolCallCard` base (`.glass`, `.rounded-xl`) with these additi
 
 | File | Change |
 |---|---|
-| `frontend/lib/highlightJson.ts` | **New** — JSON syntax highlighter utility |
-| `frontend/components/chat/ToolCallCard.tsx` | **Rewrite** — new structure, expand/collapse, JSON sections |
-| `frontend/components/chat/MessageBubble.tsx` | **1-line change** — pass `isStreaming` prop to `ToolCallCard` |
+| `frontend/lib/highlightJson.ts` | **New** — JSON syntax highlighter with XSS-safe HTML escaping |
+| `frontend/lib/i18n.ts` | **Add** — 6 new i18n keys |
+| `frontend/components/chat/ToolCallCard.tsx` | **Rewrite** — new Props interface (`isStreaming?: boolean`), expand/collapse logic, JSON sections |
+| `frontend/components/chat/MessageBubble.tsx` | **1-prop addition** — add `isStreaming={isStreaming}` to the `<ToolCallCard>` call site |
 
-`lib/types.ts`, `hooks/useChat.ts`, and `app/chat/page.tsx` are **not modified**.
+`lib/types.ts`, `hooks/useChat.ts`, `app/chat/page.tsx`, and `ChatPanel.tsx` are **not modified**.
+`ChatPanel.tsx` already passes `isStreaming` correctly to `MessageBubble` — no change needed there.
 
 ---
 
@@ -126,11 +197,15 @@ Matches existing `ToolCallCard` base (`.glass`, `.rounded-xl`) with these additi
 | Scenario | Handling |
 |---|---|
 | `callingContent` is empty string | Hide 请求参数 section entirely |
-| `callingContent` is invalid JSON | Plain-text fallback, no highlighting |
+| `callingContent` is invalid JSON | Plain-text fallback (HTML-escaped), no highlighting |
+| `resultContent` is `undefined` or `""` and status is `"done"` | Show muted `t('tool_no_content')` placeholder |
 | `resultContent` is very long | `max-h-48 overflow-y-auto`, never truncated |
-| Historical messages on load | `isStreaming = false` at mount → `expanded` initializes to `false` |
+| Historical messages on load | `isStreaming = false` at mount → `useState(false)` → all cards start collapsed |
 | Multiple tool calls in one message | Each `ToolCallCard` manages its own `expanded` state independently |
 | User manually expands a card after auto-collapse | Toggle works normally via header click |
+| Stream errors mid-way | Assistant message removed entirely; cards unmounted; no visible state issue |
+| First JSON value is array/object (no string/number key) | Key param preview is hidden |
+| Tool result contains HTML or `<script>` | Escaped by `escapeHtml()` in `highlightJson`, XSS neutralized |
 
 ---
 
