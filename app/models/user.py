@@ -25,6 +25,7 @@ class User(BaseModel, table=True):
         id: The primary key
         email: User's email (unique)
         hashed_password: Bcrypt hashed password
+        system_prompt: Custom system prompt override (None = use default)
         created_at: When the user was created
         sessions: Relationship to user's chat sessions
     """
