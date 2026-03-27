@@ -119,6 +119,30 @@ class DatabaseService:
             user = session.exec(statement).first()
             return user
 
+    async def update_user_system_prompt(self, user_id: int, prompt: Optional[str]) -> User:
+        """Set or clear a user's custom system prompt.
+
+        Args:
+            user_id: The ID of the user to update.
+            prompt: The new system prompt, or None to reset to default.
+
+        Returns:
+            User: The updated user.
+
+        Raises:
+            HTTPException: If the user is not found.
+        """
+        with Session(self.engine) as session:
+            user = session.get(User, user_id)
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+            user.system_prompt = prompt
+            session.add(user)
+            session.commit()
+            session.refresh(user)
+            logger.info("user_system_prompt_updated", user_id=user_id, is_custom=prompt is not None)
+            return user
+
     async def delete_user_by_email(self, email: str) -> bool:
         """Delete a user by email.
 

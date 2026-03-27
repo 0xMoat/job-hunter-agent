@@ -2,6 +2,7 @@
 
 import asyncio
 import json as _json
+from datetime import datetime
 from typing import (
     AsyncGenerator,
     Optional,
@@ -196,7 +197,22 @@ class LangGraphAgent:
             else settings.DEFAULT_LLM_MODEL
         )
 
-        SYSTEM_PROMPT = load_system_prompt(long_term_memory=state.long_term_memory)
+        custom = config["configurable"].get("custom_system_prompt")
+        if custom:
+            try:
+                SYSTEM_PROMPT = custom.format(
+                    agent_name=settings.PROJECT_NAME + " Agent",
+                    long_term_memory=state.long_term_memory,
+                    current_date_and_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                )
+            except KeyError:
+                logger.warning(
+                    "custom_prompt_format_error_falling_back",
+                    session_id=config["configurable"]["thread_id"],
+                )
+                SYSTEM_PROMPT = load_system_prompt(long_term_memory=state.long_term_memory)
+        else:
+            SYSTEM_PROMPT = load_system_prompt(long_term_memory=state.long_term_memory)
 
         # Prepare messages with system prompt
         messages = prepare_messages(state.messages, current_llm, SYSTEM_PROMPT)
@@ -322,6 +338,7 @@ class LangGraphAgent:
         messages: list[Message],
         session_id: str,
         user_id: Optional[str] = None,
+        custom_system_prompt: Optional[str] = None,
     ) -> list[dict]:
         """Get a response from the LLM.
 
@@ -336,7 +353,11 @@ class LangGraphAgent:
         if self._graph is None:
             self._graph = await self.create_graph()
         config = {
-            "configurable": {"thread_id": session_id, "user_id": user_id},
+            "configurable": {
+                "thread_id": session_id,
+                "user_id": user_id,
+                "custom_system_prompt": custom_system_prompt,
+            },
             "callbacks": [CallbackHandler()],
             "metadata": {
                 "user_id": user_id,
@@ -364,7 +385,11 @@ class LangGraphAgent:
             logger.error(f"Error getting response: {str(e)}")
 
     async def get_stream_response(
-        self, messages: list[Message], session_id: str, user_id: Optional[str] = None
+        self,
+        messages: list[Message],
+        session_id: str,
+        user_id: Optional[str] = None,
+        custom_system_prompt: Optional[str] = None,
     ) -> AsyncGenerator[str, None]:
         """Get a stream response from the LLM.
 
@@ -377,7 +402,11 @@ class LangGraphAgent:
             str: Tokens of the LLM response.
         """
         config = {
-            "configurable": {"thread_id": session_id, "user_id": user_id},
+            "configurable": {
+                "thread_id": session_id,
+                "user_id": user_id,
+                "custom_system_prompt": custom_system_prompt,
+            },
             "callbacks": [
                 CallbackHandler()
             ],

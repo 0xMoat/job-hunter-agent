@@ -2,11 +2,12 @@
 
 import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { isAuthenticated, clearAuth } from "@/lib/auth"
+import { isAuthenticated, clearAuth, getAccessToken } from "@/lib/auth"
 import { ChatPanel } from "@/components/chat/ChatPanel"
 import { SessionSidebar } from "@/components/chat/SessionSidebar"
 import { ApplicationTracker } from "@/components/tracker/ApplicationTracker"
 import { ListingsPanel } from "@/components/listings/ListingsPanel"
+import { SystemPromptModal } from "@/components/settings/SystemPromptModal"
 import { SessionProvider } from "@/contexts/SessionContext"
 import { useLanguage } from "@/contexts/LanguageContext"
 
@@ -23,6 +24,7 @@ function ChatPageInner() {
   })
   const [ready, setReady] = useState(false)
   const [streaming, setStreaming] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
 
   useEffect(() => {
     if (!isAuthenticated()) {
@@ -83,6 +85,15 @@ function ChatPageInner() {
               {t('lang_toggle')}
             </button>
             <button
+              onClick={() => setShowSettings(true)}
+              aria-label={t('settings_aria') as string}
+              className="w-8 h-8 flex items-center justify-center rounded-full
+                         text-[var(--text-3)] hover:text-[var(--text-2)]
+                         hover:bg-black/5 transition-colors text-base"
+            >
+              ⚙
+            </button>
+            <button
               onClick={handleLogout}
               className="text-xs font-body text-[var(--text-3)] hover:text-[var(--text-2)]
                          px-3 py-1.5 rounded-full hover:bg-black/5 transition-colors"
@@ -92,6 +103,13 @@ function ChatPageInner() {
           </div>
         </nav>
       </div>
+
+      {showSettings && (
+        <SystemPromptModal
+          accessToken={getAccessToken() ?? ""}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
 
       {/* Content */}
       <div className="flex-1 overflow-hidden px-4 pb-4">

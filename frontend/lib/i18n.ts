@@ -11,6 +11,7 @@ const zh: Dict = {
   tab_picks: '今日推荐',
   logout: '退出',
   lang_toggle: 'EN',
+  settings_aria: '系统提示词设置',
   // Chat panel
   chat_badge: 'AI Agent · 求职助手',
   chat_title: '与 Agent 对话',
@@ -87,6 +88,7 @@ const en: Dict = {
   tab_picks: "Today's Picks",
   logout: 'Logout',
   lang_toggle: '中文',
+  settings_aria: 'System prompt settings',
   // Chat panel
   chat_badge: 'AI Agent · Job Hunter',
   chat_title: 'Agent Chat',
