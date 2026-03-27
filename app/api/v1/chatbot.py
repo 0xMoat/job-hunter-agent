@@ -27,9 +27,11 @@ from app.schemas.chat import (
     ChatResponse,
     Message,
 )
+from app.services.database import DatabaseService
 
 router = APIRouter()
 agent = LangGraphAgent()
+db_service = DatabaseService()
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -59,7 +61,15 @@ async def chat(
             message_count=len(chat_request.messages),
         )
 
-        result = await agent.get_response(chat_request.messages, session.id, user_id=session.user_id)
+        user = await db_service.get_user(session.user_id)
+        custom_prompt = user.system_prompt if user else None
+
+        result = await agent.get_response(
+            chat_request.messages,
+            session.id,
+            user_id=session.user_id,
+            custom_system_prompt=custom_prompt,
+        )
 
         logger.info("chat_request_processed", session_id=session.id)
 
@@ -106,9 +116,14 @@ async def chat_stream(
                 Exception: If there's an error during streaming.
             """
             try:
+                user = await db_service.get_user(session.user_id)
+                custom_prompt = user.system_prompt if user else None
                 with llm_stream_duration_seconds.labels(model=agent.llm_service.get_llm().get_name()).time():
                     async for chunk in agent.get_stream_response(
-                        chat_request.messages, session.id, user_id=session.user_id
+                        chat_request.messages,
+                        session.id,
+                        user_id=session.user_id,
+                        custom_system_prompt=custom_prompt,
                     ):
                         yield f"data: {chunk}\n\n"
 
