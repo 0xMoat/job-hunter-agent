@@ -61,7 +61,7 @@ async def get_system_prompt(
     user: User = Depends(get_current_user),
 ):
     """Get the current user's system prompt."""
-    if user.system_prompt:
+    if user.system_prompt is not None:
         return SystemPromptResponse(prompt=user.system_prompt, is_default=False)
     return SystemPromptResponse(prompt=_read_default_prompt(), is_default=True)
 
