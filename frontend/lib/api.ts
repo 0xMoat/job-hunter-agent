@@ -173,6 +173,51 @@ export async function apiGetMessages(
 // IMPORTANT: name must be sent as application/x-www-form-urlencoded, NOT JSON.
 // Authorization uses the session JWT (not user JWT).
 // The sessionId in the path must match the session encoded in sessionToken.
+// ── Settings ──────────────────────────────────────────────────────────────
+
+export interface SystemPromptResponse {
+  prompt: string
+  is_default: boolean
+}
+
+export async function apiGetSystemPrompt(
+  accessToken: string,
+): Promise<SystemPromptResponse> {
+  const res = await req("/api/v1/settings/system-prompt", {}, accessToken)
+  return res.json()
+}
+
+// Throws with the server's `detail` string on 422 validation failure.
+export async function apiSaveSystemPrompt(
+  accessToken: string,
+  prompt: string,
+): Promise<SystemPromptResponse> {
+  const res = await fetch(`${BASE_URL}/api/v1/settings/system-prompt`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ prompt }),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.detail || `HTTP ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function apiResetSystemPrompt(
+  accessToken: string,
+): Promise<SystemPromptResponse> {
+  const res = await req(
+    "/api/v1/settings/system-prompt",
+    { method: "DELETE" },
+    accessToken,
+  )
+  return res.json()
+}
+
 export async function apiUpdateSessionName(
   sessionToken: string,
   sessionId: string,
