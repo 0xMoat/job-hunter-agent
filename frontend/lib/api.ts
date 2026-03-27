@@ -170,9 +170,6 @@ export async function apiGetMessages(
   return data.messages
 }
 
-// IMPORTANT: name must be sent as application/x-www-form-urlencoded, NOT JSON.
-// Authorization uses the session JWT (not user JWT).
-// The sessionId in the path must match the session encoded in sessionToken.
 // ── Settings ──────────────────────────────────────────────────────────────
 
 export interface SystemPromptResponse {
@@ -218,6 +215,9 @@ export async function apiResetSystemPrompt(
   return res.json()
 }
 
+// IMPORTANT: name must be sent as application/x-www-form-urlencoded, NOT JSON.
+// Authorization uses the session JWT (not user JWT).
+// The sessionId in the path must match the session encoded in sessionToken.
 export async function apiUpdateSessionName(
   sessionToken: string,
   sessionId: string,
