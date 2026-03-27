@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
+import type { ReactNode } from "react"
 import {
   apiGetSystemPrompt,
   apiSaveSystemPrompt,
@@ -12,7 +13,7 @@ interface SystemPromptModalProps {
   accessToken: string
 }
 
-function renderPreview(template: string): React.ReactNode[] {
+function renderPreview(template: string): ReactNode[] {
   const now = new Date().toLocaleString("zh-CN")
   const substitutions: Record<string, string> = {
     long_term_memory: "(用户记忆)",
@@ -52,17 +53,20 @@ function renderPreview(template: string): React.ReactNode[] {
 export function SystemPromptModal({ onClose, accessToken }: SystemPromptModalProps) {
   const [draft, setDraft] = useState("")
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [busyLabel, setBusyLabel] = useState("保存中…")
   const [saveError, setSaveError] = useState<string | null>(null)
 
   useEffect(() => {
     apiGetSystemPrompt(accessToken)
       .then((r) => setDraft(r.prompt))
+      .catch((e) => setSaveError(e instanceof Error ? e.message : "加载失败"))
       .finally(() => setLoading(false))
-  }, [])
+  }, [accessToken])
 
   async function handleSave() {
-    setSaving(true)
+    setBusy(true)
+    setBusyLabel("保存中…")
     setSaveError(null)
     try {
       await apiSaveSystemPrompt(accessToken, draft)
@@ -70,12 +74,13 @@ export function SystemPromptModal({ onClose, accessToken }: SystemPromptModalPro
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : "保存失败")
     } finally {
-      setSaving(false)
+      setBusy(false)
     }
   }
 
   async function handleReset() {
-    setSaving(true)
+    setBusy(true)
+    setBusyLabel("重置中…")
     setSaveError(null)
     try {
       const r = await apiResetSystemPrompt(accessToken)
@@ -83,9 +88,11 @@ export function SystemPromptModal({ onClose, accessToken }: SystemPromptModalPro
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : "重置失败")
     } finally {
-      setSaving(false)
+      setBusy(false)
     }
   }
+
+  const preview = useMemo(() => renderPreview(draft), [draft])
 
   return (
     <>
@@ -138,7 +145,7 @@ export function SystemPromptModal({ onClose, accessToken }: SystemPromptModalPro
                   <div
                     className="font-mono text-xs overflow-y-auto max-h-48 whitespace-pre-wrap rounded-xl bg-[var(--bg-2,#f9fafb)] dark:bg-[var(--bg-2,#181825)] border border-[var(--border-1,#e5e7eb)] dark:border-[var(--border-1,#313244)] px-3 py-2.5 text-[var(--text,#111827)] dark:text-[var(--text,#cdd6f4)] leading-relaxed"
                   >
-                    {renderPreview(draft)}
+                    {preview}
                   </div>
                 </div>
 
@@ -154,7 +161,7 @@ export function SystemPromptModal({ onClose, accessToken }: SystemPromptModalPro
                     id="system-prompt-textarea"
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
-                    disabled={saving}
+                    disabled={busy}
                     className="font-mono text-sm min-h-[200px] w-full resize-y rounded-xl bg-[var(--bg-2,#f9fafb)] dark:bg-[var(--bg-2,#181825)] border border-[var(--border-1,#e5e7eb)] dark:border-[var(--border-1,#313244)] px-3 py-2.5 text-[var(--text,#111827)] dark:text-[var(--text,#cdd6f4)] placeholder-[var(--text-3,#9ca3af)] focus:outline-none focus:ring-2 focus:ring-[var(--accent,#6366f1)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   />
 
@@ -175,7 +182,7 @@ export function SystemPromptModal({ onClose, accessToken }: SystemPromptModalPro
               {/* Left: Reset */}
               <button
                 onClick={handleReset}
-                disabled={saving}
+                disabled={busy}
                 className="text-sm font-body text-[var(--text-3,#9ca3af)] hover:text-[var(--text-2,#6b7280)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors px-3 py-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5"
               >
                 重置为默认
@@ -185,17 +192,17 @@ export function SystemPromptModal({ onClose, accessToken }: SystemPromptModalPro
               <div className="flex items-center gap-2">
                 <button
                   onClick={onClose}
-                  disabled={saving}
+                  disabled={busy}
                   className="text-sm font-body text-[var(--text-2,#6b7280)] hover:text-[var(--text,#111827)] dark:hover:text-[var(--text,#cdd6f4)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors px-4 py-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5"
                 >
                   取消
                 </button>
                 <button
                   onClick={handleSave}
-                  disabled={saving}
+                  disabled={busy}
                   className="text-sm font-body font-medium px-4 py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  {saving ? "保存中…" : "保存"}
+                  {busy ? busyLabel : "保存"}
                 </button>
               </div>
             </div>
