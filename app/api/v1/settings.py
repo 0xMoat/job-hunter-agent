@@ -12,10 +12,9 @@ from app.core.config import settings
 from app.core.limiter import limiter
 from app.core.logging import logger
 from app.models.user import User
-from app.services.database import DatabaseService
+from app.services.database import database_service as db_service
 
 router = APIRouter()
-db_service = DatabaseService()
 
 _SYSTEM_MD_PATH = os.path.join(
     os.path.dirname(__file__), "..", "..", "core", "prompts", "system.md"

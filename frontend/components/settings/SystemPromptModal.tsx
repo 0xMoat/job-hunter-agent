@@ -53,9 +53,11 @@ function renderPreview(template: string): ReactNode[] {
 export function SystemPromptModal({ onClose, accessToken }: SystemPromptModalProps) {
   const [draft, setDraft] = useState("")
   const [loading, setLoading] = useState(true)
-  const [busy, setBusy] = useState(false)
-  const [busyLabel, setBusyLabel] = useState("保存中…")
+  const [saving, setSaving] = useState(false)
+  const [resetting, setResetting] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+
+  const busy = saving || resetting
 
   useEffect(() => {
     apiGetSystemPrompt(accessToken)
@@ -65,8 +67,7 @@ export function SystemPromptModal({ onClose, accessToken }: SystemPromptModalPro
   }, [accessToken])
 
   async function handleSave() {
-    setBusy(true)
-    setBusyLabel("保存中…")
+    setSaving(true)
     setSaveError(null)
     try {
       await apiSaveSystemPrompt(accessToken, draft)
@@ -74,13 +75,12 @@ export function SystemPromptModal({ onClose, accessToken }: SystemPromptModalPro
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : "保存失败")
     } finally {
-      setBusy(false)
+      setSaving(false)
     }
   }
 
   async function handleReset() {
-    setBusy(true)
-    setBusyLabel("重置中…")
+    setResetting(true)
     setSaveError(null)
     try {
       const r = await apiResetSystemPrompt(accessToken)
@@ -88,7 +88,7 @@ export function SystemPromptModal({ onClose, accessToken }: SystemPromptModalPro
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : "重置失败")
     } finally {
-      setBusy(false)
+      setResetting(false)
     }
   }
 
@@ -185,7 +185,7 @@ export function SystemPromptModal({ onClose, accessToken }: SystemPromptModalPro
                 disabled={busy}
                 className="text-sm font-body text-[var(--text-3,#9ca3af)] hover:text-[var(--text-2,#6b7280)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors px-3 py-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5"
               >
-                重置为默认
+                {resetting ? "重置中…" : "重置为默认"}
               </button>
 
               {/* Right: Cancel + Save */}
@@ -202,7 +202,7 @@ export function SystemPromptModal({ onClose, accessToken }: SystemPromptModalPro
                   disabled={busy}
                   className="text-sm font-body font-medium px-4 py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  {busy ? busyLabel : "保存"}
+                  {saving ? "保存中…" : "保存"}
                 </button>
               </div>
             </div>

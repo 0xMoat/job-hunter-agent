@@ -62,6 +62,8 @@ async def chat(
         )
 
         user = await db_service.get_user(session.user_id)
+        if user is None:
+            logger.warning("user_not_found_falling_back_to_default_prompt", user_id=session.user_id)
         custom_prompt = user.system_prompt if user else None
 
         result = await agent.get_response(
