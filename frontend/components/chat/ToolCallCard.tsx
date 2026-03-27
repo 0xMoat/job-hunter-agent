@@ -84,6 +84,11 @@ export function ToolCallCard({ entry, isStreaming }: Props) {
             {label}
           </span>
 
+          {/* Raw function name */}
+          <span className="font-mono text-[10px] text-[var(--text-3)] bg-black/[0.06] px-1.5 py-0.5 rounded flex-shrink-0">
+            {entry.toolName}
+          </span>
+
           {/* Key param preview */}
           {preview && (
             <span className="font-mono text-xs text-[var(--text-3)] max-w-[180px] truncate flex-shrink min-w-0">
@@ -138,7 +143,7 @@ export function ToolCallCard({ entry, isStreaming }: Props) {
                 </div>
               ) : entry.resultContent ? (
                 <pre
-                  className="px-3 py-2 font-mono text-[11px] leading-relaxed text-[var(--text-strong-2)] max-h-48 overflow-y-auto overflow-x-auto"
+                  className="px-3 py-2 font-mono text-[11px] leading-relaxed text-[var(--text-strong-2)] overflow-x-auto"
                   dangerouslySetInnerHTML={{ __html: highlightJson(entry.resultContent) }}
                 />
               ) : (

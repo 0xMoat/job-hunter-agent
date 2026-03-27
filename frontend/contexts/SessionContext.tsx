@@ -11,6 +11,7 @@ import { apiCreateSession, apiGetSessions, type SessionItem } from "@/lib/api"
 import {
   getAccessToken,
   getSessionId,
+  getSessionToken,
   setSessionId,
   setSessionToken,
 } from "@/lib/auth"
@@ -51,7 +52,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         }
       })
       .catch(() => {
-        // sessions list unavailable — proceed with whatever is in localStorage
+        // sessions list unavailable — fall back to stored tokens in localStorage
+        const storedToken = getSessionToken()
+        const storedId = getSessionId()
+        if (storedToken && storedId) {
+          setCurrentSessionId(storedId)
+          setCurrentSessionToken(storedToken)
+        }
       })
       .finally(() => setLoading(false))
   }, [])
@@ -71,6 +78,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const createSession = useCallback(async () => {
     const accessToken = getAccessToken()
     if (!accessToken) return
+    // Don't create a new session if the current one is already empty (never named)
+    const currentSession = sessions.find((s) => s.session_id === currentSessionId)
+    if (currentSession && currentSession.name === "") return
     setLoading(true)
     try {
       const session = await apiCreateSession(accessToken)

@@ -7,6 +7,7 @@ from typing import (
     Optional,
 )
 
+
 from pydantic import (
     BaseModel,
     Field,
@@ -110,3 +111,28 @@ class StreamChunk(BaseModel):
     tool_name: Optional[str] = Field(default=None, description="Tool name")
     tool_call_id: Optional[str] = Field(default=None, description="Tool call ID")
     done: bool = Field(default=False, description="Whether the stream is complete")
+
+
+class ToolCallRecord(BaseModel):
+    """A tool call with its result, for chat history responses."""
+
+    tool_call_id: str
+    tool_name: str
+    calling_args: str = ""
+    result: Optional[str] = None
+
+
+class HistoryMessage(BaseModel):
+    """Richer message model for history responses — includes tool call data."""
+
+    model_config = {"extra": "ignore"}
+
+    role: Literal["user", "assistant"]
+    content: str = ""
+    tool_calls: List[ToolCallRecord] = Field(default_factory=list)
+
+
+class HistoryResponse(BaseModel):
+    """Response model for the chat history endpoint."""
+
+    messages: List[HistoryMessage]

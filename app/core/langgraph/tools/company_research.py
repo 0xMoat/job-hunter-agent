@@ -1,5 +1,8 @@
 """Company research tool — gathers background, culture, and news about a company."""
 
+import asyncio
+import json
+
 from langchain_community.tools import DuckDuckGoSearchResults
 from langchain_core.tools import tool
 
@@ -29,20 +32,22 @@ async def company_research_tool(company_name: str, aspects: str = "overview,cult
                  Defaults to "overview,culture,news".
 
     Returns:
-        Formatted research report combining results from multiple searches.
+        JSON string with structured research results grouped by aspect.
     """
     aspect_list = [a.strip() for a in aspects.split(",") if a.strip() in _QUERIES]
     logger.info("company_research_started", company=company_name, aspects=aspect_list)
 
-    sections = []
+    output: dict = {"company": company_name}
     for aspect in aspect_list:
         query = _QUERIES[aspect].format(company=company_name)
         try:
-            result = await _search.arun(query)
-            sections.append(f"## {aspect.capitalize()}\n{result}")
+            results = await asyncio.to_thread(
+                _search.api_wrapper.results, query, _search.max_results
+            )
+            output[aspect] = results
         except Exception as e:
             logger.exception("company_research_aspect_failed", company=company_name, aspect=aspect, error=str(e))
-            sections.append(f"## {aspect.capitalize()}\nSearch failed: {str(e)}")
+            output[aspect] = {"error": str(e)}
 
     logger.info("company_research_completed", company=company_name)
-    return f"# Company Research: {company_name}\n\n" + "\n\n".join(sections)
+    return json.dumps(output, ensure_ascii=False)

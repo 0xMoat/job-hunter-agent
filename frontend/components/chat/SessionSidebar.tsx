@@ -47,7 +47,7 @@ export function SessionSidebar({ streaming }: { streaming: boolean }) {
 
             {sessions.map((session) => {
               const isActive = session.session_id === currentSessionId
-              const displayName = session.name || session.session_id.slice(0, 8)
+              const displayName = session.name || t('sidebar_unnamed')
               return (
                 <button
                   key={session.session_id}

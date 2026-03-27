@@ -42,7 +42,10 @@ from app.core.metrics import llm_inference_duration_seconds
 from app.core.prompts import load_system_prompt
 from app.schemas import (
     GraphState,
+    HistoryMessage,
+    HistoryResponse,
     Message,
+    ToolCallRecord,
 )
 from app.services.llm import llm_service
 from app.utils import (
@@ -450,14 +453,14 @@ class LangGraphAgent:
             logger.error("Error in stream processing", error=str(stream_error), session_id=session_id)
             raise stream_error
 
-    async def get_chat_history(self, session_id: str) -> list[Message]:
+    async def get_chat_history(self, session_id: str) -> list[HistoryMessage]:
         """Get the chat history for a given thread ID.
 
         Args:
             session_id (str): The session ID for the conversation.
 
         Returns:
-            list[Message]: The chat history.
+            list[HistoryMessage]: The chat history with tool call data.
         """
         if self._graph is None:
             self._graph = await self.create_graph()
@@ -465,7 +468,73 @@ class LangGraphAgent:
         state: StateSnapshot = await sync_to_async(self._graph.get_state)(
             config={"configurable": {"thread_id": session_id}}
         )
-        return self.__process_messages(state.values["messages"]) if state.values else []
+        return self._process_messages_for_history(state.values["messages"]) if state.values else []
+
+    def _process_messages_for_history(self, messages: list[BaseMessage]) -> list[HistoryMessage]:
+        """Convert LangGraph messages into rich history format preserving tool call data.
+
+        Groups consecutive AIMessage/ToolMessage sequences into a single assistant
+        HistoryMessage so the frontend can render tool call cards.
+
+        Args:
+            messages: Raw LangGraph BaseMessage list from checkpoint state.
+
+        Returns:
+            list[HistoryMessage]: History entries with tool_calls populated.
+        """
+        from langchain_core.messages import AIMessage as LC_AIMessage
+        from langchain_core.messages import HumanMessage as LC_HumanMessage
+        from langchain_core.messages import ToolMessage as LC_ToolMessage
+
+        result: list[HistoryMessage] = []
+        i = 0
+
+        while i < len(messages):
+            msg = messages[i]
+
+            if isinstance(msg, LC_HumanMessage):
+                content = msg.content if isinstance(msg.content, str) else str(msg.content)
+                if content:
+                    result.append(HistoryMessage(role="user", content=content))
+                i += 1
+
+            elif isinstance(msg, LC_AIMessage):
+                # Collect all consecutive AI + Tool messages as one assistant turn
+                tool_calls_by_id: dict[str, ToolCallRecord] = {}
+                tool_calls_order: list[str] = []
+                text_parts: list[str] = []
+
+                while i < len(messages) and isinstance(messages[i], (LC_AIMessage, LC_ToolMessage)):
+                    current = messages[i]
+
+                    if isinstance(current, LC_AIMessage):
+                        if isinstance(current.content, str) and current.content:
+                            text_parts.append(current.content)
+                        for tc in current.tool_calls or []:
+                            record = ToolCallRecord(
+                                tool_call_id=tc["id"],
+                                tool_name=tc["name"],
+                                calling_args=_json.dumps(tc.get("args", {})),
+                            )
+                            tool_calls_by_id[tc["id"]] = record
+                            tool_calls_order.append(tc["id"])
+
+                    elif isinstance(current, LC_ToolMessage):
+                        if current.tool_call_id in tool_calls_by_id:
+                            tool_calls_by_id[current.tool_call_id].result = str(current.content)
+
+                    i += 1
+
+                text = "".join(text_parts)
+                tool_calls = [tool_calls_by_id[tid] for tid in tool_calls_order]
+
+                if text or tool_calls:
+                    result.append(HistoryMessage(role="assistant", content=text, tool_calls=tool_calls))
+
+            else:
+                i += 1
+
+        return result
 
     def __process_messages(self, messages: list[BaseMessage]) -> list[Message]:
         openai_style_messages = convert_to_openai_messages(messages)

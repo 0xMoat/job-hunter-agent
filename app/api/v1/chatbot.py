@@ -25,6 +25,7 @@ from app.models.session import Session
 from app.schemas.chat import (
     ChatRequest,
     ChatResponse,
+    HistoryResponse,
     Message,
 )
 
@@ -131,7 +132,7 @@ async def chat_stream(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/messages", response_model=ChatResponse)
+@router.get("/messages", response_model=HistoryResponse)
 @limiter.limit(settings.RATE_LIMIT_ENDPOINTS["messages"][0])
 async def get_session_messages(
     request: Request,
@@ -144,14 +145,14 @@ async def get_session_messages(
         session: The current session from the auth token.
 
     Returns:
-        ChatResponse: All messages in the session.
+        HistoryResponse: All messages in the session with tool call data.
 
     Raises:
         HTTPException: If there's an error retrieving the messages.
     """
     try:
         messages = await agent.get_chat_history(session.id)
-        return ChatResponse(messages=messages)
+        return HistoryResponse(messages=messages)
     except Exception as e:
         logger.error("get_messages_failed", session_id=session.id, error=str(e), exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

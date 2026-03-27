@@ -162,9 +162,22 @@ export async function apiGetSessions(
   return res.json()
 }
 
+export interface HistoryToolCall {
+  tool_call_id: string
+  tool_name: string
+  calling_args: string
+  result?: string
+}
+
+export interface HistoryMessageItem {
+  role: string
+  content: string
+  tool_calls: HistoryToolCall[]
+}
+
 export async function apiGetMessages(
   sessionToken: string,
-): Promise<Array<{ role: string; content: string }>> {
+): Promise<HistoryMessageItem[]> {
   const res = await req("/api/v1/chatbot/messages", {}, sessionToken)
   const data = await res.json()
   return data.messages

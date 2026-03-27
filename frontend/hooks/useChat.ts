@@ -37,12 +37,18 @@ export function useChat({
     apiGetMessages(sessionToken)
       .then((raw) => {
         const loaded: ChatMessage[] = raw
-          .filter((m) => m.role !== "system")
+          .filter((m) => m.role === "user" || m.role === "assistant")
           .map((m) => ({
             id: makeId(),
             role: m.role as ChatMessage["role"],
             textContent: m.content,
-            toolCalls: [],
+            toolCalls: (m.tool_calls ?? []).map((tc) => ({
+              toolCallId: tc.tool_call_id,
+              toolName: tc.tool_name,
+              callingContent: tc.calling_args,
+              resultContent: tc.result,
+              status: "done" as const,
+            })),
             timestamp: undefined,
           }))
         setMessages(loaded)

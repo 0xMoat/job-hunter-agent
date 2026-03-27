@@ -12,7 +12,7 @@ from app.services.job_service import job_service
 
 scheduler = AsyncIOScheduler()
 
-_wrapper = DuckDuckGoSearchAPIWrapper(num_results=10)
+_wrapper = DuckDuckGoSearchAPIWrapper()
 
 
 async def _daily_job_search() -> None:

@@ -1,5 +1,8 @@
 """Job search tool — searches for job listings via DuckDuckGo."""
 
+import asyncio
+import json
+
 from langchain_community.tools import DuckDuckGoSearchResults
 from langchain_core.tools import tool
 
@@ -20,7 +23,7 @@ async def job_search_tool(keywords: str, location: str, job_type: str = "fulltim
         job_type: One of: fulltime, remote, contract. Defaults to fulltime.
 
     Returns:
-        Formatted string with job listings found.
+        JSON string with structured job listing results.
     """
     query = (
         f"{keywords} {job_type} job {location} "
@@ -28,9 +31,14 @@ async def job_search_tool(keywords: str, location: str, job_type: str = "fulltim
     )
     logger.info("job_search_started", keywords=keywords, location=location, job_type=job_type)
     try:
-        results = await _search.arun(query)
-        logger.info("job_search_completed", keywords=keywords, result_length=len(str(results)))
-        return f"Job search results for '{keywords}' in '{location}' ({job_type}):\n\n{results}"
+        results = await asyncio.to_thread(
+            _search.api_wrapper.results, query, _search.max_results
+        )
+        logger.info("job_search_completed", keywords=keywords, result_count=len(results))
+        return json.dumps(
+            {"keywords": keywords, "location": location, "job_type": job_type, "results": results},
+            ensure_ascii=False,
+        )
     except Exception as e:
         logger.exception("job_search_failed", keywords=keywords, error=str(e))
-        return f"Search failed: {str(e)}"
+        return json.dumps({"error": str(e)})
