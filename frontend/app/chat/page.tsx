@@ -83,20 +83,20 @@ function ChatPageInner() {
               {t('lang_toggle')}
             </button>
             <button
-              onClick={handleLogout}
-              className="text-xs font-body text-[var(--text-3)] hover:text-[var(--text-2)]
-                         px-3 py-1.5 rounded-full hover:bg-black/5 transition-colors"
-            >
-              {t('logout')}
-            </button>
-            <button
               onClick={() => setShowSettings(true)}
-              aria-label="系统提示词设置"
+              aria-label={t('settings_aria') as string}
               className="w-8 h-8 flex items-center justify-center rounded-full
                          text-[var(--text-3)] hover:text-[var(--text-2)]
                          hover:bg-black/5 transition-colors text-base"
             >
               ⚙
+            </button>
+            <button
+              onClick={handleLogout}
+              className="text-xs font-body text-[var(--text-3)] hover:text-[var(--text-2)]
+                         px-3 py-1.5 rounded-full hover:bg-black/5 transition-colors"
+            >
+              {t('logout')}
             </button>
           </div>
         </nav>
