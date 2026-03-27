@@ -7,7 +7,7 @@ import {
   useEffect,
   useState,
 } from "react"
-import { apiCreateSession, apiGetSessions, type SessionItem } from "@/lib/api"
+import { apiCreateSession, apiDeleteSession, apiGetLangfuseUrlBase, apiGetSessions, type SessionItem } from "@/lib/api"
 import {
   getAccessToken,
   getSessionId,
@@ -21,9 +21,11 @@ interface SessionContextValue {
   currentSessionId: string | null
   currentSessionToken: string | null
   loading: boolean
+  langfuseUrlBase: string | null
   switchSession: (id: string) => void
   createSession: () => Promise<void>
   renameSession: (id: string, name: string) => void
+  deleteSession: (id: string) => Promise<void>
 }
 
 const SessionContext = createContext<SessionContextValue | null>(null)
@@ -33,6 +35,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
   const [currentSessionToken, setCurrentSessionToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [langfuseUrlBase, setLangfuseUrlBase] = useState<string | null>(null)
 
   useEffect(() => {
     const accessToken = getAccessToken()
@@ -40,6 +43,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setLoading(false)
       return
     }
+
+    apiGetLangfuseUrlBase(accessToken).then(setLangfuseUrlBase).catch(() => {})
 
     apiGetSessions(accessToken)
       .then((list) => {
@@ -105,6 +110,29 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     )
   }, [])
 
+  const deleteSession = useCallback(
+    async (id: string) => {
+      const target = sessions.find((s) => s.session_id === id)
+      if (!target) return
+      await apiDeleteSession(target.token.access_token, id)
+      const remaining = sessions.filter((s) => s.session_id !== id)
+      setSessions(remaining)
+      if (id === currentSessionId) {
+        if (remaining.length > 0) {
+          const next = remaining[0]
+          setCurrentSessionId(next.session_id)
+          setCurrentSessionToken(next.token.access_token)
+          setSessionToken(next.token.access_token)
+          setSessionId(next.session_id)
+        } else {
+          setCurrentSessionId(null)
+          setCurrentSessionToken(null)
+        }
+      }
+    },
+    [sessions, currentSessionId],
+  )
+
   return (
     <SessionContext.Provider
       value={{
@@ -112,9 +140,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         currentSessionId,
         currentSessionToken,
         loading,
+        langfuseUrlBase,
         switchSession,
         createSession,
         renameSession,
+        deleteSession,
       }}
     >
       {children}

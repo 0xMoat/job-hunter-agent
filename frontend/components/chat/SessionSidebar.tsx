@@ -3,11 +3,46 @@
 import { useState } from "react"
 import { useSession } from "@/contexts/SessionContext"
 import { useLanguage } from "@/contexts/LanguageContext"
+import type { Locale } from "@/lib/i18n"
+
+function formatSessionDate(dateStr: string | undefined, locale: Locale): string {
+  if (!dateStr) return ""
+  const date = new Date(dateStr)
+  const now = new Date()
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const yesterdayStart = new Date(todayStart.getTime() - 86400000)
+  const sessionDayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+
+  const hh = String(date.getHours()).padStart(2, "0")
+  const mm = String(date.getMinutes()).padStart(2, "0")
+  const timeStr = `${hh}:${mm}`
+
+  if (sessionDayStart.getTime() === todayStart.getTime()) return timeStr
+  if (sessionDayStart.getTime() === yesterdayStart.getTime()) {
+    return locale === "zh-CN" ? `昨天 ${timeStr}` : `Yesterday ${timeStr}`
+  }
+  if (date.getFullYear() === now.getFullYear()) {
+    return `${date.getMonth() + 1}/${date.getDate()} ${timeStr}`
+  }
+  return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`
+}
 
 export function SessionSidebar({ streaming }: { streaming: boolean }) {
-  const { sessions, currentSessionId, loading, switchSession, createSession } = useSession()
-  const { t } = useLanguage()
+  const { sessions, currentSessionId, loading, langfuseUrlBase, switchSession, createSession, deleteSession } = useSession()
+  const { t, locale } = useLanguage()
   const [collapsed, setCollapsed] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  async function handleDelete(e: React.MouseEvent, sessionId: string) {
+    e.stopPropagation()
+    if (deletingId) return
+    setDeletingId(sessionId)
+    try {
+      await deleteSession(sessionId)
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   return (
     <div className="flex-shrink-0 flex">
@@ -48,20 +83,73 @@ export function SessionSidebar({ streaming }: { streaming: boolean }) {
             {sessions.map((session) => {
               const isActive = session.session_id === currentSessionId
               const displayName = session.name || t('sidebar_unnamed')
+              const dateLabel = formatSessionDate(session.created_at, locale)
+              const isDeleting = deletingId === session.session_id
               return (
-                <button
+                <div
                   key={session.session_id}
-                  onClick={() => switchSession(session.session_id)}
-                  className={`w-full text-left rounded-xl px-3 py-2 mb-0.5 transition-colors ${
+                  className={`group flex items-center rounded-xl mb-0.5 transition-colors ${
                     isActive
                       ? "bg-[var(--accent)] text-[var(--accent-fg)]"
                       : "text-[var(--text-2)] hover:bg-black/5 hover:text-[var(--text)]"
                   }`}
                 >
-                  <span className="block text-xs font-body font-medium truncate">
-                    {displayName}
-                  </span>
-                </button>
+                  <button
+                    onClick={() => switchSession(session.session_id)}
+                    className="flex-1 text-left px-3 py-2 min-w-0"
+                  >
+                    <span className="block text-xs font-body font-medium truncate">
+                      {displayName}
+                    </span>
+                    {dateLabel && (
+                      <span className={`block text-[10px] font-body mt-0.5 ${
+                        isActive ? "opacity-70" : "opacity-50"
+                      }`}>
+                        {dateLabel}
+                      </span>
+                    )}
+                  </button>
+                  {langfuseUrlBase && (
+                    <a
+                      href={`${langfuseUrlBase}/sessions/${session.session_id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      aria-label="Langfuse trace"
+                      className={`flex-shrink-0 p-1 rounded transition-opacity
+                        opacity-0 group-hover:opacity-100
+                        ${isActive
+                          ? "hover:bg-white/20 text-[var(--accent-fg)]"
+                          : "hover:bg-black/10 text-[var(--text-3)] hover:text-[var(--text-2)]"
+                        }`}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                        <polyline points="15 3 21 3 21 9" />
+                        <line x1="10" y1="14" x2="21" y2="3" />
+                      </svg>
+                    </a>
+                  )}
+                  <button
+                    onClick={(e) => handleDelete(e, session.session_id)}
+                    disabled={isDeleting}
+                    aria-label={t('delete')}
+                    className={`flex-shrink-0 mr-1.5 p-1 rounded transition-opacity
+                      opacity-0 group-hover:opacity-100
+                      disabled:opacity-30
+                      ${isActive
+                        ? "hover:bg-white/20 text-[var(--accent-fg)]"
+                        : "hover:bg-black/10 text-[var(--text-3)] hover:text-[var(--text-2)]"
+                      }`}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                      <path d="M10 11v6M14 11v6" />
+                      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                    </svg>
+                  </button>
+                </div>
               )
             })}
           </div>

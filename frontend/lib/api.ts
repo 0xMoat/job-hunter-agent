@@ -11,6 +11,7 @@ export interface SessionItem {
     token_type: string
     expires_at: string
   }
+  created_at?: string
 }
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
@@ -162,6 +163,19 @@ export async function apiGetSessions(
   return res.json()
 }
 
+// Authorization uses the session JWT (not user JWT).
+// The sessionId in the path must match the session encoded in sessionToken.
+export async function apiDeleteSession(
+  sessionToken: string,
+  sessionId: string,
+): Promise<void> {
+  await req(
+    `/api/v1/auth/session/${sessionId}`,
+    { method: "DELETE" },
+    sessionToken,
+  )
+}
+
 export interface HistoryToolCall {
   tool_call_id: string
   tool_name: string
@@ -188,6 +202,14 @@ export async function apiGetMessages(
 export interface SystemPromptResponse {
   prompt: string
   is_default: boolean
+}
+
+export async function apiGetLangfuseUrlBase(
+  accessToken: string,
+): Promise<string | null> {
+  const res = await req("/api/v1/settings/langfuse-url", {}, accessToken)
+  const data = await res.json()
+  return data.url_base ?? null
 }
 
 export async function apiGetSystemPrompt(

@@ -362,6 +362,8 @@ class LangGraphAgent:
             "metadata": {
                 "user_id": user_id,
                 "session_id": session_id,
+                "langfuse_session_id": session_id,
+                "langfuse_user_id": user_id,
                 "environment": settings.ENVIRONMENT.value,
                 "debug": settings.DEBUG,
             },
@@ -413,6 +415,8 @@ class LangGraphAgent:
             "metadata": {
                 "user_id": user_id,
                 "session_id": session_id,
+                "langfuse_session_id": session_id,
+                "langfuse_user_id": user_id,
                 "environment": settings.ENVIRONMENT.value,
                 "debug": settings.DEBUG,
             },

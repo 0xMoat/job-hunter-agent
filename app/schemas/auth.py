@@ -2,6 +2,7 @@
 
 import re
 from datetime import datetime
+from typing import Optional
 
 from pydantic import (
     BaseModel,
@@ -107,11 +108,13 @@ class SessionResponse(BaseModel):
         session_id: The unique identifier for the chat session
         name: Name of the session (defaults to empty string)
         token: The authentication token for the session
+        created_at: When the session was created
     """
 
     session_id: str = Field(..., description="The unique identifier for the chat session")
     name: str = Field(default="", description="Name of the session", max_length=100)
     token: Token = Field(..., description="The authentication token for the session")
+    created_at: Optional[datetime] = Field(default=None, description="When the session was created")
 
     @field_validator("name")
     @classmethod

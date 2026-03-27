@@ -1,9 +1,11 @@
 """User settings endpoints — system prompt management."""
 
+import base64
 import os
 import re
 from typing import Optional
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
@@ -41,6 +43,39 @@ def _validate_prompt(prompt: str) -> Optional[str]:
             f"Unknown variable(s): {', '.join('{' + v + '}' for v in sorted(unknown))}. "
             f"Allowed: {', '.join('{' + v + '}' for v in sorted(_ALLOWED_VARS))}"
         )
+    return None
+
+
+class LangfuseUrlResponse(BaseModel):
+    url_base: Optional[str] = None
+
+
+_langfuse_url_base_cache: Optional[str] = None
+
+
+async def _resolve_langfuse_url_base() -> Optional[str]:
+    global _langfuse_url_base_cache
+    if _langfuse_url_base_cache is not None:
+        return _langfuse_url_base_cache
+    if not settings.LANGFUSE_PUBLIC_KEY or not settings.LANGFUSE_SECRET_KEY:
+        return None
+    creds = base64.b64encode(
+        f"{settings.LANGFUSE_PUBLIC_KEY}:{settings.LANGFUSE_SECRET_KEY}".encode()
+    ).decode()
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            resp = await client.get(
+                f"{settings.LANGFUSE_HOST}/api/public/projects",
+                headers={"Authorization": f"Basic {creds}"},
+            )
+            resp.raise_for_status()
+            projects = resp.json().get("data", [])
+            if projects:
+                project_id = projects[0]["id"]
+                _langfuse_url_base_cache = f"{settings.LANGFUSE_HOST}/project/{project_id}"
+                return _langfuse_url_base_cache
+    except Exception:
+        logger.warning("langfuse_project_id_fetch_failed")
     return None
 
 
@@ -91,3 +126,14 @@ async def reset_system_prompt(
     await db_service.update_user_system_prompt(user.id, None)
     logger.info("system_prompt_reset", user_id=user.id)
     return SystemPromptResponse(prompt=_read_default_prompt(), is_default=True)
+
+
+@router.get("/langfuse-url", response_model=LangfuseUrlResponse)
+@limiter.limit(settings.RATE_LIMIT_ENDPOINTS["settings"][0])
+async def get_langfuse_url(
+    request: Request,
+    user: User = Depends(get_current_user),
+):
+    """Return the Langfuse project base URL for session trace links."""
+    url_base = await _resolve_langfuse_url_base()
+    return LangfuseUrlResponse(url_base=url_base)

@@ -8,7 +8,7 @@ import { useLanguage } from "@/contexts/LanguageContext"
 import { useSession } from "@/contexts/SessionContext"
 
 export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boolean) => void }) {
-  const { currentSessionToken, currentSessionId, sessions, renameSession } = useSession()
+  const { currentSessionToken, currentSessionId, sessions, renameSession, langfuseUrlBase } = useSession()
   const currentSession = sessions.find((s) => s.session_id === currentSessionId)
   const { messages, streaming, error, historyLoading, sendMessage } = useChat({
     sessionToken: currentSessionToken,
@@ -39,9 +39,28 @@ export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boole
 
         {/* Header */}
         <div className="px-5 pt-4 pb-3 border-b border-[var(--border)] flex-shrink-0">
-          <div className="glass rounded-full inline-flex items-center gap-1.5 px-3 py-1 text-xs font-body font-medium text-[var(--text-2)] mb-3">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />
-            {t('chat_badge')}
+          <div className="flex items-center gap-2 mb-3">
+            <div className="glass rounded-full inline-flex items-center gap-1.5 px-3 py-1 text-xs font-body font-medium text-[var(--text-2)]">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />
+              {t('chat_badge')}
+            </div>
+            {langfuseUrlBase && currentSessionId && (
+              <a
+                href={`${langfuseUrlBase}/sessions/${currentSessionId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="glass rounded-full inline-flex items-center gap-1 px-2.5 py-1
+                           text-xs font-body font-medium text-[var(--text-3)]
+                           hover:text-[var(--text-2)] transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                  <polyline points="15 3 21 3 21 9" />
+                  <line x1="10" y1="14" x2="21" y2="3" />
+                </svg>
+                Langfuse
+              </a>
+            )}
           </div>
           <h2 className="font-heading italic text-xl tracking-tight text-[var(--text)] leading-none mb-0.5">
             {t('chat_title')}
