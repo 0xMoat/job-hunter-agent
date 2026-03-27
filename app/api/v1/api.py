@@ -11,6 +11,7 @@ from app.api.v1.auth import router as auth_router
 from app.api.v1.chatbot import router as chatbot_router
 from app.api.v1.listings import router as listings_router
 from app.api.v1.preferences import router as preferences_router
+from app.api.v1.settings import router as settings_router
 from app.core.logging import logger
 
 api_router = APIRouter()
@@ -21,6 +22,7 @@ api_router.include_router(chatbot_router, prefix="/chatbot", tags=["chatbot"])
 api_router.include_router(preferences_router, prefix="", tags=["job-preferences"])
 api_router.include_router(listings_router, prefix="", tags=["job-listings"])
 api_router.include_router(applications_router, prefix="", tags=["job-applications"])
+api_router.include_router(settings_router, prefix="/settings", tags=["settings"])
 
 
 @api_router.get("/health")
