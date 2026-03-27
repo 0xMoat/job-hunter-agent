@@ -2,11 +2,12 @@
 
 import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { isAuthenticated, clearAuth } from "@/lib/auth"
+import { isAuthenticated, clearAuth, getAccessToken } from "@/lib/auth"
 import { ChatPanel } from "@/components/chat/ChatPanel"
 import { SessionSidebar } from "@/components/chat/SessionSidebar"
 import { ApplicationTracker } from "@/components/tracker/ApplicationTracker"
 import { ListingsPanel } from "@/components/listings/ListingsPanel"
+import { SystemPromptModal } from "@/components/settings/SystemPromptModal"
 import { SessionProvider } from "@/contexts/SessionContext"
 import { useLanguage } from "@/contexts/LanguageContext"
 
@@ -23,6 +24,7 @@ function ChatPageInner() {
   })
   const [ready] = useState(() => isAuthenticated())
   const [streaming, setStreaming] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
 
   useEffect(() => {
     if (!ready) {
@@ -87,9 +89,25 @@ function ChatPageInner() {
             >
               {t('logout')}
             </button>
+            <button
+              onClick={() => setShowSettings(true)}
+              aria-label="系统提示词设置"
+              className="w-8 h-8 flex items-center justify-center rounded-full
+                         text-[var(--text-3)] hover:text-[var(--text-2)]
+                         hover:bg-black/5 transition-colors text-base"
+            >
+              ⚙
+            </button>
           </div>
         </nav>
       </div>
+
+      {showSettings && (
+        <SystemPromptModal
+          accessToken={getAccessToken() ?? ""}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
 
       {/* Content */}
       <div className="flex-1 overflow-hidden px-4 pb-4">
