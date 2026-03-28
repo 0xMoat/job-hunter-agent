@@ -251,15 +251,29 @@ class JobService:
             return app
 
     async def list_applications(self, user_id: int) -> List[Application]:
-        """List all applications for a user, newest first."""
+        """List all active (non-archived) applications for a user, newest first."""
         with Session(self._engine) as session:
             return list(
                 session.exec(
                     select(Application)
                     .where(Application.user_id == user_id)
-                    .order_by(desc(Application.applied_date))
+                    .where(Application.archived_at.is_(None))
+                    .order_by(desc(Application.updated_at))
                 ).all()
             )
+
+    async def count_archived_pending(self, user_id: int) -> int:
+        """Count scheduler-sourced pending cards that have been archived for this user."""
+        with Session(self._engine) as session:
+            results = session.exec(
+                select(Application).where(
+                    Application.user_id == user_id,
+                    Application.status == "pending",
+                    Application.source == "scheduler",
+                    Application.archived_at.is_not(None),
+                )
+            ).all()
+            return len(results)
 
     async def delete_application(self, application_id: int, user_id: int) -> bool:
         """Delete an application. Returns True if deleted."""

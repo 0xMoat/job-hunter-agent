@@ -30,12 +30,29 @@ class ApplicationUpdate(BaseModel):
     notes: Optional[str] = None
 
 
+class BatchListingItem(BaseModel):
+    """A single listing item for batch creation."""
+
+    title: str
+    company: str = ""
+    url: str
+    snippet: str = ""
+    found_date: Optional[str] = None
+
+
+class BatchCreate(BaseModel):
+    """Request body for batch creating pending cards from scheduler."""
+
+    listings: list[BatchListingItem]
+
+
 @router.get("/applications")
 @limiter.limit("60/minute")
 async def list_applications(request: Request, session: Session = Depends(get_current_session)):
     """List all job applications for the current user."""
     apps = await job_service.list_applications(session.user_id)
-    return {"applications": apps, "count": len(apps)}
+    archived_count = await job_service.count_archived_pending(session.user_id)
+    return {"applications": apps, "count": len(apps), "archived_count": archived_count}
 
 
 @router.post("/applications", status_code=201)
@@ -51,6 +68,25 @@ async def add_application(
     )
     logger.info("application_added_via_api", user_id=session.user_id, company=body.company)
     return app
+
+
+@router.post("/applications/batch", status_code=201)
+@limiter.limit("10/minute")
+async def batch_create_applications(
+    request: Request,
+    body: BatchCreate,
+    session: Session = Depends(get_current_session),
+):
+    """Batch-create pending kanban cards from scheduler results."""
+    listings = [item.model_dump() for item in body.listings]
+    result = await job_service.batch_create_pending(session.user_id, listings)
+    logger.info(
+        "batch_applications_created",
+        user_id=session.user_id,
+        inserted=result["inserted"],
+        skipped=result["skipped"],
+    )
+    return result
 
 
 @router.patch("/applications/{application_id}")
