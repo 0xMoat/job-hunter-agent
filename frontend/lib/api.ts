@@ -1,7 +1,7 @@
 // All fetch calls to the FastAPI backend.
 // Set NEXT_PUBLIC_API_URL in .env.local to override the default.
 
-import type { Application, JobListing } from "./types"
+import type { Application } from "./types"
 
 export interface SessionItem {
   session_id: string
@@ -100,7 +100,7 @@ export function apiStreamChat(
 
 export async function apiListApplications(
   sessionToken: string,
-): Promise<{ applications: Application[]; count: number }> {
+): Promise<{ applications: Application[]; count: number; archived_count: number }> {
   const res = await req("/api/v1/applications", {}, sessionToken)
   return res.json()
 }
@@ -138,20 +138,19 @@ export async function apiUpdateApplication(
   return res.json()
 }
 
+export async function apiMoveCard(
+  sessionToken: string,
+  id: number,
+  status: string,
+): Promise<Application> {
+  return apiUpdateApplication(sessionToken, id, { status })
+}
+
 export async function apiDeleteApplication(
   sessionToken: string,
   id: number,
 ): Promise<void> {
   await req(`/api/v1/applications/${id}`, { method: "DELETE" }, sessionToken)
-}
-
-// ── Listings ──────────────────────────────────────────────────────────────
-
-export async function apiGetListings(
-  sessionToken: string,
-): Promise<{ listings: JobListing[]; count: number }> {
-  const res = await req("/api/v1/listings", {}, sessionToken)
-  return res.json()
 }
 
 // ── Sessions ──────────────────────────────────────────────────────────────

@@ -1,7 +1,26 @@
 // Domain types for the Job Hunter Agent frontend.
 
 export type MessageRole = "user" | "assistant"
-export type ApplicationStatus = "applied" | "interviewing" | "rejected" | "offer"
+
+export type ApplicationStatus =
+  | "pending"
+  | "applied"
+  | "interviewing"
+  | "completed"
+  | "not_a_match"
+
+export const KANBAN_COLUMNS: { status: ApplicationStatus; labelKey: string }[] = [
+  { status: "pending",      labelKey: "col_pending" },
+  { status: "applied",      labelKey: "col_applied" },
+  { status: "completed",    labelKey: "col_completed" },
+  { status: "not_a_match",  labelKey: "col_not_a_match" },
+]
+
+// "applied" and "interviewing" both render in the "applied" column
+export function toColumnStatus(status: ApplicationStatus): ApplicationStatus {
+  if (status === "interviewing") return "applied"
+  return status
+}
 
 export interface ToolCallEntry {
   toolCallId: string
@@ -35,20 +54,11 @@ export interface Application {
   title: string
   url?: string
   status: ApplicationStatus
-  applied_date: string
+  applied_date?: string
   notes?: string
+  snippet?: string
+  found_date?: string
+  source: "scheduler" | "manual"
+  archived_at?: string
   updated_at: string
-  created_at: string
-}
-
-export interface JobListing {
-  id: number
-  user_id: number
-  title: string
-  company: string
-  location: string
-  url: string
-  snippet: string
-  found_date: string
-  is_read: boolean
 }
