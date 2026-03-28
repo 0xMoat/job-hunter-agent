@@ -80,6 +80,30 @@
 
 需要 DB migration 将旧状态值重命名。
 
+### 数据库迁移策略
+
+项目当前使用 `SQLModel.metadata.create_all(engine)` 在启动时建表，该方法**不修改已有表结构**。本次变更需在此基础上引入手动 migration 脚本。
+
+**实现方式**：新建 `scripts/migrate.py`，在应用启动前执行（Docker entrypoint 中调用），包含以下操作：
+
+```sql
+-- 1. 新增字段（SQLite 的 ALTER TABLE 仅支持 ADD COLUMN）
+ALTER TABLE applications ADD COLUMN snippet TEXT;
+ALTER TABLE applications ADD COLUMN found_date DATE;
+ALTER TABLE applications ADD COLUMN source TEXT NOT NULL DEFAULT 'manual';
+ALTER TABLE applications ADD COLUMN archived_at TIMESTAMP;
+
+-- 2. 迁移存量状态值
+UPDATE applications SET status = 'completed'    WHERE status = 'offer';
+UPDATE applications SET status = 'not_a_match'  WHERE status = 'rejected';
+
+-- 3. 新增 url 唯一约束（SQLite 需重建表；见下方说明）
+```
+
+SQLite 不支持 `ADD CONSTRAINT`，因此唯一约束需通过"重建表"方式添加，或在应用层做去重并接受并发写入的竞态风险（demo 规模可接受）。实现时选择应用层去重即可，不重建表。
+
+`scripts/migrate.py` 需要做到幂等（用 `IF NOT EXISTS` / 捕获 `OperationalError`），以便多次部署安全执行。
+
 ### JobListing 模型处置
 
 - 停止写入新数据
@@ -111,8 +135,11 @@
 }
 ```
 
-**`POST /api/v1/applications/archive-stale`**
-将所有 `status = "pending"` 且 `found_date` 早于 7 天的记录设置 `archived_at`。由调度任务在每次写入后调用。
+批量写入响应：
+
+```json
+{ "inserted": 3, "skipped": 7 }
+```
 
 ### 现有端点变更
 
@@ -128,17 +155,29 @@
 
 ## 调度任务变更
 
-调度流程从写入 `JobListing` 改为写入 `Application`：
+调度任务直接调用服务层方法（进程内），不走 HTTP：
 
 ```
 搜索匹配岗位
     ↓
-POST /applications/batch  （去重后写入 pending 卡片）
+job_service.batch_create_pending(user_id, listings)
+  （按 user_id + url 应用层去重，写入 pending 卡片）
     ↓
-POST /applications/archive-stale  （归档超期 pending 卡片）
+job_service.archive_stale_pending()
+  （归档所有用户中 found_date 超 7 天的 pending scheduler 卡片）
 ```
 
-触发频率和入口不变。
+触发频率和入口不变。`POST /applications/batch` 端点依然保留，供未来外部调用使用（如 Webhook），但调度任务本身不走 HTTP。
+
+### LangGraph 工具同步更新
+
+`app/core/langgraph/tools/application_tracker.py` 中工具描述的 `status` 参数说明需同步更新为新状态值集合：
+
+```
+status: Application status — pending / applied / interviewing / completed / not_a_match
+```
+
+同时，`add_application` 工具 action 默认写入 `source="manual"`、`status="pending"`（目前硬编码为 `status="applied"`）。
 
 ---
 
@@ -162,16 +201,26 @@ POST /applications/archive-stale  （归档超期 pending 卡片）
 
 ### 拖拽
 
-使用 `@dnd-kit/core`（新增依赖）。卡片放下时：
-1. 乐观更新本地状态
+使用 `@dnd-kit/core`（新增依赖）。**不使用** `@dnd-kit/sortable`，卡片只支持跨列移动，不支持列内排序（保持实现简单）。
+
+`KanbanBoard` 使用 `DndContext` + `onDragEnd` 回调，每个 `KanbanColumn` 注册为 `useDroppable`，`data-choice` 为该列的状态值（`pending` / `applied` / `completed` / `not_a_match`）。
+
+卡片放下时：
+1. 乐观更新本地状态（UI 立即响应）
 2. 调用 `PATCH /applications/{id}` 更新 status
-3. 失败时回滚
+3. 失败时回滚到原列
 
 ### 数据 Hook
 
 `hooks/useApplications.ts` 更新：
 - 新增 `moveCard(id, newStatus)` 方法
 - 过滤归档卡片（`archived_at IS NULL`）
+
+### 实现顺序
+
+1. 新建 `KanbanBoard` / `KanbanColumn` / `KanbanCard` 组件，在 tracker tab 验证可用
+2. 从 `chat/page.tsx` 移除 `<ApplicationTracker />` 侧边栏，Chat tab 切回全宽布局
+3. 删除旧组件和 Hook 文件
 
 ### 废弃删除
 
@@ -180,6 +229,22 @@ POST /applications/archive-stale  （归档超期 pending 卡片）
 - `components/tracker/ApplicationTracker.tsx`
 - `components/tracker/ApplicationCard.tsx`
 - `hooks/useListings.ts`
+
+### i18n key 新增
+
+以下 key 需要在语言文件中添加（中英双语）：
+
+| Key | 中文 | 英文 |
+|---|---|---|
+| `tab_tracker` | 追踪看板 | Tracker |
+| `col_pending` | 待处理 | To Review |
+| `col_applied` | 投递待面试 | Applied |
+| `col_completed` | 已完成 | Completed |
+| `col_not_a_match` | 不匹配 | Not a Match |
+| `card_source_scheduler` | 调度发现 | Auto-found |
+| `card_source_manual` | 手动添加 | Added manually |
+| `kanban_archived_n` | 已归档 {n} 张超期卡片 | {n} cards auto-archived |
+| `kanban_add_card` | ＋ 手动添加 | + Add card |
 
 ---
 
@@ -204,10 +269,11 @@ POST /applications/archive-stale  （归档超期 pending 卡片）
 
 ## 归档策略
 
-- 触发条件：`status = "pending"` 且 `found_date < today - 7 days`
+- 触发条件：`status = "pending"` **且** `source = "scheduler"` 且 `found_date < today - 7 days`
+- 手动添加的 pending 卡片（`source = "manual"`）**不受 7 天归档规则约束**
 - 执行方式：设置 `archived_at = now()`（软删除）
-- 触发时机：每次调度任务运行后自动执行
-- 前端展示：归档卡片默认不显示，列底部展示"已归档 N 张"提示文案
+- 触发时机：每次调度任务运行后，由 `job_service.archive_stale_pending()` 执行
+- 前端展示：归档卡片默认不显示，待处理列底部展示"已归档 N 张超期卡片"提示文案
 
 ---
 
@@ -215,5 +281,5 @@ POST /applications/archive-stale  （归档超期 pending 卡片）
 
 | 依赖 | 用途 | 现状 |
 |---|---|---|
-| `@dnd-kit/core` | 拖拽实现 | 新增 |
-| SQLModel migration | 字段/状态值变更 | 需编写 |
+| `@dnd-kit/core` | 拖拽实现（仅跨列移动，不含列内排序） | 新增 |
+| `scripts/migrate.py` | 字段新增 + 状态值迁移 | 新增 |
