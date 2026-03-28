@@ -34,11 +34,11 @@ export function useApplications() {
   useEffect(() => { load() }, [load])
 
   const addApplication = useCallback(
-    async (company: string, title: string, url?: string): Promise<Application | undefined> => {
+    async (company: string, title: string, url?: string, status: ApplicationStatus = "pending"): Promise<Application | undefined> => {
       const token = getSessionToken()
       if (!token) return
       try {
-        const app = await apiAddApplication(token, { company, title, url })
+        const app = await apiAddApplication(token, { company, title, url, status })
         setApplications((prev) => [app, ...prev])
         return app
       } catch (err) {

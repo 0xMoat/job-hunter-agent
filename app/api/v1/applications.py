@@ -1,6 +1,6 @@
 """Job application tracking endpoints."""
 
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -21,12 +21,13 @@ class ApplicationCreate(BaseModel):
     title: str
     url: Optional[str] = None
     notes: Optional[str] = None
+    status: Optional[Literal["pending", "applied", "interviewing", "completed", "not_a_match"]] = "pending"
 
 
 class ApplicationUpdate(BaseModel):
     """Request body for updating an application."""
 
-    status: Optional[str] = None
+    status: Optional[Literal["pending", "applied", "interviewing", "completed", "not_a_match"]] = None
     notes: Optional[str] = None
 
 
@@ -64,7 +65,7 @@ async def add_application(
 ):
     """Record a new job application."""
     app = await job_service.add_application(
-        session.user_id, body.company, body.title, body.url, body.notes
+        session.user_id, body.company, body.title, body.url, body.notes, body.status or "pending"
     )
     logger.info("application_added_via_api", user_id=session.user_id, company=body.company)
     return app

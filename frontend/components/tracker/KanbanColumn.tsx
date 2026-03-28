@@ -12,7 +12,7 @@ interface KanbanColumnProps {
   cards: Application[]
   archivedCount?: number
   onDelete: (id: number) => void
-  onAddCard: (company: string, title: string, url?: string) => Promise<void>
+  onAddCard: (company: string, title: string, url?: string, status?: ApplicationStatus) => Promise<void>
 }
 
 const COLUMN_ACCENT: Record<ApplicationStatus, string> = {
@@ -50,7 +50,7 @@ export function KanbanColumn({
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault()
     if (!company.trim() || !title.trim()) return
-    await onAddCard(company.trim(), title.trim(), url.trim() || undefined)
+    await onAddCard(company.trim(), title.trim(), url.trim() || undefined, status)
     setCompany(""); setTitle(""); setUrl(""); setShowAdd(false)
   }
 

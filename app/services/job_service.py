@@ -205,8 +205,9 @@ class JobService:
         title: str,
         url: Optional[str] = None,
         notes: Optional[str] = None,
+        status: str = "pending",
     ) -> Application:
-        """Create a new pending application card for manual tracking."""
+        """Create a new application card for manual tracking."""
         with Session(self._engine) as session:
             app = Application(
                 user_id=user_id,
@@ -215,7 +216,7 @@ class JobService:
                 url=url,
                 notes=notes,
                 source="manual",
-                status="pending",
+                status=status,
             )
             session.add(app)
             session.commit()

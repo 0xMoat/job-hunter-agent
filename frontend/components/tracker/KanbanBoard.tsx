@@ -55,7 +55,7 @@ export function KanbanBoard() {
                 cards={colCards}
                 archivedCount={status === "pending" ? archivedCount : undefined}
                 onDelete={deleteApplication}
-                onAddCard={(company, title, url) => addApplication(company, title, url).then(() => undefined)}
+                onAddCard={(company, title, url) => addApplication(company, title, url, status).then(() => undefined)}
               />
             )
           })}

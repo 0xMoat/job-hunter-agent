@@ -107,7 +107,7 @@ export async function apiListApplications(
 
 export async function apiAddApplication(
   sessionToken: string,
-  data: { company: string; title: string; url?: string; notes?: string },
+  data: { company: string; title: string; url?: string; notes?: string; status?: ApplicationStatus },
 ): Promise<Application> {
   const res = await req(
     "/api/v1/applications",
