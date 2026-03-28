@@ -49,12 +49,15 @@ async def _daily_job_search() -> None:
                 for r in raw_results
                 if r.get("link")  # only include results with a real URL
             ]
-            inserted = await job_service.upsert_listings(pref.user_id, listings)
+            result = await job_service.batch_create_pending(pref.user_id, listings)
+            archived = await job_service.archive_stale_pending()
             logger.info(
                 "daily_job_search_user_done",
                 user_id=pref.user_id,
                 keywords=pref.keywords,
-                inserted=inserted,
+                inserted=result["inserted"],
+                skipped=result["skipped"],
+                archived=archived,
             )
         except Exception as e:
             logger.exception("daily_job_search_user_failed", user_id=pref.user_id, error=str(e))

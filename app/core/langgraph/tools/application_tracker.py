@@ -30,7 +30,7 @@ async def application_tracker_tool(
         company: Company name (required for add)
         title: Job title (required for add)
         url: Job posting URL (optional for add)
-        status: Application status for update: applied / interviewing / rejected / offer
+        status: Application status for update: pending / applied / interviewing / completed / not_a_match
         application_id: Application ID (required for update/delete)
         notes: Free-form notes (optional)
         config: LangGraph RunnableConfig injected by framework (excluded from LLM schema)
