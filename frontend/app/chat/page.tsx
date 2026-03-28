@@ -5,13 +5,12 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { isAuthenticated, clearAuth, getAccessToken } from "@/lib/auth"
 import { ChatPanel } from "@/components/chat/ChatPanel"
 import { SessionSidebar } from "@/components/chat/SessionSidebar"
-import { ApplicationTracker } from "@/components/tracker/ApplicationTracker"
-import { ListingsPanel } from "@/components/listings/ListingsPanel"
+import { KanbanBoard } from "@/components/tracker/KanbanBoard"
 import { SystemPromptModal } from "@/components/settings/SystemPromptModal"
 import { SessionProvider } from "@/contexts/SessionContext"
 import { useLanguage } from "@/contexts/LanguageContext"
 
-type Tab = "chat" | "picks"
+type Tab = "chat" | "tracker"
 
 function ChatPageInner() {
   const router = useRouter()
@@ -20,7 +19,7 @@ function ChatPageInner() {
 
   const [tab, setTab] = useState<Tab>(() => {
     const p = searchParams.get("tab")
-    return p === "picks" ? "picks" : "chat"
+    return p === "tracker" ? "tracker" : "chat"
   })
   const [ready, setReady] = useState(false)
   const [streaming, setStreaming] = useState(false)
@@ -57,7 +56,7 @@ function ChatPageInner() {
           <div role="tablist" className="flex items-center gap-1">
             {([
               { key: "chat" as Tab, label: t('tab_chat') },
-              { key: "picks" as Tab, label: t('tab_picks') },
+              { key: "tracker" as Tab, label: t('tab_tracker') },
             ]).map(({ key, label }) => (
               <button
                 key={key}
@@ -115,21 +114,13 @@ function ChatPageInner() {
       <div className="flex-1 overflow-hidden px-4 pb-4">
         {tab === "chat" ? (
           <div className="h-full flex gap-3">
-            {/* Session sidebar */}
             <SessionSidebar streaming={streaming} />
-
-            {/* Chat + tracker */}
-            <div className="flex-1 min-w-0 overflow-hidden flex gap-4">
-              <div className="flex-1 min-w-0 overflow-hidden">
-                <ChatPanel onStreamingChange={setStreaming} />
-              </div>
-              <div className="w-72 xl:w-80 flex-shrink-0 overflow-hidden">
-                <ApplicationTracker />
-              </div>
+            <div className="flex-1 min-w-0 overflow-hidden">
+              <ChatPanel onStreamingChange={setStreaming} />
             </div>
           </div>
         ) : (
-          <ListingsPanel />
+          <KanbanBoard />
         )}
       </div>
     </div>
