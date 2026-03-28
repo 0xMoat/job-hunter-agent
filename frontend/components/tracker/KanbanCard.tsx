@@ -1,5 +1,7 @@
 "use client"
 
+import { useDraggable } from "@dnd-kit/core"
+import { CSS } from "@dnd-kit/utilities"
 import { useLanguage } from "@/contexts/LanguageContext"
 import type { Application } from "@/lib/types"
 
@@ -10,9 +12,21 @@ interface KanbanCardProps {
 
 export function KanbanCard({ app, onDelete }: KanbanCardProps) {
   const { t } = useLanguage()
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: app.id,
+  })
+
+  const style = {
+    transform: CSS.Translate.toString(transform),
+    opacity: isDragging ? 0.4 : 1,
+  }
 
   return (
     <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
       className="bg-white rounded-xl p-3 shadow-sm border border-[var(--border)]
                  cursor-grab active:cursor-grabbing select-none
                  hover:shadow-md transition-shadow"
@@ -53,6 +67,7 @@ export function KanbanCard({ app, onDelete }: KanbanCardProps) {
       {/* Footer */}
       <div className="flex items-center justify-between mt-1">
         <button
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => { e.stopPropagation(); onDelete(app.id) }}
           className="text-[10px] font-body text-[var(--text-3)] hover:text-red-500
                      transition-colors"
@@ -64,6 +79,7 @@ export function KanbanCard({ app, onDelete }: KanbanCardProps) {
             href={app.url}
             target="_blank"
             rel="noopener noreferrer"
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
             className="text-[10px] font-body text-[#7c6af5] hover:underline"
           >

@@ -4,14 +4,15 @@ import { useState, useCallback, useEffect } from "react"
 import {
   apiListApplications,
   apiAddApplication,
-  apiUpdateApplication,
   apiDeleteApplication,
+  apiMoveCard,
 } from "@/lib/api"
 import { getSessionToken } from "@/lib/auth"
 import type { Application, ApplicationStatus } from "@/lib/types"
 
 export function useApplications() {
   const [applications, setApplications] = useState<Application[]>([])
+  const [archivedCount, setArchivedCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -22,6 +23,7 @@ export function useApplications() {
     try {
       const data = await apiListApplications(token)
       setApplications(data.applications)
+      setArchivedCount(data.archived_count ?? 0)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load applications")
     } finally {
@@ -29,21 +31,14 @@ export function useApplications() {
     }
   }, [])
 
-  useEffect(() => {
-    load()
-  }, [load])
+  useEffect(() => { load() }, [load])
 
   const addApplication = useCallback(
-    async (
-      company: string,
-      title: string,
-      url?: string,
-      notes?: string,
-    ): Promise<Application | undefined> => {
+    async (company: string, title: string, url?: string): Promise<Application | undefined> => {
       const token = getSessionToken()
       if (!token) return
       try {
-        const app = await apiAddApplication(token, { company, title, url, notes })
+        const app = await apiAddApplication(token, { company, title, url })
         setApplications((prev) => [app, ...prev])
         return app
       } catch (err) {
@@ -53,18 +48,24 @@ export function useApplications() {
     [],
   )
 
-  const updateStatus = useCallback(
-    async (id: number, status: ApplicationStatus): Promise<void> => {
+  const moveCard = useCallback(
+    async (id: number, newStatus: ApplicationStatus): Promise<void> => {
       const token = getSessionToken()
       if (!token) return
+      // Optimistic update
+      setApplications((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, status: newStatus } : a))
+      )
       try {
-        const updated = await apiUpdateApplication(token, id, { status })
-        setApplications((prev) => prev.map((a) => (a.id === id ? updated : a)))
+        const updated = await apiMoveCard(token, id, newStatus)
+        setApplications((prev) => prev.map((a) => (a.id === updated.id ? updated : a)))
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to update application")
+        setError(err instanceof Error ? err.message : "Failed to move card")
+        // Rollback on error
+        load()
       }
     },
-    [],
+    [load],
   )
 
   const deleteApplication = useCallback(async (id: number): Promise<void> => {
@@ -80,10 +81,11 @@ export function useApplications() {
 
   return {
     applications,
+    archivedCount,
     loading,
     error,
     addApplication,
-    updateStatus,
+    moveCard,
     deleteApplication,
     reload: load,
   }

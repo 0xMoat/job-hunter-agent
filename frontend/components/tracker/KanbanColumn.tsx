@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useDroppable } from "@dnd-kit/core"
 import { KanbanCard } from "./KanbanCard"
 import { useLanguage } from "@/contexts/LanguageContext"
 import type { Application, ApplicationStatus } from "@/lib/types"
@@ -39,6 +40,7 @@ export function KanbanColumn({
   onAddCard,
 }: KanbanColumnProps) {
   const { t } = useLanguage()
+  const { setNodeRef, isOver } = useDroppable({ id: status })
 
   const [showAdd, setShowAdd] = useState(false)
   const [company, setCompany] = useState("")
@@ -54,7 +56,9 @@ export function KanbanColumn({
 
   return (
     <div
-      className="flex flex-col flex-1 min-w-0 rounded-2xl p-3 bg-white/25 transition-colors"
+      ref={setNodeRef}
+      className={`flex flex-col flex-1 min-w-0 rounded-2xl p-3 transition-colors
+                  ${isOver ? "bg-white/50" : "bg-white/25"}`}
     >
       {/* Column header */}
       <div className="flex items-center justify-between mb-3 px-1">
