@@ -1,7 +1,7 @@
 // All fetch calls to the FastAPI backend.
 // Set NEXT_PUBLIC_API_URL in .env.local to override the default.
 
-import type { Application } from "./types"
+import type { Application, ApplicationStatus } from "./types"
 
 export interface SessionItem {
   session_id: string
@@ -124,7 +124,7 @@ export async function apiAddApplication(
 export async function apiUpdateApplication(
   sessionToken: string,
   id: number,
-  data: { status?: string; notes?: string },
+  data: { status?: ApplicationStatus; notes?: string },
 ): Promise<Application> {
   const res = await req(
     `/api/v1/applications/${id}`,
@@ -141,7 +141,7 @@ export async function apiUpdateApplication(
 export async function apiMoveCard(
   sessionToken: string,
   id: number,
-  status: string,
+  status: ApplicationStatus,
 ): Promise<Application> {
   return apiUpdateApplication(sessionToken, id, { status })
 }
