@@ -4,6 +4,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import List, Optional
 
 from sqlalchemy import desc
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.core.logging import logger
@@ -265,15 +266,15 @@ class JobService:
     async def count_archived_pending(self, user_id: int) -> int:
         """Count scheduler-sourced pending cards that have been archived for this user."""
         with Session(self._engine) as session:
-            results = session.exec(
-                select(Application).where(
+            count = session.exec(
+                select(func.count()).select_from(Application).where(
                     Application.user_id == user_id,
                     Application.status == "pending",
                     Application.source == "scheduler",
                     Application.archived_at.is_not(None),
                 )
-            ).all()
-            return len(results)
+            ).one()
+            return count
 
     async def delete_application(self, application_id: int, user_id: int) -> bool:
         """Delete an application. Returns True if deleted."""

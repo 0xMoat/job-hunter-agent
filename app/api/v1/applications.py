@@ -3,7 +3,7 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.api.v1.auth import get_current_session
 from app.core.limiter import limiter
@@ -35,7 +35,7 @@ class BatchListingItem(BaseModel):
 
     title: str
     company: str = ""
-    url: str
+    url: str = Field(min_length=1)
     snippet: str = ""
     found_date: Optional[str] = None
 
