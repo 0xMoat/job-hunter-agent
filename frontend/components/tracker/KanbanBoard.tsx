@@ -11,10 +11,6 @@ export function KanbanBoard() {
   const { applications, archivedCount, loading, addApplication, moveCard, deleteApplication } = useApplications()
   const { t } = useLanguage()
 
-  async function handleAddCard(company: string, title: string, url?: string): Promise<void> {
-    await addApplication(company, title, url)
-  }
-
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   )
@@ -59,7 +55,7 @@ export function KanbanBoard() {
                 cards={colCards}
                 archivedCount={status === "pending" ? archivedCount : undefined}
                 onDelete={deleteApplication}
-                onAddCard={handleAddCard}
+                onAddCard={(company, title, url) => addApplication(company, title, url).then(() => undefined)}
               />
             )
           })}

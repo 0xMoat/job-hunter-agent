@@ -78,7 +78,7 @@ export function KanbanColumn({
       </div>
 
       {/* Archived hint — only shown in pending column when there are archived cards */}
-      {status === "pending" && !!archivedCount && archivedCount > 0 && (
+      {status === "pending" && !!archivedCount && (
         <p className="font-body text-[10px] text-[var(--text-3)] italic text-center mt-2">
           {t("kanban_archived_n", archivedCount)}
         </p>
