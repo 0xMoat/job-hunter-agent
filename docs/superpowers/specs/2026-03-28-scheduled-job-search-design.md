@@ -56,6 +56,8 @@ Add nullable column:
 
 `SearchConfig` SQLModel with the fields above.
 
+Add a `noqa` import of `SearchConfig` to `app/services/database.py` alongside the existing model imports so that SQLModel registers the table before `create_all()` is called.
+
 ### Modified model: `app/models/user.py`
 
 Add `resume_text: Optional[str] = Field(default=None)`.
@@ -66,21 +68,28 @@ Add `match_score: Optional[int] = Field(default=None)`.
 
 ### New API routes: `app/api/v1/search.py`
 
-Mounted at `/api/v1/search/`:
+Mounted at `/api/v1/search/`. All endpoints use `get_current_user` (user-level Bearer token, same as `settings.py`), not session token.
+
+Rate limits: add `"search": ["30/minute"]` to `RATE_LIMIT_ENDPOINTS` in `app/core/config.py`.
 
 ```
-GET  /config   → Return current SearchConfig (or defaults if none exists)
-PUT  /config   → Upsert SearchConfig; dynamically reschedule/remove APScheduler job
-POST /run      → Manually trigger job search for the current user immediately
+GET  /config   → Return current SearchConfig (or default values if none exists; does NOT auto-create a row)
+PUT  /config   → Upsert SearchConfig; validate cron via CronTrigger construction (raise 422 on invalid);
+                 if schedule_enabled=True, validate that JobPreference exists (raise 400 if not);
+                 dynamically reschedule/remove APScheduler job
+POST /run      → Immediately trigger job search for the current user; runs synchronously in executor;
+                 returns 200 { "inserted": int, "skipped": int } on completion
 ```
+
+Scheduler access from the API layer: `app/core/scheduler.py` exposes the `scheduler` module-level singleton. `search.py` imports it directly (`from app.core.scheduler import scheduler`). No circular import arises because `scheduler.py` imports `job_service` from `app/services/`, not from `app/api/`.
 
 ### Modified API routes: `app/api/v1/settings.py`
 
-Add resume endpoints:
+Add resume endpoints. Uses `get_current_user` (same as existing endpoints in this file).
 
 ```
 GET  /resume   → Return { resume_text: str | null }
-PUT  /resume   → body: { resume_text: str }, save to users table
+PUT  /resume   → body: { resume_text: str, max_length=50000 }, save to users table
 ```
 
 ### Modified service: `app/services/job_service.py`
@@ -92,15 +101,21 @@ PUT  /resume   → body: { resume_text: str }, save to users table
 
 ### New service method: `app/services/scoring_service.py`
 
-`score_job(job_title, snippet, resume_text) -> int`
+`score_job(job_title, snippet, resume_text) -> Optional[int]`
 
-- Calls `LLMService` with a structured prompt requesting `{ "score": int }` (0–100)
-- Returns the score integer; returns `None` on LLM failure (non-blocking)
+- Accepts a `llm: LLMService` parameter — the caller (`_search_for_user`) instantiates one `LLMService()` at the start and passes it in for the whole batch, avoiding both the global-singleton race condition and per-call construction overhead
+- Calls the LLM with a structured prompt requesting JSON `{ "score": int }` (0–100); uses `response_format={"type": "json_object"}` or equivalent structured output
+- Returns the score integer; returns `None` on any LLM failure (non-blocking, log warning)
 - Prompt instructs: score 100 = perfect match, 0 = completely irrelevant
+- `match_score` field should be defined with `Field(default=None, ge=0, le=100)` to prevent out-of-range values
 
 ### Modified scheduler: `app/core/scheduler.py`
 
+`archive_stale_pending` is retained: call `await job_service.archive_stale_pending()` once per user run inside `_search_for_user`, same as the current behavior.
+
 Extract core search logic into reusable `_search_for_user(user_id, pref, config, resume_text) -> dict`:
+
+If `pref` is `None`, log a warning and return `{"inserted": 0, "skipped": 0}` early.
 
 1. If `config.target_sites` is non-empty: split by comma, run one DuckDuckGo query per site with `site:<domain>` appended, collect up to 5 results each
 2. If `target_sites` is empty: single query as before
@@ -124,7 +139,7 @@ Dynamic scheduling:
 
 ### Settings modal: multi-tab expansion
 
-Extend `SystemPromptModal` into a multi-tab settings panel with three tabs:
+Rename `SystemPromptModal` to `SettingsModal` (update the export and all call sites — currently only `app/chat/page.tsx`). The component becomes a multi-tab settings panel with three tabs:
 
 1. **System Prompt** (existing)
 2. **Resume** — multi-line textarea for pasting plain text resume; Save button
