@@ -1,6 +1,6 @@
 """Service layer for job-hunting domain: preferences, listings, applications."""
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import List, Optional
 
 from sqlalchemy import desc
@@ -116,6 +116,85 @@ class JobService:
                 ).all()
             )
 
+    async def batch_create_pending(
+        self, user_id: int, listings: List[dict]
+    ) -> dict:
+        """Create pending kanban cards from scheduler results.
+
+        Skips listings that already have an Application record (by user_id + url).
+        Returns {"inserted": N, "skipped": M}.
+        """
+        inserted = 0
+        skipped = 0
+        with Session(self._engine) as session:
+            for item in listings:
+                url = item.get("url", "")
+                if not url:
+                    skipped += 1
+                    continue
+                exists = session.exec(
+                    select(Application).where(
+                        Application.user_id == user_id,
+                        Application.url == url,
+                    )
+                ).first()
+                if exists:
+                    skipped += 1
+                    continue
+                found_date_raw = item.get("found_date")
+                if isinstance(found_date_raw, str):
+                    found_date_val = date.fromisoformat(found_date_raw)
+                elif isinstance(found_date_raw, date):
+                    found_date_val = found_date_raw
+                else:
+                    found_date_val = datetime.now(UTC).date()
+                card = Application(
+                    user_id=user_id,
+                    title=item.get("title", ""),
+                    company=item.get("company", ""),
+                    url=url,
+                    snippet=item.get("snippet", ""),
+                    found_date=found_date_val,
+                    source="scheduler",
+                    status="pending",
+                )
+                session.add(card)
+                inserted += 1
+            session.commit()
+        logger.info(
+            "pending_cards_created",
+            user_id=user_id,
+            inserted=inserted,
+            skipped=skipped,
+        )
+        return {"inserted": inserted, "skipped": skipped}
+
+    async def archive_stale_pending(self, days: int = 7) -> int:
+        """Set archived_at on scheduler-sourced pending cards older than `days`.
+
+        Only affects cards where source='scheduler' and status='pending'.
+        Manual pending cards are never auto-archived.
+        Returns count of archived records.
+        """
+        cutoff = datetime.now(UTC).date() - timedelta(days=days)
+        count = 0
+        with Session(self._engine) as session:
+            stale = session.exec(
+                select(Application).where(
+                    Application.status == "pending",
+                    Application.source == "scheduler",
+                    Application.found_date < cutoff,
+                    Application.archived_at.is_(None),
+                )
+            ).all()
+            for card in stale:
+                card.archived_at = datetime.now(UTC)
+                session.add(card)
+                count += 1
+            session.commit()
+        logger.info("stale_pending_archived", count=count, cutoff=str(cutoff))
+        return count
+
     # ── Applications ──────────────────────────────────────────────────────────
 
     async def add_application(
@@ -129,7 +208,13 @@ class JobService:
         """Record a new job application."""
         with Session(self._engine) as session:
             app = Application(
-                user_id=user_id, company=company, title=title, url=url, notes=notes
+                user_id=user_id,
+                company=company,
+                title=title,
+                url=url,
+                notes=notes,
+                source="manual",
+                status="pending",
             )
             session.add(app)
             session.commit()

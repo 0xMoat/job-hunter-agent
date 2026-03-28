@@ -9,7 +9,9 @@ from app.models.base import BaseModel
 
 
 class Application(BaseModel, table=True):
-    """Tracks a job application submitted by the user.
+    """Tracks a job application or discovered listing for the user.
+
+    Status flow: pending → applied → interviewing → completed | not_a_match
 
     Attributes:
         id: Primary key
@@ -17,9 +19,13 @@ class Application(BaseModel, table=True):
         company: Company name
         title: Job title
         url: Job posting URL
-        status: applied / interviewing / rejected / offer
-        applied_date: Date of application
+        status: pending / applied / interviewing / completed / not_a_match
+        applied_date: Date of application (null for pending cards)
         notes: Free-form notes
+        snippet: JD summary snippet (from scheduler search results)
+        found_date: Date scheduler found this listing (null for manual cards)
+        source: "scheduler" or "manual"
+        archived_at: Set when card is auto-archived; null = active
         updated_at: Last update timestamp
     """
 
@@ -30,7 +36,11 @@ class Application(BaseModel, table=True):
     company: str
     title: str
     url: Optional[str] = Field(default=None)
-    status: str = Field(default="applied")
-    applied_date: date = Field(default_factory=lambda: datetime.now(UTC).date())
+    status: str = Field(default="pending")
+    applied_date: Optional[date] = Field(default=None)
     notes: Optional[str] = Field(default=None)
+    snippet: Optional[str] = Field(default=None)
+    found_date: Optional[date] = Field(default=None)
+    source: str = Field(default="manual")
+    archived_at: Optional[datetime] = Field(default=None)
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
