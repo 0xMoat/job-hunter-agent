@@ -192,7 +192,7 @@ class JobService:
                 session.add(card)
                 count += 1
             session.commit()
-        logger.info("stale_pending_archived", count=count, cutoff=str(cutoff))
+        logger.info("stale_pending_archived", count=count, cutoff=cutoff)
         return count
 
     # ── Applications ──────────────────────────────────────────────────────────
@@ -205,7 +205,7 @@ class JobService:
         url: Optional[str] = None,
         notes: Optional[str] = None,
     ) -> Application:
-        """Record a new job application."""
+        """Create a new pending application card for manual tracking."""
         with Session(self._engine) as session:
             app = Application(
                 user_id=user_id,
