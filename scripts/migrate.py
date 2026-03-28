@@ -23,7 +23,7 @@ def column_exists(cur, table: str, column: str) -> bool:
     cur.execute(
         """
         SELECT 1 FROM information_schema.columns
-        WHERE table_name = %s AND column_name = %s
+        WHERE table_schema = 'public' AND table_name = %s AND column_name = %s
         """,
         (table, column),
     )
@@ -44,7 +44,8 @@ def run():
         ]
         for col, col_type in new_columns:
             if not column_exists(cur, "applications", col):
-                cur.execute(f"ALTER TABLE applications ADD COLUMN {col} {col_type}")
+                # col and col_type are compile-time constants from the hardcoded list above — not derived from any external input.
+                cur.execute(f"ALTER TABLE applications ADD COLUMN {col} {col_type}")  # noqa: S608
                 print(f"  Added column: applications.{col}")
             else:
                 print(f"  Column already exists: applications.{col}")
