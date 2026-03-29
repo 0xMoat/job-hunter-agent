@@ -10,7 +10,6 @@ from app.core.limiter import limiter
 from app.core.logging import logger
 from app.core.scheduler import _scheduled_search_for_user, _search_for_user, scheduler
 from app.models.user import User
-from app.services.database import database_service
 from app.services.job_service import job_service
 
 router = APIRouter()
@@ -120,8 +119,7 @@ async def run_search(
     """Manually trigger a job search for the current user."""
     pref = await job_service.get_preference(current_user.id)
     config = await job_service.get_search_config(current_user.id)
-    user = await database_service.get_user_by_id(current_user.id)
-    resume_text = user.resume_text if user else None
+    resume_text = current_user.resume_text
 
     result = await _search_for_user(current_user.id, pref, config, resume_text)
     logger.info("manual_search_run", user_id=current_user.id, result=result)

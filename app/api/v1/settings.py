@@ -89,7 +89,7 @@ class SystemPromptResponse(BaseModel):
 
 
 class ResumeRequest(BaseModel):
-    resume_text: str = Field(max_length=50000)
+    resume_text: Optional[str] = Field(default=None, max_length=50000)
 
 
 class ResumeResponse(BaseModel):
