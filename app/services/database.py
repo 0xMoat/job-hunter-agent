@@ -27,6 +27,7 @@ from app.models.user import User
 from app.models.application import Application  # noqa: F401
 from app.models.job_listing import JobListing  # noqa: F401
 from app.models.job_preference import JobPreference  # noqa: F401
+from app.models.search_config import SearchConfig  # noqa: F401
 
 
 class DatabaseService:
@@ -141,6 +142,42 @@ class DatabaseService:
             session.commit()
             session.refresh(user)
             logger.info("user_system_prompt_updated", user_id=user_id, is_custom=prompt is not None)
+            return user
+
+    async def get_user_by_id(self, user_id: int) -> Optional[User]:
+        """Fetch a user by primary key.
+
+        Args:
+            user_id: The user's primary key.
+
+        Returns:
+            Optional[User]: The user if found, None otherwise.
+        """
+        with Session(self.engine) as session:
+            return session.get(User, user_id)
+
+    async def update_user_resume(self, user_id: int, resume_text: Optional[str]) -> User:
+        """Set or clear a user's resume text.
+
+        Args:
+            user_id: The ID of the user to update.
+            resume_text: Plain-text resume, or None to clear.
+
+        Returns:
+            User: The updated user.
+
+        Raises:
+            HTTPException: If the user is not found.
+        """
+        with Session(self.engine) as session:
+            user = session.get(User, user_id)
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+            user.resume_text = resume_text
+            session.add(user)
+            session.commit()
+            session.refresh(user)
+            logger.info("user_resume_updated", user_id=user_id, has_resume=resume_text is not None)
             return user
 
     async def delete_user_by_email(self, email: str) -> bool:

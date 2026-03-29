@@ -34,6 +34,7 @@ class User(BaseModel, table=True):
     email: str = Field(unique=True, index=True)
     hashed_password: str
     system_prompt: Optional[str] = Field(default=None)
+    resume_text: Optional[str] = Field(default=None)
     sessions: List["Session"] = Relationship(back_populates="user")
 
     def verify_password(self, password: str) -> bool:

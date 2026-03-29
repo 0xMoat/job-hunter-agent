@@ -40,6 +40,7 @@ class Application(BaseModel, table=True):
     applied_date: Optional[date] = Field(default=None)
     notes: Optional[str] = Field(default=None)
     snippet: Optional[str] = Field(default=None)
+    match_score: Optional[int] = Field(default=None, ge=0, le=100)
     found_date: Optional[date] = Field(default=None)
     source: str = Field(default="manual")
     archived_at: Optional[datetime] = Field(default=None)
