@@ -47,12 +47,21 @@ export function KanbanBoard() {
             const colCards = applications.filter(
               (a) => toColumnStatus(a.status) === status
             )
+            const displayCards =
+              status === "pending"
+                ? [...colCards].sort((a, b) => {
+                    if (a.match_score == null && b.match_score == null) return 0
+                    if (a.match_score == null) return 1
+                    if (b.match_score == null) return -1
+                    return b.match_score - a.match_score
+                  })
+                : colCards
             return (
               <KanbanColumn
                 key={status}
                 status={status}
                 labelKey={labelKey}
-                cards={colCards}
+                cards={displayCards}
                 archivedCount={status === "pending" ? archivedCount : undefined}
                 onDelete={deleteApplication}
                 onAddCard={(company, title, url) => addApplication(company, title, url, status).then(() => undefined)}
