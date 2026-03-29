@@ -36,15 +36,31 @@ export function KanbanCard({ app, onDelete }: KanbanCardProps) {
         <span className="font-body font-semibold text-sm text-[var(--text)] leading-tight">
           {app.company || "—"}
         </span>
-        <span
-          className={`shrink-0 text-[10px] font-body rounded-full px-2 py-0.5 ${
-            app.source === "scheduler"
-              ? "bg-[#ede9ff] text-[#7c6af5]"
-              : "bg-[#f0f9f0] text-[#5a9a5a]"
-          }`}
-        >
-          {app.source === "scheduler" ? t("card_source_scheduler") : t("card_source_manual")}
-        </span>
+        <div className="flex items-center gap-1 shrink-0">
+          {app.match_score != null && (
+            <span
+              className={[
+                "text-[10px] font-body rounded-full px-2 py-0.5 font-semibold tabular-nums",
+                app.match_score >= 80
+                  ? "bg-[#dcfce7] text-[#16a34a]"
+                  : app.match_score >= 60
+                  ? "bg-[#fef9c3] text-[#a16207]"
+                  : "bg-black/5 text-[#999]",
+              ].join(" ")}
+            >
+              {app.match_score}
+            </span>
+          )}
+          <span
+            className={`shrink-0 text-[10px] font-body rounded-full px-2 py-0.5 ${
+              app.source === "scheduler"
+                ? "bg-[#ede9ff] text-[#7c6af5]"
+                : "bg-[#f0f9f0] text-[#5a9a5a]"
+            }`}
+          >
+            {app.source === "scheduler" ? t("card_source_scheduler") : t("card_source_manual")}
+          </span>
+        </div>
       </div>
 
       {/* Title */}
