@@ -11,6 +11,7 @@ from langchain_community.utilities import DuckDuckGoSearchAPIWrapper
 from app.core.logging import logger
 from app.models.job_preference import JobPreference
 from app.models.search_config import SearchConfig
+from app.services.database import database_service
 from app.services.job_service import job_service
 from app.services.llm import LLMService
 from app.services.scoring_service import score_job
@@ -107,8 +108,6 @@ async def _scheduled_search_for_user(user_id: int) -> None:
     """APScheduler job entry point for one user's scheduled search."""
     logger.info("scheduled_job_search_started", user_id=user_id)
     try:
-        from app.services.database import database_service  # local import avoids circular dep
-
         pref = await job_service.get_preference(user_id)
         config = await job_service.get_search_config(user_id)
         user = await database_service.get_user_by_id(user_id)
