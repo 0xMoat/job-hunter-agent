@@ -11,6 +11,7 @@ from app.core.logging import logger
 from app.models.application import Application
 from app.models.job_listing import JobListing
 from app.models.job_preference import JobPreference
+from app.models.search_config import SearchConfig
 from app.services.database import database_service
 
 
@@ -158,6 +159,7 @@ class JobService:
                     found_date=found_date_val,
                     source="scheduler",
                     status="pending",
+                    match_score=item.get("match_score"),
                 )
                 session.add(card)
                 inserted += 1
@@ -292,6 +294,54 @@ class JobService:
             session.commit()
             logger.info("application_deleted", application_id=application_id, user_id=user_id)
             return True
+
+    async def upsert_search_config(
+        self,
+        user_id: int,
+        target_sites: str,
+        schedule_enabled: bool,
+        schedule_cron: str,
+    ) -> SearchConfig:
+        """Create or update the search config for a user."""
+        with Session(self._engine) as session:
+            existing = session.exec(
+                select(SearchConfig).where(SearchConfig.user_id == user_id)
+            ).first()
+            if existing:
+                existing.target_sites = target_sites
+                existing.schedule_enabled = schedule_enabled
+                existing.schedule_cron = schedule_cron
+                existing.updated_at = datetime.now(UTC)
+                session.add(existing)
+                session.commit()
+                session.refresh(existing)
+                return existing
+            config = SearchConfig(
+                user_id=user_id,
+                target_sites=target_sites,
+                schedule_enabled=schedule_enabled,
+                schedule_cron=schedule_cron,
+            )
+            session.add(config)
+            session.commit()
+            session.refresh(config)
+            return config
+
+    async def get_search_config(self, user_id: int) -> Optional[SearchConfig]:
+        """Return the search config for a user, or None if not yet created."""
+        with Session(self._engine) as session:
+            return session.exec(
+                select(SearchConfig).where(SearchConfig.user_id == user_id)
+            ).first()
+
+    async def get_all_search_configs(self) -> List[SearchConfig]:
+        """Return all search configs with schedule_enabled=True."""
+        with Session(self._engine) as session:
+            return list(
+                session.exec(
+                    select(SearchConfig).where(SearchConfig.schedule_enabled == True)  # noqa: E712
+                ).all()
+            )
 
 
 job_service = JobService()
