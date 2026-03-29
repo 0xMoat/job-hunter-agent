@@ -273,28 +273,25 @@ export async function apiUpdateSessionName(
 // ── Resume ────────────────────────────────────────────────────────────────
 
 export async function apiGetResume(
-  accessToken: string
+  accessToken: string,
 ): Promise<{ resume_text: string | null }> {
-  const res = await fetch(`${BASE_URL}/settings/resume`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
-  if (!res.ok) throw new Error(`Failed to load resume: ${res.status}`)
+  const res = await req("/api/v1/settings/resume", {}, accessToken)
   return res.json()
 }
 
 export async function apiSaveResume(
   accessToken: string,
-  resume_text: string
+  resume_text: string,
 ): Promise<{ resume_text: string | null }> {
-  const res = await fetch(`${BASE_URL}/settings/resume`, {
-    method: "PUT",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
+  const res = await req(
+    "/api/v1/settings/resume",
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ resume_text }),
     },
-    body: JSON.stringify({ resume_text }),
-  })
-  if (!res.ok) throw new Error(`Failed to save resume: ${res.status}`)
+    accessToken,
+  )
   return res.json()
 }
 
@@ -307,39 +304,29 @@ export interface SearchConfig {
 }
 
 export async function apiGetSearchConfig(accessToken: string): Promise<SearchConfig> {
-  const res = await fetch(`${BASE_URL}/search/config`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
-  if (!res.ok) throw new Error(`Failed to load search config: ${res.status}`)
+  const res = await req("/api/v1/search/config", {}, accessToken)
   return res.json()
 }
 
 export async function apiSaveSearchConfig(
   accessToken: string,
-  config: SearchConfig
+  config: SearchConfig,
 ): Promise<SearchConfig> {
-  const res = await fetch(`${BASE_URL}/search/config`, {
-    method: "PUT",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
+  const res = await req(
+    "/api/v1/search/config",
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(config),
     },
-    body: JSON.stringify(config),
-  })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(err.detail ?? `Failed to save search config: ${res.status}`)
-  }
+    accessToken,
+  )
   return res.json()
 }
 
 export async function apiRunSearch(
-  accessToken: string
+  accessToken: string,
 ): Promise<{ inserted: number; skipped: number }> {
-  const res = await fetch(`${BASE_URL}/search/run`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
-  if (!res.ok) throw new Error(`Search failed: ${res.status}`)
+  const res = await req("/api/v1/search/run", { method: "POST" }, accessToken)
   return res.json()
 }
