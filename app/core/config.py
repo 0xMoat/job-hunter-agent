@@ -192,6 +192,7 @@ class Settings:
             "root": ["10 per minute"],
             "health": ["20 per minute"],
             "settings": ["30 per minute"],
+            "search": ["30 per minute"],
         }
 
         # Update rate limit endpoints from environment variables
