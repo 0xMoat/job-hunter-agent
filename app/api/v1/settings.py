@@ -88,6 +88,14 @@ class SystemPromptResponse(BaseModel):
     is_default: bool
 
 
+class ResumeRequest(BaseModel):
+    resume_text: str = Field(max_length=50000)
+
+
+class ResumeResponse(BaseModel):
+    resume_text: Optional[str]
+
+
 @router.get("/system-prompt", response_model=SystemPromptResponse)
 @limiter.limit(settings.RATE_LIMIT_ENDPOINTS["settings"][0])
 async def get_system_prompt(
@@ -126,6 +134,29 @@ async def reset_system_prompt(
     await db_service.update_user_system_prompt(user.id, None)
     logger.info("system_prompt_reset", user_id=user.id)
     return SystemPromptResponse(prompt=_read_default_prompt(), is_default=True)
+
+
+@router.get("/resume", response_model=ResumeResponse)
+@limiter.limit(settings.RATE_LIMIT_ENDPOINTS["settings"][0])
+async def get_resume(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+) -> ResumeResponse:
+    """Return the current user's resume text."""
+    return ResumeResponse(resume_text=current_user.resume_text)
+
+
+@router.put("/resume", response_model=ResumeResponse)
+@limiter.limit(settings.RATE_LIMIT_ENDPOINTS["settings"][0])
+async def update_resume(
+    body: ResumeRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+) -> ResumeResponse:
+    """Save the current user's plain-text resume."""
+    user = await db_service.update_user_resume(current_user.id, body.resume_text)
+    logger.info("resume_updated", user_id=current_user.id)
+    return ResumeResponse(resume_text=user.resume_text)
 
 
 @router.get("/langfuse-url", response_model=LangfuseUrlResponse)
