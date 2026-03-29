@@ -53,7 +53,7 @@ async def lifespan(app: FastAPI):
         version=settings.VERSION,
         api_prefix=settings.API_V1_STR,
     )
-    scheduler = setup_scheduler()
+    scheduler = await setup_scheduler()
     scheduler.start()
     logger.info("scheduler_started")
     yield
