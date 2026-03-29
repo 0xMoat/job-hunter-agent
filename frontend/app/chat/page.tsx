@@ -6,7 +6,7 @@ import { isAuthenticated, clearAuth, getAccessToken } from "@/lib/auth"
 import { ChatPanel } from "@/components/chat/ChatPanel"
 import { SessionSidebar } from "@/components/chat/SessionSidebar"
 import { KanbanBoard } from "@/components/tracker/KanbanBoard"
-import { SystemPromptModal } from "@/components/settings/SystemPromptModal"
+import { SettingsModal } from "@/components/settings/SettingsModal"
 import { SessionProvider } from "@/contexts/SessionContext"
 import { useLanguage } from "@/contexts/LanguageContext"
 
@@ -24,6 +24,7 @@ function ChatPageInner() {
   const [ready, setReady] = useState(false)
   const [streaming, setStreaming] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [kanbanRefreshKey, setKanbanRefreshKey] = useState(0)
 
   useEffect(() => {
     if (!isAuthenticated()) {
@@ -104,9 +105,10 @@ function ChatPageInner() {
       </div>
 
       {showSettings && (
-        <SystemPromptModal
+        <SettingsModal
           accessToken={getAccessToken() ?? ""}
           onClose={() => setShowSettings(false)}
+          onSearchComplete={() => setKanbanRefreshKey((k) => k + 1)}
         />
       )}
 
@@ -120,7 +122,7 @@ function ChatPageInner() {
             </div>
           </div>
         ) : (
-          <KanbanBoard />
+          <KanbanBoard key={kanbanRefreshKey} />
         )}
       </div>
     </div>
