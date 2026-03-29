@@ -269,3 +269,77 @@ export async function apiUpdateSessionName(
     sessionToken,
   )
 }
+
+// ── Resume ────────────────────────────────────────────────────────────────
+
+export async function apiGetResume(
+  accessToken: string
+): Promise<{ resume_text: string | null }> {
+  const res = await fetch(`${BASE_URL}/settings/resume`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (!res.ok) throw new Error(`Failed to load resume: ${res.status}`)
+  return res.json()
+}
+
+export async function apiSaveResume(
+  accessToken: string,
+  resume_text: string
+): Promise<{ resume_text: string | null }> {
+  const res = await fetch(`${BASE_URL}/settings/resume`, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ resume_text }),
+  })
+  if (!res.ok) throw new Error(`Failed to save resume: ${res.status}`)
+  return res.json()
+}
+
+// ── Search config ─────────────────────────────────────────────────────────
+
+export interface SearchConfig {
+  target_sites: string
+  schedule_enabled: boolean
+  schedule_cron: string
+}
+
+export async function apiGetSearchConfig(accessToken: string): Promise<SearchConfig> {
+  const res = await fetch(`${BASE_URL}/search/config`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (!res.ok) throw new Error(`Failed to load search config: ${res.status}`)
+  return res.json()
+}
+
+export async function apiSaveSearchConfig(
+  accessToken: string,
+  config: SearchConfig
+): Promise<SearchConfig> {
+  const res = await fetch(`${BASE_URL}/search/config`, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(config),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail ?? `Failed to save search config: ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function apiRunSearch(
+  accessToken: string
+): Promise<{ inserted: number; skipped: number }> {
+  const res = await fetch(`${BASE_URL}/search/run`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (!res.ok) throw new Error(`Search failed: ${res.status}`)
+  return res.json()
+}

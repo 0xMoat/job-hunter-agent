@@ -61,4 +61,5 @@ export interface Application {
   source: "scheduler" | "manual"
   archived_at?: string
   updated_at: string
+  match_score?: number | null
 }
