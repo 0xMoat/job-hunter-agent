@@ -1,6 +1,7 @@
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { ToolCallCard } from "./ToolCallCard"
+import { ThinkingCard } from "./ThinkingCard"
 import type { ChatMessage } from "@/lib/types"
 import { useLanguage } from "@/contexts/LanguageContext"
 
@@ -16,6 +17,11 @@ export function MessageBubble({ message, isStreaming }: Props) {
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"} mb-3`}>
       <div className="max-w-[85%]">
+        {/* Thinking card (assistant only — hidden when reasoning is empty or "direct") */}
+        {!isUser && message.thinking?.reasoningText && (
+          <ThinkingCard entry={message.thinking} isStreaming={isStreaming} />
+        )}
+
         {/* Tool call cards (assistant only) */}
         {message.toolCalls.length > 0 && (
           <div className="mb-2 space-y-1">
