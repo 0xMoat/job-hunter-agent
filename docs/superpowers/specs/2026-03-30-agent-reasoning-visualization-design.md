@@ -99,9 +99,9 @@ done
 
 ## 后端改动
 
-### `app/schemas/graph.py`
+### `app/schemas/graph.py`（状态类实际名称为 `GraphState`）
 
-`GraphState`（实际状态类名）新增字段：
+`GraphState` 新增字段：
 ```python
 reasoning: str = ""  # analyze 节点写入，空字符串表示直接回答
 ```
@@ -136,21 +136,26 @@ self._plain_llm = ChatOpenAI(
 
 **新增 `self._analyze` 实例方法（与 `self._chat` 并列）：**
 ```python
-async def _analyze(self, state: GraphState, config: RunnableConfig) -> dict:
+async def _analyze(self, state: GraphState, config: RunnableConfig) -> Command:
     last_user_msg = next(
         (m for m in reversed(state.messages) if isinstance(m, HumanMessage)), None
     )
     if not last_user_msg:
-        return {"reasoning": ""}
+        return Command(update={"reasoning": ""}, goto="chat")
 
     prompt = SystemMessage(content=(
         "In 1-2 sentences, describe what you need to do to answer the user. "
         "If it is simple conversation with no tool use needed, output exactly: direct"
     ))
-    response = await self._plain_llm.ainvoke([prompt, last_user_msg])
+    # 传入 config 以确保 Langfuse CallbackHandler 追踪此次 LLM 调用
+    response = await self._plain_llm.ainvoke([prompt, last_user_msg], config=config)
     text = response.content.strip()
-    return {"reasoning": "" if text.lower().startswith("direct") else text}
+    # 模型被指示输出小写 "direct"，前端过滤同样检查小写前缀，保持一致
+    reasoning = "" if text.lower().startswith("direct") else text
+    return Command(update={"reasoning": reasoning}, goto="chat")
 ```
+
+> "direct" 的大小写合约：系统提示要求模型输出小写 `"direct"`，后端和前端均以 `startsWith("direct")` 检测，区分大小写。如模型输出 `"Direct"` 等变体将不被过滤——这是已知的轻微风险，可通过在 prompt 末尾重申 "lowercase only" 缓解。
 
 **图连线更新（遵循现有 `set_entry_point` 约定，不引入 `START`）：**
 ```python
@@ -158,6 +163,7 @@ graph_builder.add_node("analyze", self._analyze, ends=["chat"])
 graph_builder.add_node("chat", self._chat, ends=["tool_call", END])
 graph_builder.add_node("tool_call", self._tool_call, ends=["chat"])
 graph_builder.set_entry_point("analyze")   # 原来是 set_entry_point("chat")
+graph_builder.set_finish_point("chat")     # 保留不变，chat 节点仍是终止点
 ```
 
 **`get_stream_response()` 节点追踪逻辑：**
