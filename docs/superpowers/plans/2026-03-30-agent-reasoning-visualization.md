@@ -244,21 +244,34 @@
   _node_start_ms: dict[str, float] = {}
   ```
 
-- [ ] **Step 5.2: 修改 `async for` 循环，捕获 metadata**
+- [ ] **Step 5.2: 修改 `async for` 循环：切换为双 stream_mode**
 
-  找到：
+  > **Why:** `_analyze` 使用 `ainvoke` 而非 `astream`，其输出存入 `state.reasoning`（不进入 `state.messages`），所以 `stream_mode="messages"` 的循环永远看不到推理文字。必须同时监听 `"updates"` 事件，从节点完成后的状态更新中取 reasoning。
+
+  找到完整的 `async for` 调用（5 行，含 stream_mode 参数和 `stream_mode="messages"` 结尾）：
+
   ```python
   async for token, _ in self._graph.astream(
+      {"messages": dump_messages(messages), "long_term_memory": relevant_memory},
+      config,
+      stream_mode="messages",
+  ):
   ```
 
-  替换为：
+  替换为（注意拆包变量名从 `token, _` 改为 `event_mode, event_data`）：
+
   ```python
-  async for token, _metadata in self._graph.astream(
+  async for event_mode, event_data in self._graph.astream(
+      {"messages": dump_messages(messages), "long_term_memory": relevant_memory},
+      config,
+      stream_mode=["messages", "updates"],
+  ):
   ```
 
-- [ ] **Step 5.3: 在循环 `try:` 块的最顶部插入节点切换逻辑**
+- [ ] **Step 5.3: 在循环体最顶部插入 updates 分支和节点切换逻辑**
 
-  找到：
+  找到循环体内紧跟在 `async for` 之后的 `try:` 块开头：
+
   ```python
               try:
                   if isinstance(token, AIMessageChunk):
@@ -267,6 +280,20 @@
   替换为：
 
   ```python
+              # Handle "updates" events: analyze node reasoning arrives here (ainvoke, not streaming)
+              if event_mode == "updates":
+                  for node_name, state_update in event_data.items():
+                      if node_name == "analyze" and state_update.get("reasoning"):
+                          yield _json.dumps({
+                              "type": "reasoning_chunk",
+                              "content": state_update["reasoning"],
+                              "done": False,
+                          })
+                  continue
+
+              # event_mode == "messages": unpack (token, metadata) tuple
+              token, _metadata = event_data
+
               try:
                   _node = _metadata.get("langgraph_node") if _metadata else None
 
@@ -290,14 +317,6 @@
                           })
                           _node_start_ms[_node] = time.time()
                       _current_node = _node
-
-                  # Emit reasoning_chunk for analyze node text output
-                  if _node == "analyze" and isinstance(token, AIMessageChunk) and token.content:
-                      yield _json.dumps({
-                          "type": "reasoning_chunk",
-                          "content": token.content,
-                          "done": False,
-                      })
 
                   if isinstance(token, AIMessageChunk):
   ```
@@ -461,68 +480,119 @@ grep -n "chunk.type\|case\|tool_call\|tool_result" /Users/young/Downloads/repos/
 
 - [ ] **Step 2: 新增三个新事件的处理逻辑**
 
-  在现有事件处理逻辑中，新增以下三个分支（与 `tool_call` 等并列）：
+  在 `useChat.ts` 约第 179 行，找到 `tool_result` 分支的结束位置（精确上下文如下）：
 
   ```typescript
-  // Helper: initialize ThinkingEntry if absent
-  const emptyThinking = (): ThinkingEntry => ({
-    nodeSequence: [],
-    reasoningText: "",
-    currentNode: null,
-    doneNodes: {},
-  })
-
-  // ... inside the event loop:
-
-  } else if (chunk.type === "node_enter" && chunk.node_name) {
-    setMessages(prev => prev.map(m => {
-      if (m.id !== assistantId) return m
-      const thinking = m.thinking ?? emptyThinking()
-      return {
-        ...m,
-        thinking: {
-          ...thinking,
-          currentNode: chunk.node_name!,
-          nodeSequence: thinking.nodeSequence.includes(chunk.node_name!)
-            ? thinking.nodeSequence
-            : [...thinking.nodeSequence, chunk.node_name!],
-        },
-      }
-    }))
-
-  } else if (chunk.type === "reasoning_chunk" && chunk.content) {
-    setMessages(prev => prev.map(m => {
-      if (m.id !== assistantId) return m
-      const thinking = m.thinking ?? emptyThinking()
-      return {
-        ...m,
-        thinking: {
-          ...thinking,
-          reasoningText: thinking.reasoningText + chunk.content,
-        },
-      }
-    }))
-
-  } else if (chunk.type === "node_exit" && chunk.node_name) {
-    setMessages(prev => prev.map(m => {
-      if (m.id !== assistantId) return m
-      const thinking = m.thinking ?? emptyThinking()
-      return {
-        ...m,
-        thinking: {
-          ...thinking,
-          currentNode: null,
-          doneNodes: {
-            ...thinking.doneNodes,
-            [chunk.node_name!]: chunk.duration_ms ?? 0,
-          },
-        },
-      }
-    }))
-  }
+            } else if (chunk.type === "tool_result" && chunk.tool_call_id) {
+              setMessages((prev) =>
+                prev.map((m) => {
+                  if (m.id !== assistantId) return m
+                  return {
+                    ...m,
+                    toolCalls: m.toolCalls.map((tc) =>
+                      tc.toolCallId === chunk.tool_call_id
+                        ? {
+                            ...tc,
+                            resultContent: chunk.content,
+                            callingContent: chunk.calling_args ?? tc.callingContent,
+                            status: "done" as const,
+                          }
+                        : tc,
+                    ),
+                  }
+                }),
+              )
+            }           // ← 在这个 } 前插入三个新分支
+          }
+        }
   ```
 
-  确保 `ThinkingEntry` 已从 `@/lib/types` 导入。
+  将 `}` 替换为（在 `tool_result` 块之后接着添加三个新分支，保持 12 空格缩进）：
+
+  ```typescript
+            } else if (chunk.type === "tool_result" && chunk.tool_call_id) {
+              setMessages((prev) =>
+                prev.map((m) => {
+                  if (m.id !== assistantId) return m
+                  return {
+                    ...m,
+                    toolCalls: m.toolCalls.map((tc) =>
+                      tc.toolCallId === chunk.tool_call_id
+                        ? {
+                            ...tc,
+                            resultContent: chunk.content,
+                            callingContent: chunk.calling_args ?? tc.callingContent,
+                            status: "done" as const,
+                          }
+                        : tc,
+                    ),
+                  }
+                }),
+              )
+            } else if (chunk.type === "node_enter" && chunk.node_name) {
+              setMessages((prev) =>
+                prev.map((m) => {
+                  if (m.id !== assistantId) return m
+                  const thinking = m.thinking ?? emptyThinking()
+                  return {
+                    ...m,
+                    thinking: {
+                      ...thinking,
+                      currentNode: chunk.node_name!,
+                      nodeSequence: thinking.nodeSequence.includes(chunk.node_name!)
+                        ? thinking.nodeSequence
+                        : [...thinking.nodeSequence, chunk.node_name!],
+                    },
+                  }
+                }),
+              )
+            } else if (chunk.type === "reasoning_chunk" && chunk.content) {
+              setMessages((prev) =>
+                prev.map((m) => {
+                  if (m.id !== assistantId) return m
+                  const thinking = m.thinking ?? emptyThinking()
+                  return {
+                    ...m,
+                    thinking: { ...thinking, reasoningText: thinking.reasoningText + chunk.content },
+                  }
+                }),
+              )
+            } else if (chunk.type === "node_exit" && chunk.node_name) {
+              setMessages((prev) =>
+                prev.map((m) => {
+                  if (m.id !== assistantId) return m
+                  const thinking = m.thinking ?? emptyThinking()
+                  return {
+                    ...m,
+                    thinking: {
+                      ...thinking,
+                      currentNode: null,
+                      doneNodes: { ...thinking.doneNodes, [chunk.node_name!]: chunk.duration_ms ?? 0 },
+                    },
+                  }
+                }),
+              )
+            }
+          }
+        }
+  ```
+
+  同时在发送函数顶部（`const assistantId = makeId()` 之前）添加辅助函数：
+
+  ```typescript
+      const emptyThinking = (): ThinkingEntry => ({
+        nodeSequence: [],
+        reasoningText: "",
+        currentNode: null,
+        doneNodes: {},
+      })
+  ```
+
+  确保文件顶部 import 中已加入 `ThinkingEntry`：
+
+  ```typescript
+  import type { ChatMessage, StreamChunk, ToolCallEntry, ThinkingEntry } from "@/lib/types"
+  ```
 
 - [ ] **Step 3: 验证 TypeScript 类型无报错**
 
@@ -557,8 +627,6 @@ grep -n "chunk.type\|case\|tool_call\|tool_result" /Users/young/Downloads/repos/
 
   import { useState, useRef, useEffect } from "react"
   import type { ThinkingEntry } from "@/lib/types"
-  import { useLanguage } from "@/contexts/LanguageContext"
-
   interface Props {
     entry: ThinkingEntry
     isStreaming?: boolean
@@ -572,7 +640,6 @@ grep -n "chunk.type\|case\|tool_call\|tool_result" /Users/young/Downloads/repos/
   }
 
   export function ThinkingCard({ entry, isStreaming }: Props) {
-    const { t } = useLanguage()
 
     // Don't render if reasoning is empty (simple conversation / "direct")
     if (!entry.reasoningText || entry.reasoningText.toLowerCase().startsWith("direct")) {
@@ -749,8 +816,8 @@ grep -n "chunk.type\|case\|tool_call\|tool_result" /Users/young/Downloads/repos/
   在其上方插入：
 
   ```tsx
-        {/* Thinking card (assistant only — hidden for simple conversation) */}
-        {!isUser && message.thinking && (
+        {/* Thinking card (assistant only — hidden when reasoning is empty or "direct") */}
+        {!isUser && message.thinking?.reasoningText && (
           <ThinkingCard entry={message.thinking} isStreaming={isStreaming} />
         )}
 
