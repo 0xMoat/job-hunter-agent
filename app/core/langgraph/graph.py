@@ -2,6 +2,7 @@
 
 import asyncio
 import json as _json
+import time
 from datetime import datetime
 from typing import (
     AsyncGenerator,
@@ -13,9 +14,12 @@ from asgiref.sync import sync_to_async
 from langchain_core.messages import (
     AIMessageChunk,
     BaseMessage,
+    HumanMessage,
+    SystemMessage,
     ToolMessage,
     convert_to_openai_messages,
 )
+from langchain_openai import ChatOpenAI
 from langfuse.langchain import CallbackHandler
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.graph import (
@@ -72,6 +76,17 @@ class LangGraphAgent:
         self._connection_pool: Optional[AsyncConnectionPool] = None
         self._graph: Optional[CompiledStateGraph] = None
         self.memory: Optional[AsyncMemory] = None
+        # Tool-free LLM for the analyze node.
+        # Must NOT use self.llm_service which has bind_tools() applied —
+        # a tool-bound model would emit tool calls instead of plain text, breaking "direct" detection.
+        self._plain_llm = ChatOpenAI(
+            model=settings.DEFAULT_LLM_MODEL,
+            tiktoken_model_name="gpt-4o",
+            api_key=settings.OPENAI_API_KEY,
+            temperature=0.0,
+            max_tokens=256,
+            **({"base_url": settings.LLM_BASE_URL} if settings.LLM_BASE_URL else {}),
+        )
         logger.info(
             "langgraph_agent_initialized",
             model=settings.DEFAULT_LLM_MODEL,
@@ -179,6 +194,37 @@ class LangGraphAgent:
                 user_id=user_id,
                 error=str(e),
             )
+
+    async def _analyze(self, state: GraphState, config: RunnableConfig) -> Command:
+        """Analyze node: produces a brief reasoning plan before the chat node.
+
+        Calls the plain (tool-free) LLM to decide whether planning is needed.
+        Outputs "direct" for simple conversation (no reasoning displayed),
+        or a 1-2 sentence plan that gets streamed to the frontend as reasoning_chunk events.
+
+        Args:
+            state: Current graph state.
+            config: LangGraph runnable config (passed through to ainvoke for Langfuse tracing).
+
+        Returns:
+            Command updating reasoning field and routing to "chat".
+        """
+        last_user_msg = next(
+            (m for m in reversed(state.messages) if isinstance(m, HumanMessage)), None
+        )
+        if not last_user_msg:
+            return Command(update={"reasoning": ""}, goto="chat")
+
+        prompt = SystemMessage(content=(
+            "In 1-2 sentences, describe what you need to do to answer the user. "
+            "If it is simple conversation with no tool use needed, output exactly the word: direct (lowercase only)"
+        ))
+        response = await self._plain_llm.ainvoke([prompt, last_user_msg], config=config)
+        text = response.content.strip()
+        # Case-sensitive check: prompt instructs lowercase "direct"; same check on frontend
+        reasoning = "" if text.lower().startswith("direct") else text
+        logger.debug("analyze_node_completed", has_reasoning=bool(reasoning), session_id=config.get("configurable", {}).get("thread_id"))
+        return Command(update={"reasoning": reasoning}, goto="chat")
 
     async def _chat(self, state: GraphState, config: RunnableConfig) -> Command:
         """Process the chat state and generate a response.
@@ -297,10 +343,11 @@ class LangGraphAgent:
         if self._graph is None:
             try:
                 graph_builder = StateGraph(GraphState)
+                graph_builder.add_node("analyze", self._analyze, ends=["chat"])
                 graph_builder.add_node("chat", self._chat, ends=["tool_call", END])
                 graph_builder.add_node("tool_call", self._tool_call, ends=["chat"])
-                graph_builder.set_entry_point("chat")
-                graph_builder.set_finish_point("chat")
+                graph_builder.set_entry_point("analyze")   # was: "chat"
+                graph_builder.set_finish_point("chat")     # unchanged
 
                 # Get connection pool (may be None in production if DB unavailable)
                 connection_pool = await self._get_connection_pool()
@@ -431,13 +478,54 @@ class LangGraphAgent:
         # Accumulate tool call args per tool_call_id across streaming chunks
         tool_call_args: dict[str, str] = {}
 
+        # Track current LangGraph node for node_enter / node_exit events
+        _current_node: str | None = None
+        _node_start_ms: dict[str, float] = {}
+
         try:
-            async for token, _ in self._graph.astream(
+            async for event_mode, event_data in self._graph.astream(
                 {"messages": dump_messages(messages), "long_term_memory": relevant_memory},
                 config,
-                stream_mode="messages",
+                stream_mode=["messages", "updates"],
             ):
+                # Handle "updates" events: analyze node reasoning arrives here (ainvoke, not streaming)
+                if event_mode == "updates":
+                    for node_name, state_update in event_data.items():
+                        if node_name == "analyze" and state_update.get("reasoning"):
+                            yield _json.dumps({
+                                "type": "reasoning_chunk",
+                                "content": state_update["reasoning"],
+                                "done": False,
+                            })
+                    continue
+
+                # event_mode == "messages": unpack (token, metadata) tuple
+                token, _metadata = event_data
+
                 try:
+                    _node = _metadata.get("langgraph_node") if _metadata else None
+
+                    # Emit node_enter / node_exit on node transitions
+                    if _node != _current_node:
+                        if _current_node and _current_node in _node_start_ms:
+                            _elapsed = int((time.time() - _node_start_ms[_current_node]) * 1000)
+                            yield _json.dumps({
+                                "type": "node_exit",
+                                "content": "",
+                                "node_name": _current_node,
+                                "duration_ms": _elapsed,
+                                "done": False,
+                            })
+                        if _node:
+                            yield _json.dumps({
+                                "type": "node_enter",
+                                "content": "",
+                                "node_name": _node,
+                                "done": False,
+                            })
+                            _node_start_ms[_node] = time.time()
+                        _current_node = _node
+
                     if isinstance(token, AIMessageChunk):
                         if token.tool_call_chunks:
                             for tc in token.tool_call_chunks:
@@ -473,6 +561,17 @@ class LangGraphAgent:
                 except Exception:
                     logger.exception("error_processing_token", session_id=session_id)
                     continue
+
+            # Emit node_exit for the last node (loop ends without a final node transition)
+            if _current_node and _current_node in _node_start_ms:
+                _elapsed = int((time.time() - _node_start_ms[_current_node]) * 1000)
+                yield _json.dumps({
+                    "type": "node_exit",
+                    "content": "",
+                    "node_name": _current_node,
+                    "duration_ms": _elapsed,
+                    "done": False,
+                })
 
             # After streaming completes, get final state and update memory in background
             state: StateSnapshot = await sync_to_async(self._graph.get_state)(config=config)
