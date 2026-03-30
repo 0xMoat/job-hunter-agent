@@ -30,21 +30,35 @@ export interface ToolCallEntry {
   status: "calling" | "done"
 }
 
+export interface ThinkingEntry {
+  /** Ordered list of node names that have been entered */
+  nodeSequence: string[]
+  /** Accumulated reasoning text from analyze node */
+  reasoningText: string
+  /** Currently active node name, null when between nodes */
+  currentNode: string | null
+  /** Map of completed node name → duration_ms */
+  doneNodes: Record<string, number>
+}
+
 export interface ChatMessage {
   id: string
   role: MessageRole
   textContent: string
   toolCalls: ToolCallEntry[]
+  thinking?: ThinkingEntry
   timestamp?: Date
 }
 
 export interface StreamChunk {
-  type: "text" | "tool_call" | "tool_result" | "done"
+  type: "text" | "tool_call" | "tool_result" | "reasoning_chunk" | "node_enter" | "node_exit" | "done"
   content: string
   tool_name?: string
   tool_call_id?: string
   calling_args?: string
   done: boolean
+  node_name?: string
+  duration_ms?: number
 }
 
 export interface Application {
