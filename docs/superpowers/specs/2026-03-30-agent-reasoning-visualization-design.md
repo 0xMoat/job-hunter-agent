@@ -319,13 +319,21 @@ case "node_exit":
 
 | 文件 | 类型 | 说明 |
 |------|------|------|
-| `app/schemas/graph.py` | 修改 | AgentState 新增 `reasoning` 字段 |
+| `app/schemas/graph.py` | 修改 | `GraphState` 新增 `reasoning` 字段 |
 | `app/schemas/chat.py` | 修改 | StreamChunk 扩展新事件类型和字段 |
 | `app/core/langgraph/graph.py` | 修改 | 新增 `_plain_llm`、`_analyze` 方法，更新图结构和 `get_stream_response()` |
 | `frontend/lib/types.ts` | 修改 | ThinkingEntry、ChatMessage、StreamChunk 类型扩展 |
 | `frontend/hooks/useChat.ts` | 修改 | 处理 node_enter / reasoning_chunk / node_exit 事件 |
 | `frontend/components/chat/ThinkingCard.tsx` | 新建 | 可折叠思考卡片组件 |
 | `frontend/components/chat/MessageBubble.tsx` | 修改 | 渲染 ThinkingCard |
+
+---
+
+## 实现注意事项
+
+- `app/core/langgraph/graph.py` 需新增以下 import：
+  - `from langchain_core.messages import SystemMessage, HumanMessage`（如不在现有 import 中）
+  - `from langchain_openai import ChatOpenAI`（用于 `_plain_llm`，当前 `graph.py` 未直接导入）
 
 ---
 
