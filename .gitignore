@@ -22,3 +22,5 @@ wheels/
 # Reports
 evals/reports/
 .worktrees/
+
+.superpowers/
