@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { apiGetMessages, apiStreamChat, apiUpdateSessionName } from "@/lib/api"
-import type { ChatMessage, StreamChunk, ToolCallEntry } from "@/lib/types"
+import type { ChatMessage, StreamChunk, ToolCallEntry, ThinkingEntry } from "@/lib/types"
 
 function makeId(): string {
   return Math.random().toString(36).slice(2)
@@ -90,6 +90,13 @@ export function useChat({
 
       setMessages((prev) => [...prev, userMsg])
 
+      const emptyThinking = (): ThinkingEntry => ({
+        nodeSequence: [],
+        reasoningText: "",
+        currentNode: null,
+        doneNodes: {},
+      })
+
       const assistantId = makeId()
       streamingMsgIdRef.current = assistantId
       setMessages((prev) => [
@@ -173,6 +180,49 @@ export function useChat({
                           }
                         : tc,
                     ),
+                  }
+                }),
+              )
+            } else if (chunk.type === "node_enter" && chunk.node_name) {
+              setMessages((prev) =>
+                prev.map((m) => {
+                  if (m.id !== assistantId) return m
+                  const thinking = m.thinking ?? emptyThinking()
+                  return {
+                    ...m,
+                    thinking: {
+                      ...thinking,
+                      currentNode: chunk.node_name!,
+                      nodeSequence: thinking.nodeSequence.includes(chunk.node_name!)
+                        ? thinking.nodeSequence
+                        : [...thinking.nodeSequence, chunk.node_name!],
+                    },
+                  }
+                }),
+              )
+            } else if (chunk.type === "reasoning_chunk" && chunk.content) {
+              setMessages((prev) =>
+                prev.map((m) => {
+                  if (m.id !== assistantId) return m
+                  const thinking = m.thinking ?? emptyThinking()
+                  return {
+                    ...m,
+                    thinking: { ...thinking, reasoningText: thinking.reasoningText + chunk.content },
+                  }
+                }),
+              )
+            } else if (chunk.type === "node_exit" && chunk.node_name) {
+              setMessages((prev) =>
+                prev.map((m) => {
+                  if (m.id !== assistantId) return m
+                  const thinking = m.thinking ?? emptyThinking()
+                  return {
+                    ...m,
+                    thinking: {
+                      ...thinking,
+                      currentNode: null,
+                      doneNodes: { ...thinking.doneNodes, [chunk.node_name!]: chunk.duration_ms ?? 0 },
+                    },
                   }
                 }),
               )
