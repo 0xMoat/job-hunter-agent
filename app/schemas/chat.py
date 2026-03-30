@@ -93,23 +93,28 @@ class StreamChunk(BaseModel):
     """A typed chunk in the SSE stream.
 
     Extends StreamResponse with a type field to distinguish text tokens from
-    tool calls and tool results, enabling frontend to render inline tool cards.
-    The done field mirrors StreamResponse for backwards compatibility.
+    tool calls, tool results, reasoning chunks, and node transition events.
 
     Attributes:
-        type: Chunk type — text, tool_call, tool_result, or done.
-        content: Text content or tool call summary.
+        type: Chunk type.
+        content: Text content or empty string.
         tool_name: Tool name (for tool_call and tool_result chunks).
         tool_call_id: Tool call correlation ID.
+        node_name: Node name (for node_enter and node_exit chunks).
+        duration_ms: Node execution duration in ms (for node_exit chunks).
         done: Whether this is the final chunk.
     """
 
-    type: Literal["text", "tool_call", "tool_result", "done"] = Field(
-        default="text", description="Chunk type"
-    )
+    type: Literal[
+        "text", "tool_call", "tool_result",
+        "reasoning_chunk", "node_enter", "node_exit",
+        "done"
+    ] = Field(default="text", description="Chunk type")
     content: str = Field(default="", description="Chunk content")
     tool_name: Optional[str] = Field(default=None, description="Tool name")
     tool_call_id: Optional[str] = Field(default=None, description="Tool call ID")
+    node_name: Optional[str] = Field(default=None, description="LangGraph node name")
+    duration_ms: Optional[int] = Field(default=None, description="Node execution duration in ms")
     done: bool = Field(default=False, description="Whether the stream is complete")
 
 
