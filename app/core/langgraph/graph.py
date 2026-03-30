@@ -223,7 +223,11 @@ class LangGraphAgent:
         text = response.content.strip()
         # Case-sensitive check: prompt instructs lowercase "direct"; same check on frontend
         reasoning = "" if text.lower().startswith("direct") else text
-        logger.debug("analyze_node_completed", has_reasoning=bool(reasoning), session_id=config.get("configurable", {}).get("thread_id"))
+        logger.debug(
+            "analyze_node_completed",
+            has_reasoning=bool(reasoning),
+            session_id=config.get("configurable", {}).get("thread_id"),
+        )
         return Command(update={"reasoning": reasoning}, goto="chat")
 
     async def _chat(self, state: GraphState, config: RunnableConfig) -> Command:
@@ -480,7 +484,7 @@ class LangGraphAgent:
 
         # Track current LangGraph node for node_enter / node_exit events
         _current_node: str | None = None
-        _node_start_ms: dict[str, float] = {}
+        _node_start_time: dict[str, float] = {}
 
         try:
             async for event_mode, event_data in self._graph.astream(
@@ -491,10 +495,29 @@ class LangGraphAgent:
                 # Handle "updates" events: analyze node reasoning arrives here (ainvoke, not streaming)
                 if event_mode == "updates":
                     for node_name, state_update in event_data.items():
-                        if node_name == "analyze" and state_update.get("reasoning"):
+                        if node_name == "analyze":
+                            # Emit synthetic node_enter + optional reasoning_chunk + node_exit for the analyze node.
+                            # _analyze uses ainvoke so no "messages" events are emitted for it;
+                            # we synthesize the node lifecycle events here instead.
+                            _analyze_start = time.time()
                             yield _json.dumps({
-                                "type": "reasoning_chunk",
-                                "content": state_update["reasoning"],
+                                "type": "node_enter",
+                                "content": "",
+                                "node_name": "analyze",
+                                "done": False,
+                            })
+                            if state_update.get("reasoning"):
+                                yield _json.dumps({
+                                    "type": "reasoning_chunk",
+                                    "content": state_update["reasoning"],
+                                    "done": False,
+                                })
+                            _analyze_elapsed = int((time.time() - _analyze_start) * 1000)
+                            yield _json.dumps({
+                                "type": "node_exit",
+                                "content": "",
+                                "node_name": "analyze",
+                                "duration_ms": _analyze_elapsed,
                                 "done": False,
                             })
                     continue
@@ -507,8 +530,8 @@ class LangGraphAgent:
 
                     # Emit node_enter / node_exit on node transitions
                     if _node != _current_node:
-                        if _current_node and _current_node in _node_start_ms:
-                            _elapsed = int((time.time() - _node_start_ms[_current_node]) * 1000)
+                        if _current_node and _current_node in _node_start_time:
+                            _elapsed = int((time.time() - _node_start_time[_current_node]) * 1000)
                             yield _json.dumps({
                                 "type": "node_exit",
                                 "content": "",
@@ -523,7 +546,7 @@ class LangGraphAgent:
                                 "node_name": _node,
                                 "done": False,
                             })
-                            _node_start_ms[_node] = time.time()
+                            _node_start_time[_node] = time.time()
                         _current_node = _node
 
                     if isinstance(token, AIMessageChunk):
@@ -563,8 +586,8 @@ class LangGraphAgent:
                     continue
 
             # Emit node_exit for the last node (loop ends without a final node transition)
-            if _current_node and _current_node in _node_start_ms:
-                _elapsed = int((time.time() - _node_start_ms[_current_node]) * 1000)
+            if _current_node and _current_node in _node_start_time:
+                _elapsed = int((time.time() - _node_start_time[_current_node]) * 1000)
                 yield _json.dumps({
                     "type": "node_exit",
                     "content": "",
