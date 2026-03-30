@@ -67,7 +67,7 @@ START → analyze → chat → END
 | 事件 | 触发时机 | 携带字段 |
 |------|---------|---------|
 | `node_enter` | `metadata["langgraph_node"]` 发生变化（进入新节点） | `node_name: str` |
-| `reasoning_chunk` | `analyze` 节点流式输出且非 `"direct"` | `content: str` |
+| `reasoning_chunk` | `analyze` 节点流式输出（始终发出，前端过滤 "direct"） | `content: str` |
 | `node_exit` | 节点切换（离开旧节点） | `node_name: str`, `duration_ms: int` |
 
 **典型事件流（有推理）：**
@@ -101,10 +101,12 @@ done
 
 ### `app/schemas/graph.py`
 
-`AgentState` 新增字段：
+`GraphState`（实际状态类名）新增字段：
 ```python
 reasoning: str = ""  # analyze 节点写入，空字符串表示直接回答
 ```
+
+> 已知限制：`reasoning` 字段会随 LangGraph PostgreSQL checkpoint 跨轮次持久化。由于 `_analyze` 每轮都会覆盖该字段，不影响正确性，但检查 checkpoint 快照时会看到上一轮的值。
 
 ### `app/schemas/chat.py`
 
@@ -117,9 +119,24 @@ duration_ms: Optional[int] = None
 
 ### `app/core/langgraph/graph.py`
 
-**新增 `analyze_node` 函数：**
+**`LangGraphAgent.__init__` 新增无工具绑定的 plain LLM：**
 ```python
-async def analyze_node(state: AgentState) -> dict:
+# 在 __init__ 里，和 self.llm_service 并列初始化
+self._plain_llm = ChatOpenAI(
+    model=settings.DEFAULT_LLM_MODEL,
+    tiktoken_model_name="gpt-4o",
+    api_key=settings.OPENAI_API_KEY,
+    temperature=0.0,
+    max_tokens=256,
+    **({"base_url": settings.LLM_BASE_URL} if settings.LLM_BASE_URL else {}),
+)
+```
+
+> 必须使用独立的无工具实例。`self.llm_service` 已通过 `bind_tools()` 绑定了工具，如果 analyze 节点使用它，模型会生成工具调用而非纯文本，破坏 "direct" 检测逻辑。
+
+**新增 `self._analyze` 实例方法（与 `self._chat` 并列）：**
+```python
+async def _analyze(self, state: GraphState, config: RunnableConfig) -> dict:
     last_user_msg = next(
         (m for m in reversed(state.messages) if isinstance(m, HumanMessage)), None
     )
@@ -130,20 +147,23 @@ async def analyze_node(state: AgentState) -> dict:
         "In 1-2 sentences, describe what you need to do to answer the user. "
         "If it is simple conversation with no tool use needed, output exactly: direct"
     ))
-    response = await llm.ainvoke([prompt, last_user_msg])
+    response = await self._plain_llm.ainvoke([prompt, last_user_msg])
     text = response.content.strip()
     return {"reasoning": "" if text.lower().startswith("direct") else text}
 ```
 
-**图连线更新：**
+**图连线更新（遵循现有 `set_entry_point` 约定，不引入 `START`）：**
 ```python
-graph.add_node("analyze", analyze_node)
-graph.add_edge(START, "analyze")   # 原来是 START → chat
-graph.add_edge("analyze", "chat")  # 新增
-# chat → tool_call / END 逻辑不变
+graph_builder.add_node("analyze", self._analyze, ends=["chat"])
+graph_builder.add_node("chat", self._chat, ends=["tool_call", END])
+graph_builder.add_node("tool_call", self._tool_call, ends=["chat"])
+graph_builder.set_entry_point("analyze")   # 原来是 set_entry_point("chat")
 ```
 
 **`get_stream_response()` 节点追踪逻辑：**
+
+`analyze` 节点的 `AIMessageChunk` 总是流出，但前端根据累积文本是否以 `"direct"` 开头决定是否渲染 ThinkingCard。后端统一发出所有 `reasoning_chunk`，判断逻辑在前端。
+
 ```python
 import time
 
@@ -153,7 +173,7 @@ node_start_ms: dict[str, float] = {}
 async for token, metadata in self.graph.astream(..., stream_mode="messages"):
     node = metadata.get("langgraph_node")
 
-    # 节点切换
+    # 节点切换时发出 node_exit（旧） + node_enter（新）
     if node != current_node:
         if current_node and current_node in node_start_ms:
             elapsed = int((time.time() - node_start_ms[current_node]) * 1000)
@@ -163,15 +183,17 @@ async for token, metadata in self.graph.astream(..., stream_mode="messages"):
             node_start_ms[node] = time.time()
         current_node = node
 
-    # analyze 节点输出 → reasoning_chunk（仅当 state.reasoning 非空）
+    # analyze 节点的文字输出 → reasoning_chunk（前端过滤 "direct"）
     if node == "analyze" and isinstance(token, AIMessageChunk) and token.content:
-        # 通过检查是否为 "direct" 前缀决定是否发出
         yield json.dumps({"type": "reasoning_chunk", "content": token.content, "done": False})
 
     # 其余 tool_call / tool_result / text 逻辑不变
-```
 
-> 注意：`analyze` 节点的 `AIMessageChunk` 总是发出，但前端根据累积文本是否以 `"direct"` 开头决定是否渲染 ThinkingCard。或者后端在 `analyze_node` 写完 state 后，通过 state 里的 `reasoning` 字段判断——推荐后者，前端逻辑更简单。实现时选择后者：只有当 `state["reasoning"]` 非空时，`get_stream_response()` 才对 analyze 节点的输出发出 `reasoning_chunk`。
+# 循环结束后，补发最后一个节点的 node_exit（否则最终节点永远收不到退出事件）
+if current_node and current_node in node_start_ms:
+    elapsed = int((time.time() - node_start_ms[current_node]) * 1000)
+    yield json.dumps({"type": "node_exit", "content": "", "node_name": current_node, "duration_ms": elapsed, "done": False})
+```
 
 ---
 
@@ -232,6 +254,7 @@ case "node_enter":
   break
 
 case "reasoning_chunk":
+  // 追加到 reasoningText；ThinkingCard 渲染时检查 reasoningText 是否以 "direct" 开头，是则返回 null
   setMessages(prev => prev.map(m => {
     if (m.id !== assistantId) return m
     const thinking = m.thinking ?? { nodeSequence: [], reasoningText: "", currentNode: null, doneNodes: {} }
@@ -292,7 +315,7 @@ case "node_exit":
 |------|------|------|
 | `app/schemas/graph.py` | 修改 | AgentState 新增 `reasoning` 字段 |
 | `app/schemas/chat.py` | 修改 | StreamChunk 扩展新事件类型和字段 |
-| `app/core/langgraph/graph.py` | 修改 | 新增 analyze_node，更新图结构和 get_stream_response() |
+| `app/core/langgraph/graph.py` | 修改 | 新增 `_plain_llm`、`_analyze` 方法，更新图结构和 `get_stream_response()` |
 | `frontend/lib/types.ts` | 修改 | ThinkingEntry、ChatMessage、StreamChunk 类型扩展 |
 | `frontend/hooks/useChat.ts` | 修改 | 处理 node_enter / reasoning_chunk / node_exit 事件 |
 | `frontend/components/chat/ThinkingCard.tsx` | 新建 | 可折叠思考卡片组件 |
