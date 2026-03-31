@@ -133,7 +133,6 @@ export function useChat({
             } catch {
               continue
             }
-
             if (chunk.type === "done") {
               if (chunk.content) {
                 setError(chunk.content)

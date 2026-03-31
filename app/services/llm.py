@@ -64,9 +64,9 @@ class LLMRegistry:
             ),
         },
         {
-            "name": "gemini-1.5-flash",
+            "name": "gemini-2.0-flash-lite",
             "llm": ChatOpenAI(
-                model="gemini-1.5-flash",
+                model="gemini-2.0-flash-lite",
                 tiktoken_model_name="gpt-4o",
                 api_key=settings.OPENAI_API_KEY,
                 temperature=settings.DEFAULT_LLM_TEMPERATURE,

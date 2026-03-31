@@ -1,0 +1,3227 @@
+{
+  "version": "1.0.0",
+  "project": {
+    "name": "langgraph-fastapi-template",
+    "languages": [
+      "python",
+      "bash"
+    ],
+    "frameworks": [
+      "FastAPI",
+      "LangChain",
+      "LangGraph",
+      "Langfuse",
+      "Pydantic",
+      "mem0ai"
+    ],
+    "description": "A production-ready FastAPI template for building AI agent applications with LangGraph integration, providing a scalable and secure foundation for AI agent services with JWT authentication, long-term memory, LLM observability via Langfuse, and a model evaluation framework.",
+    "analyzedAt": "2026-03-24T02:20:00.119724+00:00",
+    "gitCommitHash": "c877684710d8e2009d2638bd0beacb0fc03ed2d2"
+  },
+  "nodes": [
+    {
+      "id": "file:app/api/v1/api.py",
+      "type": "file",
+      "name": "api.py",
+      "filePath": "app/api/v1/api.py",
+      "summary": "Top-level v1 API router that aggregates the auth and chatbot sub-routers and exposes a health-check endpoint. Acts as the single mount point for all v1 routes.",
+      "complexity": "simple",
+      "tags": [
+        "api-router",
+        "fastapi",
+        "health-check",
+        "route-aggregation"
+      ]
+    },
+    {
+      "id": "file:app/api/v1/auth.py",
+      "type": "file",
+      "name": "auth.py",
+      "filePath": "app/api/v1/auth.py",
+      "summary": "FastAPI route handlers for authentication: user registration, JWT-based session creation, session deletion, and listing active sessions. Also provides shared dependency functions consumed by other routers.",
+      "complexity": "complex",
+      "tags": [
+        "authentication",
+        "fastapi",
+        "jwt",
+        "session-management",
+        "rate-limiting"
+      ]
+    },
+    {
+      "id": "file:app/api/v1/chatbot.py",
+      "type": "file",
+      "name": "chatbot.py",
+      "filePath": "app/api/v1/chatbot.py",
+      "summary": "FastAPI route handlers for chat interactions, providing both synchronous and streaming (SSE) endpoints that delegate processing to LangGraphAgent. Includes chat-history retrieval and clearing.",
+      "complexity": "complex",
+      "tags": [
+        "chatbot",
+        "fastapi",
+        "streaming",
+        "langgraph",
+        "rate-limiting"
+      ]
+    },
+    {
+      "id": "file:app/core/config.py",
+      "type": "file",
+      "name": "config.py",
+      "filePath": "app/core/config.py",
+      "summary": "Application configuration management: environment detection, .env file loading, and a Settings class that reads and validates all environment variables used across the application.",
+      "complexity": "complex",
+      "tags": [
+        "configuration",
+        "environment",
+        "settings",
+        "dotenv",
+        "pydantic"
+      ]
+    },
+    {
+      "id": "file:app/core/langgraph/graph.py",
+      "type": "file",
+      "name": "graph.py",
+      "filePath": "app/core/langgraph/graph.py",
+      "summary": "Core LangGraph agent class that builds and manages the stateful LLM workflow with PostgreSQL-backed checkpointing, long-term memory via mem0, tool-calling support, and streaming response generation.",
+      "complexity": "complex",
+      "tags": [
+        "langgraph",
+        "llm-agent",
+        "postgres",
+        "mem0",
+        "streaming"
+      ]
+    },
+    {
+      "id": "file:app/core/langgraph/tools/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "app/core/langgraph/tools/__init__.py",
+      "summary": "Package init that assembles the list of LangChain BaseTool instances available to the LangGraph agent, currently containing the DuckDuckGo search tool.",
+      "complexity": "simple",
+      "tags": [
+        "tools",
+        "langgraph",
+        "langchain",
+        "package-init"
+      ]
+    },
+    {
+      "id": "file:app/core/langgraph/tools/duckduckgo_search.py",
+      "type": "file",
+      "name": "duckduckgo_search.py",
+      "filePath": "app/core/langgraph/tools/duckduckgo_search.py",
+      "summary": "Instantiates a DuckDuckGoSearchResults LangChain tool configured to return up to 10 results with graceful error handling, for use as an agent tool.",
+      "complexity": "simple",
+      "tags": [
+        "tool",
+        "web-search",
+        "duckduckgo",
+        "langchain"
+      ]
+    },
+    {
+      "id": "file:app/core/limiter.py",
+      "type": "file",
+      "name": "limiter.py",
+      "filePath": "app/core/limiter.py",
+      "summary": "Initializes and exports a slowapi Limiter instance keyed on remote IP address, using default rate limits drawn from application settings.",
+      "complexity": "simple",
+      "tags": [
+        "rate-limiting",
+        "slowapi",
+        "middleware",
+        "configuration"
+      ]
+    },
+    {
+      "id": "class:app/core/config.py:Settings",
+      "type": "class",
+      "name": "Settings",
+      "filePath": "app/core/config.py",
+      "lineRange": [
+        120,
+        251
+      ],
+      "summary": "Central settings class that loads all application configuration from environment variables, with per-environment overrides applied in __init__ and apply_environment_settings.",
+      "complexity": "complex",
+      "tags": [
+        "configuration",
+        "settings",
+        "environment",
+        "pydantic"
+      ]
+    },
+    {
+      "id": "class:app/core/config.py:Environment",
+      "type": "class",
+      "name": "Environment",
+      "filePath": "app/core/config.py",
+      "lineRange": [
+        24,
+        119
+      ],
+      "summary": "String enum defining the four supported application environments: development, staging, production, and test.",
+      "complexity": "simple",
+      "tags": [
+        "enum",
+        "environment",
+        "configuration"
+      ]
+    },
+    {
+      "id": "class:app/core/langgraph/graph.py:LangGraphAgent",
+      "type": "class",
+      "name": "LangGraphAgent",
+      "filePath": "app/core/langgraph/graph.py",
+      "lineRange": [
+        53,
+        453
+      ],
+      "summary": "The primary AI agent class: creates the LangGraph state machine with chat and tool-call nodes, manages an async PostgreSQL connection pool for checkpointing, integrates mem0 long-term memory, and exposes async methods for running inference, streaming responses, and managing chat history.",
+      "complexity": "complex",
+      "tags": [
+        "langgraph",
+        "llm-agent",
+        "async",
+        "postgres-checkpoint",
+        "mem0"
+      ]
+    },
+    {
+      "id": "func:app/api/v1/auth.py:register_user",
+      "type": "function",
+      "name": "register_user",
+      "filePath": "app/api/v1/auth.py",
+      "lineRange": [
+        158,
+        239
+      ],
+      "summary": "FastAPI endpoint that validates and sanitizes registration input, creates a new User record via DatabaseService, and returns a JWT token along with user info.",
+      "complexity": "moderate",
+      "tags": [
+        "registration",
+        "authentication",
+        "fastapi-endpoint",
+        "user-creation"
+      ]
+    },
+    {
+      "id": "func:app/api/v1/auth.py:create_session",
+      "type": "function",
+      "name": "create_session",
+      "filePath": "app/api/v1/auth.py",
+      "lineRange": [
+        240,
+        309
+      ],
+      "summary": "FastAPI endpoint (login) that verifies credentials, creates a Session record, issues a JWT access token, and returns session information.",
+      "complexity": "moderate",
+      "tags": [
+        "login",
+        "session-creation",
+        "jwt",
+        "fastapi-endpoint"
+      ]
+    },
+    {
+      "id": "func:app/api/v1/auth.py:delete_session",
+      "type": "function",
+      "name": "delete_session",
+      "filePath": "app/api/v1/auth.py",
+      "lineRange": [
+        310,
+        338
+      ],
+      "summary": "FastAPI endpoint that deletes a specific session by ID, enforcing that users may only delete their own sessions.",
+      "complexity": "simple",
+      "tags": [
+        "logout",
+        "session-deletion",
+        "fastapi-endpoint"
+      ]
+    },
+    {
+      "id": "func:app/api/v1/auth.py:get_user_sessions",
+      "type": "function",
+      "name": "get_user_sessions",
+      "filePath": "app/api/v1/auth.py",
+      "lineRange": [
+        339,
+        360
+      ],
+      "summary": "FastAPI endpoint that returns a list of all active sessions for the currently authenticated user.",
+      "complexity": "simple",
+      "tags": [
+        "session-list",
+        "fastapi-endpoint",
+        "authentication"
+      ]
+    },
+    {
+      "id": "func:app/api/v1/chatbot.py:event_generator",
+      "type": "function",
+      "name": "event_generator",
+      "filePath": "app/api/v1/chatbot.py",
+      "lineRange": [
+        100,
+        191
+      ],
+      "summary": "Inner async generator inside the streaming chat endpoint that yields SSE-formatted JSON chunks from LangGraphAgent, tracks stream duration via Prometheus metrics, and handles errors gracefully.",
+      "complexity": "complex",
+      "tags": [
+        "streaming",
+        "sse",
+        "async-generator",
+        "metrics",
+        "langgraph"
+      ]
+    },
+    {
+      "id": "func:app/core/langgraph/graph.py:create_graph",
+      "type": "function",
+      "name": "create_graph",
+      "filePath": "app/core/langgraph/graph.py",
+      "lineRange": [
+        252,
+        401
+      ],
+      "summary": "Builds and compiles the LangGraph StateGraph with chat and tool-call nodes, conditional edges, and an async PostgreSQL checkpointer; caches the compiled graph on the instance.",
+      "complexity": "complex",
+      "tags": [
+        "langgraph",
+        "state-machine",
+        "graph-compilation",
+        "postgres",
+        "async"
+      ]
+    },
+    {
+      "id": "func:app/core/config.py:get_environment",
+      "type": "function",
+      "name": "get_environment",
+      "filePath": "app/core/config.py",
+      "lineRange": [
+        38,
+        55
+      ],
+      "summary": "Reads the APP_ENV environment variable and returns the corresponding Environment enum value, defaulting to development.",
+      "complexity": "simple",
+      "tags": [
+        "configuration",
+        "environment-detection",
+        "utility"
+      ]
+    },
+    {
+      "id": "file:app/core/logging.py",
+      "type": "file",
+      "name": "logging.py",
+      "filePath": "app/core/logging.py",
+      "summary": "Configures structured logging for the application using structlog, supporting per-request context binding via ContextVars and environment-specific formatters (pretty console for development, JSON for production). Provides a custom JSONL file handler for daily rotating log files.",
+      "tags": [
+        "logging",
+        "structlog",
+        "infrastructure",
+        "context-binding",
+        "config"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:app/core/metrics.py",
+      "type": "file",
+      "name": "metrics.py",
+      "filePath": "app/core/metrics.py",
+      "summary": "Declares Prometheus metric instruments (counters, histograms, gauges) for HTTP requests, database connections, and LLM inference timing, and provides a setup function to register the PrometheusMiddleware and /metrics endpoint with the FastAPI app.",
+      "tags": [
+        "metrics",
+        "prometheus",
+        "monitoring",
+        "infrastructure"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app/core/middleware.py",
+      "type": "file",
+      "name": "middleware.py",
+      "filePath": "app/core/middleware.py",
+      "summary": "Defines two Starlette BaseHTTPMiddleware subclasses: MetricsMiddleware records per-request HTTP duration and count metrics, while LoggingContextMiddleware extracts JWT claims to bind session/user IDs into the structured logging context for each request.",
+      "tags": [
+        "middleware",
+        "metrics",
+        "logging",
+        "jwt",
+        "infrastructure"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:app/core/prompts/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "app/core/prompts/__init__.py",
+      "summary": "Exposes a single utility function that reads the agent system prompt from an adjacent Markdown file and interpolates the project name and current datetime into the template.",
+      "tags": [
+        "prompts",
+        "agent",
+        "utility",
+        "config"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app/main.py",
+      "type": "file",
+      "name": "main.py",
+      "filePath": "app/main.py",
+      "summary": "Application entry point that creates the FastAPI instance, registers all middleware (CORS, metrics, logging context), configures rate limiting and validation error handlers, initializes Langfuse, and exposes root and health-check endpoints.",
+      "tags": [
+        "entry-point",
+        "fastapi",
+        "middleware",
+        "lifespan",
+        "health-check"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:app/models/base.py",
+      "type": "file",
+      "name": "base.py",
+      "filePath": "app/models/base.py",
+      "summary": "Defines a SQLModel-based BaseModel that all domain models extend, providing a shared created_at timestamp field with a UTC default.",
+      "tags": [
+        "data-model",
+        "base-class",
+        "sqlmodel",
+        "database"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app/models/database.py",
+      "type": "file",
+      "name": "database.py",
+      "filePath": "app/models/database.py",
+      "summary": "Acts as a single-import aggregation module for all database model classes, currently re-exporting the Thread model via __all__.",
+      "tags": [
+        "data-model",
+        "aggregation",
+        "database"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app/models/session.py",
+      "type": "file",
+      "name": "session.py",
+      "filePath": "app/models/session.py",
+      "summary": "Defines the Session SQLModel table, representing a named chat session owned by a User and identified by a string primary key, with a foreign-key relationship to the User model.",
+      "tags": [
+        "data-model",
+        "sqlmodel",
+        "session",
+        "database"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app/models/thread.py",
+      "type": "file",
+      "name": "thread.py",
+      "filePath": "app/models/thread.py",
+      "summary": "Defines the Thread SQLModel table for storing LangGraph conversation threads, with a string primary key and a UTC-defaulted created_at timestamp.",
+      "tags": [
+        "data-model",
+        "sqlmodel",
+        "thread",
+        "database"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "func:app/core/logging.py:setup_logging",
+      "type": "function",
+      "name": "setup_logging",
+      "filePath": "app/core/logging.py",
+      "lineRange": [
+        169,
+        223
+      ],
+      "summary": "Configures structlog and the standard logging system with environment-appropriate processors and handlers; uses ConsoleRenderer in development and JSONRenderer in production, and attaches both a console stream handler and a rotating JSONL file handler.",
+      "tags": [
+        "logging",
+        "structlog",
+        "config",
+        "setup"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "func:app/core/logging.py:get_structlog_processors",
+      "type": "function",
+      "name": "get_structlog_processors",
+      "filePath": "app/core/logging.py",
+      "lineRange": [
+        126,
+        166
+      ],
+      "summary": "Builds and returns the ordered list of structlog processors shared by all output formats, optionally appending callsite parameter extraction for development environments.",
+      "tags": [
+        "logging",
+        "structlog",
+        "processors",
+        "config"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "func:app/core/logging.py:bind_context",
+      "type": "function",
+      "name": "bind_context",
+      "filePath": "app/core/logging.py",
+      "lineRange": [
+        35,
+        42
+      ],
+      "summary": "Merges additional key-value pairs into the per-async-context ContextVar dictionary used to annotate all log events produced during the current request.",
+      "tags": [
+        "logging",
+        "context",
+        "utility"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "func:app/core/logging.py:add_context_to_event_dict",
+      "type": "function",
+      "name": "add_context_to_event_dict",
+      "filePath": "app/core/logging.py",
+      "lineRange": [
+        59,
+        75
+      ],
+      "summary": "structlog processor that injects the current request-context dictionary into every log event dict, enabling automatic propagation of request-scoped fields such as session_id and user_id.",
+      "tags": [
+        "logging",
+        "structlog",
+        "processor",
+        "context"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:app/core/logging.py:JsonlFileHandler",
+      "type": "class",
+      "name": "JsonlFileHandler",
+      "filePath": "app/core/logging.py",
+      "lineRange": [
+        88,
+        123
+      ],
+      "summary": "A custom Python logging.Handler that serialises each log record to a JSON object and appends it as a single line to a daily JSONL log file, enriching records with environment metadata.",
+      "tags": [
+        "logging",
+        "handler",
+        "jsonl",
+        "file-output"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "func:app/core/metrics.py:setup_metrics",
+      "type": "function",
+      "name": "setup_metrics",
+      "filePath": "app/core/metrics.py",
+      "lineRange": [
+        39,
+        49
+      ],
+      "summary": "Attaches the PrometheusMiddleware and a /metrics scrape endpoint to the provided FastAPI application instance.",
+      "tags": [
+        "metrics",
+        "prometheus",
+        "setup",
+        "middleware"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:app/core/middleware.py:MetricsMiddleware",
+      "type": "class",
+      "name": "MetricsMiddleware",
+      "filePath": "app/core/middleware.py",
+      "lineRange": [
+        26,
+        55
+      ],
+      "summary": "Starlette middleware that measures per-request HTTP duration and increments request-count counters labelled by method, path, and status code using the Prometheus instruments defined in app.core.metrics.",
+      "tags": [
+        "middleware",
+        "metrics",
+        "prometheus",
+        "http"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:app/core/middleware.py:LoggingContextMiddleware",
+      "type": "class",
+      "name": "LoggingContextMiddleware",
+      "filePath": "app/core/middleware.py",
+      "lineRange": [
+        58,
+        108
+      ],
+      "summary": "Starlette middleware that decodes the Bearer JWT on each request to extract session_id (and optionally user_id from request state) and binds them into the structlog context for the duration of the request, clearing the context afterwards.",
+      "tags": [
+        "middleware",
+        "logging",
+        "jwt",
+        "context-binding"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "func:app/core/prompts/__init__.py:load_system_prompt",
+      "type": "function",
+      "name": "load_system_prompt",
+      "filePath": "app/core/prompts/__init__.py",
+      "lineRange": [
+        9,
+        16
+      ],
+      "summary": "Reads the system.md prompt template from the same package directory and returns it with agent_name and current_date_and_time format variables substituted.",
+      "tags": [
+        "prompts",
+        "agent",
+        "template",
+        "utility"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "func:app/main.py:lifespan",
+      "type": "function",
+      "name": "lifespan",
+      "filePath": "app/main.py",
+      "lineRange": [
+        47,
+        56
+      ],
+      "summary": "Async context manager that logs startup and shutdown events for the FastAPI application's lifespan.",
+      "tags": [
+        "lifespan",
+        "fastapi",
+        "startup",
+        "shutdown"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "func:app/main.py:health_check",
+      "type": "function",
+      "name": "health_check",
+      "filePath": "app/main.py",
+      "lineRange": [
+        143,
+        165
+      ],
+      "summary": "GET /health endpoint that queries the database service for connectivity and returns a structured health-status payload with appropriate HTTP status code.",
+      "tags": [
+        "health-check",
+        "endpoint",
+        "database",
+        "monitoring"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "func:app/main.py:validation_exception_handler",
+      "type": "function",
+      "name": "validation_exception_handler",
+      "filePath": "app/main.py",
+      "lineRange": [
+        83,
+        110
+      ],
+      "summary": "Global FastAPI exception handler for RequestValidationError that reformats Pydantic validation errors into a user-friendly JSON response and logs the error details.",
+      "tags": [
+        "error-handler",
+        "validation",
+        "fastapi",
+        "logging"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:app/models/base.py:BaseModel",
+      "type": "class",
+      "name": "BaseModel",
+      "filePath": "app/models/base.py",
+      "lineRange": [
+        8,
+        11
+      ],
+      "summary": "Shared SQLModel base class that injects a UTC-defaulted created_at field into all inheriting database table models.",
+      "tags": [
+        "data-model",
+        "base-class",
+        "sqlmodel",
+        "timestamp"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:app/models/session.py:Session",
+      "type": "class",
+      "name": "Session",
+      "filePath": "app/models/session.py",
+      "lineRange": [
+        19,
+        34
+      ],
+      "summary": "SQLModel table representing a named chat session with a string primary key and a foreign-key relationship back to the User who owns it.",
+      "tags": [
+        "data-model",
+        "session",
+        "sqlmodel",
+        "database"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:app/models/thread.py:Thread",
+      "type": "class",
+      "name": "Thread",
+      "filePath": "app/models/thread.py",
+      "lineRange": [
+        14,
+        24
+      ],
+      "summary": "SQLModel table for LangGraph conversation threads, storing a string primary key and a UTC creation timestamp.",
+      "tags": [
+        "data-model",
+        "thread",
+        "sqlmodel",
+        "langgraph"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app/models/user.py",
+      "type": "file",
+      "name": "user.py",
+      "filePath": "app/models/user.py",
+      "summary": "Defines the SQLModel User ORM entity with bcrypt password hashing and verification. Holds a one-to-many relationship to Session via a back-populate, serving as the core identity record for the application.",
+      "tags": [
+        "orm",
+        "user-model",
+        "authentication",
+        "sqlmodel",
+        "bcrypt"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app/schemas/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "app/schemas/__init__.py",
+      "summary": "Public re-export barrel for the schemas package, consolidating Token, Message, ChatRequest, ChatResponse, StreamResponse, and GraphState into a single import surface.",
+      "tags": [
+        "schemas",
+        "re-export",
+        "public-api",
+        "barrel"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app/schemas/auth.py",
+      "type": "file",
+      "name": "auth.py",
+      "filePath": "app/schemas/auth.py",
+      "summary": "Pydantic schemas for authentication and user management: JWT token shape, user registration with strong password validation, and session response with name sanitization.",
+      "tags": [
+        "pydantic",
+        "auth-schemas",
+        "validation",
+        "jwt",
+        "user-registration"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:app/schemas/chat.py",
+      "type": "file",
+      "name": "chat.py",
+      "filePath": "app/schemas/chat.py",
+      "summary": "Pydantic schemas for the chat interface: validated Message model guarding against XSS and null bytes, ChatRequest/ChatResponse wrappers, and a StreamResponse for SSE chunk delivery.",
+      "tags": [
+        "pydantic",
+        "chat-schemas",
+        "validation",
+        "streaming",
+        "xss-prevention"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:app/schemas/graph.py",
+      "type": "file",
+      "name": "graph.py",
+      "filePath": "app/schemas/graph.py",
+      "summary": "Defines GraphState as a Pydantic model carrying the LangGraph agent's conversation messages (with add_messages reducer) and a long-term memory string.",
+      "tags": [
+        "langgraph",
+        "state-schema",
+        "pydantic",
+        "agent-state"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app/services/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "app/services/__init__.py",
+      "summary": "Public re-export barrel for the services package, exposing the database_service singleton, LLMRegistry, and llm_service singleton.",
+      "tags": [
+        "services",
+        "re-export",
+        "barrel",
+        "singleton"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app/services/database.py",
+      "type": "file",
+      "name": "database.py",
+      "filePath": "app/services/database.py",
+      "summary": "Implements DatabaseService, a SQLModel-backed service handling the full CRUD lifecycle for Users and ChatSessions with a QueuePool connection pool, health check, and a global singleton instance.",
+      "tags": [
+        "database",
+        "sqlmodel",
+        "crud",
+        "postgresql",
+        "connection-pool"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:app/services/llm.py",
+      "type": "file",
+      "name": "llm.py",
+      "filePath": "app/services/llm.py",
+      "summary": "Provides LLMRegistry (pre-initialized OpenAI model catalogue) and LLMService (tenacity retry logic, circular model fallback, tool binding) with a global singleton for all LLM interactions.",
+      "tags": [
+        "llm",
+        "openai",
+        "retry",
+        "fallback",
+        "langchain"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:app/models/user.py:User",
+      "type": "class",
+      "name": "User",
+      "filePath": "app/models/user.py",
+      "lineRange": [
+        20,
+        44
+      ],
+      "summary": "SQLModel table-mapped entity storing user credentials (email, bcrypt hash) and a lazy-loaded sessions relationship; provides verify_password and hash_password helpers.",
+      "tags": [
+        "orm",
+        "user",
+        "bcrypt",
+        "sqlmodel",
+        "identity"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:app/schemas/auth.py:Token",
+      "type": "class",
+      "name": "Token",
+      "filePath": "app/schemas/auth.py",
+      "lineRange": [
+        15,
+        26
+      ],
+      "summary": "Pydantic model representing a JWT bearer token with access_token string, token_type, and expiry timestamp.",
+      "tags": [
+        "pydantic",
+        "jwt",
+        "auth",
+        "token"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:app/schemas/auth.py:UserCreate",
+      "type": "class",
+      "name": "UserCreate",
+      "filePath": "app/schemas/auth.py",
+      "lineRange": [
+        43,
+        86
+      ],
+      "summary": "Registration request schema enforcing email format and strong password rules (uppercase, lowercase, digit, special character) via a Pydantic field_validator.",
+      "tags": [
+        "pydantic",
+        "validation",
+        "user-registration",
+        "password-policy"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:app/schemas/auth.py:SessionResponse",
+      "type": "class",
+      "name": "SessionResponse",
+      "filePath": "app/schemas/auth.py",
+      "lineRange": [
+        103,
+        129
+      ],
+      "summary": "Response schema for session creation carrying session_id, sanitized name, and a Token; sanitize_name strips potentially harmful characters from the name field.",
+      "tags": [
+        "pydantic",
+        "session",
+        "sanitization",
+        "auth"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:app/schemas/chat.py:Message",
+      "type": "class",
+      "name": "Message",
+      "filePath": "app/schemas/chat.py",
+      "lineRange": [
+        16,
+        51
+      ],
+      "summary": "Chat message schema with role enumeration and a content validator that rejects script injection and null bytes, providing the fundamental unit of conversation.",
+      "tags": [
+        "pydantic",
+        "chat",
+        "validation",
+        "security",
+        "message"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:app/schemas/graph.py:GraphState",
+      "type": "class",
+      "name": "GraphState",
+      "filePath": "app/schemas/graph.py",
+      "lineRange": [
+        12,
+        18
+      ],
+      "summary": "LangGraph agent state container holding an annotated messages list (using add_messages reducer) and a long_term_memory string for persistent context.",
+      "tags": [
+        "langgraph",
+        "agent-state",
+        "pydantic",
+        "messages"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:app/services/database.py:DatabaseService",
+      "type": "class",
+      "name": "DatabaseService",
+      "filePath": "app/services/database.py",
+      "lineRange": [
+        27,
+        247
+      ],
+      "summary": "Central database service initializing a PostgreSQL QueuePool engine and exposing async CRUD methods for User and ChatSession entities, plus health_check and a session_maker accessor.",
+      "tags": [
+        "database",
+        "service",
+        "crud",
+        "postgresql",
+        "async"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:app/services/llm.py:LLMRegistry",
+      "type": "class",
+      "name": "LLMRegistry",
+      "filePath": "app/services/llm.py",
+      "lineRange": [
+        34,
+        151
+      ],
+      "summary": "Class-level catalogue of pre-instantiated ChatOpenAI models (gpt-5, gpt-4o variants); provides get(), get_all_names(), and get_model_at_index() classmethods for model lookup.",
+      "tags": [
+        "llm",
+        "registry",
+        "openai",
+        "model-management"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:app/services/llm.py:LLMService",
+      "type": "class",
+      "name": "LLMService",
+      "filePath": "app/services/llm.py",
+      "lineRange": [
+        154,
+        365
+      ],
+      "summary": "Stateful LLM client with tenacity-powered retry on rate limits/timeouts and circular model fallback across the full LLMRegistry; exposes call(), bind_tools(), and get_llm().",
+      "tags": [
+        "llm",
+        "retry",
+        "fallback",
+        "service",
+        "async"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "func:app/services/database.py:DatabaseService.__init__",
+      "type": "function",
+      "name": "__init__",
+      "filePath": "app/services/database.py",
+      "lineRange": [
+        34,
+        70
+      ],
+      "summary": "Constructs the SQLAlchemy engine with environment-specific pool settings and calls SQLModel.metadata.create_all to initialise schema.",
+      "tags": [
+        "init",
+        "database",
+        "connection-pool",
+        "sqlmodel"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "func:app/services/database.py:DatabaseService.create_user",
+      "type": "function",
+      "name": "create_user",
+      "filePath": "app/services/database.py",
+      "lineRange": [
+        72,
+        88
+      ],
+      "summary": "Async method that inserts a new User row and returns the refreshed ORM instance.",
+      "tags": [
+        "database",
+        "async",
+        "crud",
+        "user"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "func:app/services/database.py:DatabaseService.update_session_name",
+      "type": "function",
+      "name": "update_session_name",
+      "filePath": "app/services/database.py",
+      "lineRange": [
+        201,
+        224
+      ],
+      "summary": "Async method that fetches a ChatSession by ID, updates its name, commits, and raises HTTP 404 if not found.",
+      "tags": [
+        "database",
+        "async",
+        "session",
+        "update"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "func:app/services/database.py:DatabaseService.health_check",
+      "type": "function",
+      "name": "health_check",
+      "filePath": "app/services/database.py",
+      "lineRange": [
+        234,
+        247
+      ],
+      "summary": "Async method executing a lightweight SELECT 1 to verify database connectivity, returning a boolean.",
+      "tags": [
+        "database",
+        "health-check",
+        "async"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "func:app/services/llm.py:LLMService.call",
+      "type": "function",
+      "name": "call",
+      "filePath": "app/services/llm.py",
+      "lineRange": [
+        267,
+        343
+      ],
+      "summary": "Primary async entry point: resolves optional model override from LLMRegistry, then drives a loop across all registered models retrying each with tenacity until a response is obtained or all models are exhausted.",
+      "tags": [
+        "llm",
+        "async",
+        "retry",
+        "fallback",
+        "core"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "func:app/services/llm.py:LLMService._call_llm_with_retry",
+      "type": "function",
+      "name": "_call_llm_with_retry",
+      "filePath": "app/services/llm.py",
+      "lineRange": [
+        232,
+        265
+      ],
+      "summary": "Decorated async method using tenacity to retry on RateLimitError, APITimeoutError, and APIError with exponential backoff before propagating the exception.",
+      "tags": [
+        "llm",
+        "retry",
+        "tenacity",
+        "async",
+        "error-handling"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "func:app/services/llm.py:LLMRegistry.get",
+      "type": "function",
+      "name": "get",
+      "filePath": "app/services/llm.py",
+      "lineRange": [
+        95,
+        128
+      ],
+      "summary": "Classmethod that looks up a model by name in LLMS, returning the pre-instantiated instance or creating a new ChatOpenAI instance when kwargs are provided.",
+      "tags": [
+        "llm",
+        "registry",
+        "model-lookup",
+        "factory"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app/utils/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "app/utils/__init__.py",
+      "summary": "Package init for the utils module; re-exports the three graph utility functions (dump_messages, prepare_messages, process_llm_response) as the public API.",
+      "tags": [
+        "utils",
+        "package-init",
+        "re-export",
+        "graph-utilities"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app/utils/auth.py",
+      "type": "file",
+      "name": "auth.py",
+      "filePath": "app/utils/auth.py",
+      "summary": "JWT authentication utilities providing token creation (with configurable expiry) and verification (with format validation) for thread-based sessions using python-jose.",
+      "tags": [
+        "jwt",
+        "authentication",
+        "token",
+        "security"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:app/utils/graph.py",
+      "type": "file",
+      "name": "graph.py",
+      "filePath": "app/utils/graph.py",
+      "summary": "LangGraph message utility functions: serialising messages to dicts, extracting plain text from structured LLM response content blocks, and trimming/prepending system prompts before LLM calls.",
+      "tags": [
+        "langgraph",
+        "langchain",
+        "message-processing",
+        "llm-utilities"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:app/utils/sanitization.py",
+      "type": "file",
+      "name": "sanitization.py",
+      "filePath": "app/utils/sanitization.py",
+      "summary": "Input sanitization and validation helpers covering HTML-escape/XSS prevention for strings, email format validation, recursive dict/list sanitization, and password-strength enforcement.",
+      "tags": [
+        "sanitization",
+        "security",
+        "input-validation",
+        "xss-prevention"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:evals/evaluator.py",
+      "type": "file",
+      "name": "evaluator.py",
+      "filePath": "evals/evaluator.py",
+      "summary": "Core evaluation engine: the Evaluator class fetches unscored Langfuse traces from the last 24 hours, runs each metric via OpenAI structured-output calls, pushes scores back to Langfuse, and builds a summary report.",
+      "tags": [
+        "evaluation",
+        "langfuse",
+        "openai",
+        "metrics",
+        "async"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:evals/helpers.py",
+      "type": "file",
+      "name": "helpers.py",
+      "filePath": "evals/helpers.py",
+      "summary": "Stateless helper functions used by the Evaluator: message formatting from Langfuse trace output, report initialisation/update routines, average-score calculation, and JSON report file generation.",
+      "tags": [
+        "evaluation-helpers",
+        "report-generation",
+        "langfuse",
+        "metrics"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:evals/main.py",
+      "type": "file",
+      "name": "main.py",
+      "filePath": "evals/main.py",
+      "summary": "CLI entry point for the evaluation system; supports interactive, quick, and argument-driven modes with colourised output using colorama, delegating actual evaluation to the Evaluator class.",
+      "tags": [
+        "cli",
+        "evaluation",
+        "entry-point",
+        "interactive"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:evals/metrics/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "evals/metrics/__init__.py",
+      "summary": "Dynamically loads all metric definitions from Markdown prompt files in the prompts/ subdirectory, exposing a list of {name, prompt} dicts as the metrics API.",
+      "tags": [
+        "metrics",
+        "dynamic-loading",
+        "prompts",
+        "package-init"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:evals/schemas.py",
+      "type": "file",
+      "name": "schemas.py",
+      "filePath": "evals/schemas.py",
+      "summary": "Pydantic schema for evaluation scoring; defines ScoreSchema with a numeric score (0-1) and one-sentence reasoning field used as the OpenAI structured-output response format.",
+      "tags": [
+        "pydantic",
+        "schema",
+        "evaluation",
+        "structured-output"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "func:app/utils/auth.py:create_access_token",
+      "type": "function",
+      "name": "create_access_token",
+      "filePath": "app/utils/auth.py",
+      "lineRange": [
+        22,
+        48
+      ],
+      "summary": "Creates a signed JWT for a given thread_id with configurable expiry, embedding a unique jti claim, and returns a Token schema object.",
+      "tags": [
+        "jwt",
+        "token-creation",
+        "authentication"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "func:app/utils/auth.py:verify_token",
+      "type": "function",
+      "name": "verify_token",
+      "filePath": "app/utils/auth.py",
+      "lineRange": [
+        51,
+        85
+      ],
+      "summary": "Validates JWT format with a regex pre-check, decodes the token, and returns the thread_id subject claim or None on failure.",
+      "tags": [
+        "jwt",
+        "token-verification",
+        "authentication"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "func:app/utils/graph.py:dump_messages",
+      "type": "function",
+      "name": "dump_messages",
+      "filePath": "app/utils/graph.py",
+      "lineRange": [
+        12,
+        21
+      ],
+      "summary": "Serialises a list of Message schema objects to plain dicts via model_dump.",
+      "tags": [
+        "serialisation",
+        "messages",
+        "langgraph"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "func:app/utils/graph.py:process_llm_response",
+      "type": "function",
+      "name": "process_llm_response",
+      "filePath": "app/utils/graph.py",
+      "lineRange": [
+        24,
+        67
+      ],
+      "summary": "Normalises structured LLM response content (e.g. GPT-5 reasoning blocks) by extracting only text blocks and joining them into a plain string.",
+      "tags": [
+        "llm-response",
+        "content-processing",
+        "langchain"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "func:app/utils/graph.py:prepare_messages",
+      "type": "function",
+      "name": "prepare_messages",
+      "filePath": "app/utils/graph.py",
+      "lineRange": [
+        70,
+        104
+      ],
+      "summary": "Trims a message list to fit within token budget using LangChain trim_messages, then prepends the system prompt; falls back to untrimmed messages if content blocks are unrecognised.",
+      "tags": [
+        "message-preparation",
+        "token-trimming",
+        "langchain"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "func:app/utils/sanitization.py:sanitize_string",
+      "type": "function",
+      "name": "sanitize_string",
+      "filePath": "app/utils/sanitization.py",
+      "lineRange": [
+        14,
+        36
+      ],
+      "summary": "HTML-escapes a string, strips escaped script tags, and removes null bytes to prevent XSS and injection attacks.",
+      "tags": [
+        "xss-prevention",
+        "sanitization",
+        "security"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "func:app/utils/sanitization.py:sanitize_email",
+      "type": "function",
+      "name": "sanitize_email",
+      "filePath": "app/utils/sanitization.py",
+      "lineRange": [
+        39,
+        55
+      ],
+      "summary": "Sanitises and validates an email address format, raising ValueError for invalid addresses.",
+      "tags": [
+        "email-validation",
+        "sanitization",
+        "security"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "func:app/utils/sanitization.py:sanitize_dict",
+      "type": "function",
+      "name": "sanitize_dict",
+      "filePath": "app/utils/sanitization.py",
+      "lineRange": [
+        58,
+        77
+      ],
+      "summary": "Recursively sanitises all string values in a dictionary, handling nested dicts and lists.",
+      "tags": [
+        "sanitization",
+        "recursive",
+        "security"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "func:app/utils/sanitization.py:sanitize_list",
+      "type": "function",
+      "name": "sanitize_list",
+      "filePath": "app/utils/sanitization.py",
+      "lineRange": [
+        80,
+        99
+      ],
+      "summary": "Recursively sanitises all string values in a list, handling nested dicts and lists.",
+      "tags": [
+        "sanitization",
+        "recursive",
+        "security"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "func:app/utils/sanitization.py:validate_password_strength",
+      "type": "function",
+      "name": "validate_password_strength",
+      "filePath": "app/utils/sanitization.py",
+      "lineRange": [
+        102,
+        129
+      ],
+      "summary": "Enforces password strength rules (length, uppercase, lowercase, digit, special character), raising ValueError with a descriptive message on each failure.",
+      "tags": [
+        "password-validation",
+        "security",
+        "input-validation"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:evals/evaluator.py:Evaluator",
+      "type": "class",
+      "name": "Evaluator",
+      "filePath": "evals/evaluator.py",
+      "lineRange": [
+        36,
+        202
+      ],
+      "summary": "Orchestrates the evaluation pipeline: initialises OpenAI and Langfuse clients, fetches unscored traces, applies all metrics via async OpenAI calls, uploads scores, and produces a summary report.",
+      "tags": [
+        "evaluation",
+        "langfuse",
+        "openai",
+        "async",
+        "orchestration"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "func:evals/helpers.py:format_messages",
+      "type": "function",
+      "name": "format_messages",
+      "filePath": "evals/helpers.py",
+      "lineRange": [
+        21,
+        46
+      ],
+      "summary": "Converts a list of Langfuse trace message dicts into a human-readable string, handling tool-call messages specially by extracting function arguments.",
+      "tags": [
+        "message-formatting",
+        "langfuse",
+        "evaluation"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "func:evals/helpers.py:get_input_output",
+      "type": "function",
+      "name": "get_input_output",
+      "filePath": "evals/helpers.py",
+      "lineRange": [
+        49,
+        62
+      ],
+      "summary": "Extracts and formats conversation input (all but last message) and output (last message) from a Langfuse TraceWithDetails object.",
+      "tags": [
+        "trace-parsing",
+        "langfuse",
+        "evaluation"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "func:evals/helpers.py:initialize_report",
+      "type": "function",
+      "name": "initialize_report",
+      "filePath": "evals/helpers.py",
+      "lineRange": [
+        65,
+        84
+      ],
+      "summary": "Creates and returns the initial report dictionary structure with zeroed counters, timestamp, and model name.",
+      "tags": [
+        "report-initialisation",
+        "evaluation"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "func:evals/helpers.py:generate_report",
+      "type": "function",
+      "name": "generate_report",
+      "filePath": "evals/helpers.py",
+      "lineRange": [
+        175,
+        197
+      ],
+      "summary": "Writes the evaluation report dict to a timestamped JSON file in the evals/reports/ directory and returns the file path.",
+      "tags": [
+        "report-generation",
+        "json",
+        "evaluation"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "func:evals/helpers.py:process_trace_results",
+      "type": "function",
+      "name": "process_trace_results",
+      "filePath": "evals/helpers.py",
+      "lineRange": [
+        135,
+        161
+      ],
+      "summary": "Determines if a trace passed all metrics and updates the report's successful/failed trace lists accordingly.",
+      "tags": [
+        "trace-results",
+        "evaluation",
+        "reporting"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "func:evals/main.py:run_evaluation",
+      "type": "function",
+      "name": "run_evaluation",
+      "filePath": "evals/main.py",
+      "lineRange": [
+        165,
+        187
+      ],
+      "summary": "Async wrapper that instantiates Evaluator, runs it, and displays the summary; exits with code 1 on failure.",
+      "tags": [
+        "evaluation",
+        "async",
+        "cli"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "func:evals/main.py:interactive_mode",
+      "type": "function",
+      "name": "interactive_mode",
+      "filePath": "evals/main.py",
+      "lineRange": [
+        202,
+        230
+      ],
+      "summary": "Presents a colourised interactive prompt allowing users to review and optionally override evaluation configuration before running.",
+      "tags": [
+        "interactive",
+        "cli",
+        "evaluation"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "func:evals/main.py:quick_mode",
+      "type": "function",
+      "name": "quick_mode",
+      "filePath": "evals/main.py",
+      "lineRange": [
+        233,
+        247
+      ],
+      "summary": "Non-interactive evaluation run with all default settings and keyboard-interrupt handling.",
+      "tags": [
+        "cli",
+        "evaluation",
+        "quick-mode"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "func:evals/main.py:main",
+      "type": "function",
+      "name": "main",
+      "filePath": "evals/main.py",
+      "lineRange": [
+        250,
+        265
+      ],
+      "summary": "Argument-parsing entry point dispatching to interactive_mode, quick_mode, or a direct asyncio.run(run_evaluation) based on CLI flags.",
+      "tags": [
+        "entry-point",
+        "cli",
+        "argparse"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "func:evals/main.py:display_summary",
+      "type": "function",
+      "name": "display_summary",
+      "filePath": "evals/main.py",
+      "lineRange": [
+        116,
+        162
+      ],
+      "summary": "Renders a colourised terminal summary of evaluation results including per-metric success rates and average scores.",
+      "tags": [
+        "cli",
+        "reporting",
+        "evaluation"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:evals/schemas.py:ScoreSchema",
+      "type": "class",
+      "name": "ScoreSchema",
+      "filePath": "evals/schemas.py",
+      "lineRange": [
+        9,
+        13
+      ],
+      "summary": "Pydantic BaseModel used as OpenAI structured-output format for evaluation responses; holds a float score (0-1) and a one-sentence reasoning string.",
+      "tags": [
+        "pydantic",
+        "schema",
+        "evaluation",
+        "structured-output"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:scripts/build-docker.sh",
+      "type": "file",
+      "name": "build-docker.sh",
+      "filePath": "scripts/build-docker.sh",
+      "summary": "Builds a Docker image for a specified environment (development, staging, production) by loading the matching .env file and passing secrets as build arguments. Masks sensitive credential values in console output to avoid leaking secrets.",
+      "tags": [
+        "docker",
+        "deployment",
+        "devops",
+        "environment",
+        "build"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:scripts/docker-entrypoint.sh",
+      "type": "file",
+      "name": "docker-entrypoint.sh",
+      "filePath": "scripts/docker-entrypoint.sh",
+      "summary": "Docker container entrypoint that loads environment variables from the appropriate .env file while preserving any variables already set, validates required variables (JWT_SECRET_KEY, OPENAI_API_KEY), and then execs the container's CMD. Skips or warns on missing env files.",
+      "tags": [
+        "docker",
+        "entrypoint",
+        "environment",
+        "devops",
+        "deployment"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:scripts/ensure-db-user.sh",
+      "type": "file",
+      "name": "ensure-db-user.sh",
+      "filePath": "scripts/ensure-db-user.sh",
+      "summary": "Idempotently provisions a PostgreSQL role and database inside a running Docker Compose service by polling for readiness and then executing psql commands via docker compose exec. Creates or updates the role password and database ownership/privileges.",
+      "tags": [
+        "database",
+        "postgresql",
+        "docker",
+        "devops",
+        "deployment"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:scripts/logs-docker.sh",
+      "type": "file",
+      "name": "logs-docker.sh",
+      "filePath": "scripts/logs-docker.sh",
+      "summary": "Tails live logs from a running fastapi-langgraph Docker container for the specified environment using docker logs -f. Validates the environment argument and checks that the named container exists and is in running state before attaching.",
+      "tags": [
+        "docker",
+        "logging",
+        "devops",
+        "utility"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:scripts/run-docker.sh",
+      "type": "file",
+      "name": "run-docker.sh",
+      "filePath": "scripts/run-docker.sh",
+      "summary": "Starts the application stack (db and app services) via Docker Compose for a given environment, optionally loading the matching .env file and passing it as --env-file to compose. Validates the environment argument before running.",
+      "tags": [
+        "docker",
+        "deployment",
+        "devops",
+        "environment",
+        "compose"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:scripts/set_env.sh",
+      "type": "file",
+      "name": "set_env.sh",
+      "filePath": "scripts/set_env.sh",
+      "summary": "Must be sourced (not executed) to load a named environment's .env file into the current shell session and export all variables. Also defines a start_app helper function (launches uvicorn) and shell aliases for quickly switching between environments.",
+      "tags": [
+        "environment",
+        "devops",
+        "utility",
+        "development",
+        "shell"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:scripts/stop-docker.sh",
+      "type": "file",
+      "name": "stop-docker.sh",
+      "filePath": "scripts/stop-docker.sh",
+      "summary": "Stops and removes the fastapi-langgraph Docker container for a specified environment. Exits cleanly if the container does not exist and suppresses output on stop/remove commands.",
+      "tags": [
+        "docker",
+        "devops",
+        "utility",
+        "deployment"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:app/api/v1/api.py",
+      "target": "file:app/api/v1/auth.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/v1/api.py",
+      "target": "file:app/api/v1/chatbot.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/v1/auth.py",
+      "target": "file:app/core/config.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/v1/auth.py",
+      "target": "file:app/core/limiter.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/v1/auth.py",
+      "target": "file:app/models/session.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/v1/auth.py",
+      "target": "file:app/models/user.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/v1/auth.py",
+      "target": "file:app/schemas/auth.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/v1/auth.py",
+      "target": "file:app/services/database.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/v1/auth.py",
+      "target": "file:app/utils/auth.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/v1/auth.py",
+      "target": "file:app/utils/sanitization.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/v1/chatbot.py",
+      "target": "file:app/api/v1/auth.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/v1/chatbot.py",
+      "target": "file:app/core/config.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/v1/chatbot.py",
+      "target": "file:app/core/langgraph/graph.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/v1/chatbot.py",
+      "target": "file:app/core/limiter.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/v1/chatbot.py",
+      "target": "file:app/models/session.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/v1/chatbot.py",
+      "target": "file:app/schemas/chat.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/core/config.py",
+      "target": "class:app/core/config.py:Settings",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:app/core/config.py",
+      "target": "class:app/core/config.py:Environment",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:app/core/config.py",
+      "target": "func:app/core/config.py:get_environment",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:app/core/config.py",
+      "target": "class:app/core/config.py:Settings",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:app/core/config.py",
+      "target": "class:app/core/config.py:Environment",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:app/core/langgraph/graph.py",
+      "target": "class:app/core/langgraph/graph.py:LangGraphAgent",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:app/core/langgraph/graph.py",
+      "target": "class:app/core/langgraph/graph.py:LangGraphAgent",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:app/core/langgraph/graph.py",
+      "target": "file:app/core/config.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/core/langgraph/graph.py",
+      "target": "file:app/core/langgraph/tools/__init__.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/core/langgraph/graph.py",
+      "target": "file:app/core/prompts/__init__.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/core/langgraph/graph.py",
+      "target": "file:app/schemas/__init__.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/core/langgraph/graph.py",
+      "target": "file:app/services/llm.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/core/langgraph/graph.py",
+      "target": "file:app/utils/__init__.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/core/langgraph/tools/__init__.py",
+      "target": "file:app/core/langgraph/tools/duckduckgo_search.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/core/limiter.py",
+      "target": "file:app/core/config.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/v1/auth.py",
+      "target": "func:app/api/v1/auth.py:register_user",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:app/api/v1/auth.py",
+      "target": "func:app/api/v1/auth.py:create_session",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:app/api/v1/auth.py",
+      "target": "func:app/api/v1/auth.py:delete_session",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:app/api/v1/auth.py",
+      "target": "func:app/api/v1/auth.py:get_user_sessions",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:app/api/v1/auth.py",
+      "target": "func:app/api/v1/auth.py:register_user",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:app/api/v1/auth.py",
+      "target": "func:app/api/v1/auth.py:create_session",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:app/api/v1/auth.py",
+      "target": "func:app/api/v1/auth.py:delete_session",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:app/api/v1/auth.py",
+      "target": "func:app/api/v1/auth.py:get_user_sessions",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:app/api/v1/chatbot.py",
+      "target": "func:app/api/v1/chatbot.py:event_generator",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "class:app/core/langgraph/graph.py:LangGraphAgent",
+      "target": "func:app/core/langgraph/graph.py:create_graph",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:app/core/langgraph/graph.py",
+      "target": "func:app/core/langgraph/graph.py:create_graph",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:app/core/config.py",
+      "target": "func:app/core/config.py:get_environment",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:app/core/logging.py",
+      "target": "func:app/core/logging.py:bind_context",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/core/logging.py",
+      "target": "func:app/core/logging.py:add_context_to_event_dict",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/core/logging.py",
+      "target": "func:app/core/logging.py:get_structlog_processors",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/core/logging.py",
+      "target": "func:app/core/logging.py:setup_logging",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/core/logging.py",
+      "target": "class:app/core/logging.py:JsonlFileHandler",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/core/logging.py",
+      "target": "func:app/core/logging.py:setup_logging",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/core/logging.py",
+      "target": "func:app/core/logging.py:bind_context",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/core/logging.py",
+      "target": "func:app/core/logging.py:add_context_to_event_dict",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/core/logging.py",
+      "target": "class:app/core/logging.py:JsonlFileHandler",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/core/logging.py",
+      "target": "file:app/core/config.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/core/metrics.py",
+      "target": "func:app/core/metrics.py:setup_metrics",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/core/metrics.py",
+      "target": "func:app/core/metrics.py:setup_metrics",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/core/middleware.py",
+      "target": "class:app/core/middleware.py:MetricsMiddleware",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/core/middleware.py",
+      "target": "class:app/core/middleware.py:LoggingContextMiddleware",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/core/middleware.py",
+      "target": "class:app/core/middleware.py:MetricsMiddleware",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/core/middleware.py",
+      "target": "class:app/core/middleware.py:LoggingContextMiddleware",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/core/middleware.py",
+      "target": "file:app/core/config.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/core/middleware.py",
+      "target": "file:app/core/logging.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/core/middleware.py",
+      "target": "file:app/core/metrics.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/core/prompts/__init__.py",
+      "target": "func:app/core/prompts/__init__.py:load_system_prompt",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/core/prompts/__init__.py",
+      "target": "func:app/core/prompts/__init__.py:load_system_prompt",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/core/prompts/__init__.py",
+      "target": "file:app/core/config.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/main.py",
+      "target": "func:app/main.py:lifespan",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/main.py",
+      "target": "func:app/main.py:validation_exception_handler",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/main.py",
+      "target": "func:app/main.py:health_check",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/main.py",
+      "target": "file:app/api/v1/api.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/main.py",
+      "target": "file:app/core/config.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/main.py",
+      "target": "file:app/core/limiter.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/main.py",
+      "target": "file:app/core/logging.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/main.py",
+      "target": "file:app/core/metrics.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/main.py",
+      "target": "file:app/core/middleware.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/main.py",
+      "target": "file:app/services/database.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/models/base.py",
+      "target": "class:app/models/base.py:BaseModel",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/models/base.py",
+      "target": "class:app/models/base.py:BaseModel",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/models/database.py",
+      "target": "file:app/models/thread.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/models/session.py",
+      "target": "class:app/models/session.py:Session",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/models/session.py",
+      "target": "class:app/models/session.py:Session",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/models/session.py",
+      "target": "file:app/models/base.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/models/session.py",
+      "target": "file:app/models/user.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "class:app/models/session.py:Session",
+      "target": "class:app/models/base.py:BaseModel",
+      "type": "inherits",
+      "weight": 0.9,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/models/thread.py",
+      "target": "class:app/models/thread.py:Thread",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/models/thread.py",
+      "target": "class:app/models/thread.py:Thread",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/models/user.py",
+      "target": "class:app/models/user.py:User",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/models/user.py",
+      "target": "class:app/models/user.py:User",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/models/user.py",
+      "target": "file:app/models/base.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/models/user.py",
+      "target": "file:app/models/session.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/schemas/__init__.py",
+      "target": "file:app/schemas/auth.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/schemas/__init__.py",
+      "target": "file:app/schemas/chat.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/schemas/__init__.py",
+      "target": "file:app/schemas/graph.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/schemas/auth.py",
+      "target": "class:app/schemas/auth.py:Token",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/schemas/auth.py",
+      "target": "class:app/schemas/auth.py:Token",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/schemas/auth.py",
+      "target": "class:app/schemas/auth.py:UserCreate",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/schemas/auth.py",
+      "target": "class:app/schemas/auth.py:UserCreate",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/schemas/auth.py",
+      "target": "class:app/schemas/auth.py:SessionResponse",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/schemas/auth.py",
+      "target": "class:app/schemas/auth.py:SessionResponse",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/schemas/chat.py",
+      "target": "class:app/schemas/chat.py:Message",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/schemas/chat.py",
+      "target": "class:app/schemas/chat.py:Message",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/schemas/graph.py",
+      "target": "class:app/schemas/graph.py:GraphState",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/schemas/graph.py",
+      "target": "class:app/schemas/graph.py:GraphState",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/services/__init__.py",
+      "target": "file:app/services/database.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/services/__init__.py",
+      "target": "file:app/services/llm.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/services/database.py",
+      "target": "class:app/services/database.py:DatabaseService",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/services/database.py",
+      "target": "class:app/services/database.py:DatabaseService",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/services/database.py",
+      "target": "func:app/services/database.py:DatabaseService.__init__",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/services/database.py",
+      "target": "func:app/services/database.py:DatabaseService.create_user",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/services/database.py",
+      "target": "func:app/services/database.py:DatabaseService.update_session_name",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/services/database.py",
+      "target": "func:app/services/database.py:DatabaseService.health_check",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/services/database.py",
+      "target": "file:app/core/config.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/services/database.py",
+      "target": "file:app/core/logging.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/services/database.py",
+      "target": "file:app/models/session.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/services/database.py",
+      "target": "file:app/models/user.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/services/llm.py",
+      "target": "class:app/services/llm.py:LLMRegistry",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/services/llm.py",
+      "target": "class:app/services/llm.py:LLMRegistry",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/services/llm.py",
+      "target": "class:app/services/llm.py:LLMService",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/services/llm.py",
+      "target": "class:app/services/llm.py:LLMService",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/services/llm.py",
+      "target": "func:app/services/llm.py:LLMService.call",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/services/llm.py",
+      "target": "func:app/services/llm.py:LLMService._call_llm_with_retry",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/services/llm.py",
+      "target": "func:app/services/llm.py:LLMRegistry.get",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/services/llm.py",
+      "target": "file:app/core/config.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/services/llm.py",
+      "target": "file:app/core/logging.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/utils/__init__.py",
+      "target": "file:app/utils/graph.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/utils/__init__.py",
+      "target": "func:app/utils/graph.py:dump_messages",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/utils/__init__.py",
+      "target": "func:app/utils/graph.py:prepare_messages",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/utils/__init__.py",
+      "target": "func:app/utils/graph.py:process_llm_response",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/utils/auth.py",
+      "target": "file:app/core/config.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/utils/auth.py",
+      "target": "file:app/core/logging.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/utils/auth.py",
+      "target": "file:app/schemas/auth.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/utils/auth.py",
+      "target": "file:app/utils/sanitization.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/utils/auth.py",
+      "target": "func:app/utils/auth.py:create_access_token",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/utils/auth.py",
+      "target": "func:app/utils/auth.py:verify_token",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/utils/auth.py",
+      "target": "func:app/utils/auth.py:create_access_token",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/utils/auth.py",
+      "target": "func:app/utils/auth.py:verify_token",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/utils/graph.py",
+      "target": "file:app/core/config.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/utils/graph.py",
+      "target": "file:app/core/logging.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/utils/graph.py",
+      "target": "file:app/schemas/__init__.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/utils/graph.py",
+      "target": "func:app/utils/graph.py:dump_messages",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/utils/graph.py",
+      "target": "func:app/utils/graph.py:process_llm_response",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/utils/graph.py",
+      "target": "func:app/utils/graph.py:prepare_messages",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/utils/graph.py",
+      "target": "func:app/utils/graph.py:dump_messages",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/utils/graph.py",
+      "target": "func:app/utils/graph.py:process_llm_response",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/utils/graph.py",
+      "target": "func:app/utils/graph.py:prepare_messages",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/utils/sanitization.py",
+      "target": "func:app/utils/sanitization.py:sanitize_string",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/utils/sanitization.py",
+      "target": "func:app/utils/sanitization.py:sanitize_email",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/utils/sanitization.py",
+      "target": "func:app/utils/sanitization.py:sanitize_dict",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/utils/sanitization.py",
+      "target": "func:app/utils/sanitization.py:sanitize_list",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/utils/sanitization.py",
+      "target": "func:app/utils/sanitization.py:validate_password_strength",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/utils/sanitization.py",
+      "target": "func:app/utils/sanitization.py:sanitize_string",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/utils/sanitization.py",
+      "target": "func:app/utils/sanitization.py:sanitize_email",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/utils/sanitization.py",
+      "target": "func:app/utils/sanitization.py:sanitize_dict",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/utils/sanitization.py",
+      "target": "func:app/utils/sanitization.py:sanitize_list",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app/utils/sanitization.py",
+      "target": "func:app/utils/sanitization.py:validate_password_strength",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:evals/evaluator.py",
+      "target": "file:app/core/config.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:evals/evaluator.py",
+      "target": "file:app/core/logging.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:evals/evaluator.py",
+      "target": "file:evals/helpers.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:evals/evaluator.py",
+      "target": "file:evals/metrics/__init__.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:evals/evaluator.py",
+      "target": "file:evals/schemas.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:evals/evaluator.py",
+      "target": "class:evals/evaluator.py:Evaluator",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:evals/evaluator.py",
+      "target": "class:evals/evaluator.py:Evaluator",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:evals/helpers.py",
+      "target": "file:app/core/logging.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:evals/helpers.py",
+      "target": "file:evals/schemas.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:evals/helpers.py",
+      "target": "func:evals/helpers.py:format_messages",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:evals/helpers.py",
+      "target": "func:evals/helpers.py:get_input_output",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:evals/helpers.py",
+      "target": "func:evals/helpers.py:initialize_report",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:evals/helpers.py",
+      "target": "func:evals/helpers.py:process_trace_results",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:evals/helpers.py",
+      "target": "func:evals/helpers.py:generate_report",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:evals/helpers.py",
+      "target": "func:evals/helpers.py:format_messages",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:evals/helpers.py",
+      "target": "func:evals/helpers.py:get_input_output",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:evals/helpers.py",
+      "target": "func:evals/helpers.py:initialize_report",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:evals/helpers.py",
+      "target": "func:evals/helpers.py:process_trace_results",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:evals/helpers.py",
+      "target": "func:evals/helpers.py:generate_report",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:evals/main.py",
+      "target": "file:app/core/config.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:evals/main.py",
+      "target": "file:app/core/logging.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:evals/main.py",
+      "target": "file:evals/evaluator.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:evals/main.py",
+      "target": "func:evals/main.py:run_evaluation",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:evals/main.py",
+      "target": "func:evals/main.py:interactive_mode",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:evals/main.py",
+      "target": "func:evals/main.py:quick_mode",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:evals/main.py",
+      "target": "func:evals/main.py:main",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:evals/main.py",
+      "target": "func:evals/main.py:display_summary",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:evals/main.py",
+      "target": "func:evals/main.py:main",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:evals/schemas.py",
+      "target": "class:evals/schemas.py:ScoreSchema",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:evals/schemas.py",
+      "target": "class:evals/schemas.py:ScoreSchema",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    }
+  ],
+  "layers": [
+    {
+      "id": "layer:api",
+      "name": "API Layer",
+      "description": "FastAPI route handlers and the application entry point. These files receive HTTP requests, enforce rate limits, delegate to services and the LLM agent, and compose the full FastAPI application instance with all middleware registered. app/main.py is the composition root that wires every other layer together and belongs here as the top of the request-handling stack.",
+      "nodeIds": [
+        "file:app/main.py",
+        "file:app/api/v1/api.py",
+        "file:app/api/v1/auth.py",
+        "file:app/api/v1/chatbot.py"
+      ]
+    },
+    {
+      "id": "layer:agent",
+      "name": "LLM Agent Layer",
+      "description": "The LangGraph-based LLM agent engine and its direct dependencies: the stateful conversation graph with PostgreSQL checkpointing and mem0 long-term memory, the LangChain tool registry, individual tool implementations, and the system-prompt loader. These files collectively define the AI reasoning workflow that the chatbot API delegates to.",
+      "nodeIds": [
+        "file:app/core/langgraph/graph.py",
+        "file:app/core/langgraph/tools/__init__.py",
+        "file:app/core/langgraph/tools/duckduckgo_search.py",
+        "file:app/core/prompts/__init__.py"
+      ]
+    },
+    {
+      "id": "layer:service",
+      "name": "Service Layer",
+      "description": "Business-logic services that mediate between the API layer and persistence or external providers. DatabaseService handles full CRUD for users and sessions via SQLModel with a connection pool. LLMService wraps OpenAI model access with tenacity retry logic and circular model fallback. Utility helpers (JWT auth, message processing, input sanitization) support these services and the API layer.",
+      "nodeIds": [
+        "file:app/services/__init__.py",
+        "file:app/services/database.py",
+        "file:app/services/llm.py",
+        "file:app/utils/__init__.py",
+        "file:app/utils/auth.py",
+        "file:app/utils/graph.py",
+        "file:app/utils/sanitization.py"
+      ]
+    },
+    {
+      "id": "layer:data",
+      "name": "Data Layer",
+      "description": "SQLModel ORM table definitions and Pydantic request/response schemas that form the application's data contracts. Models represent persisted entities (User, Session, Thread) with a shared BaseModel base class. Schemas define validated I/O shapes for the API (auth tokens, chat messages, LangGraph state). Both sub-groups have intra-group density of 1.0, confirming they are self-contained contract definitions with no outward dependencies.",
+      "nodeIds": [
+        "file:app/models/base.py",
+        "file:app/models/database.py",
+        "file:app/models/session.py",
+        "file:app/models/thread.py",
+        "file:app/models/user.py",
+        "file:app/schemas/__init__.py",
+        "file:app/schemas/auth.py",
+        "file:app/schemas/chat.py",
+        "file:app/schemas/graph.py"
+      ]
+    },
+    {
+      "id": "layer:infrastructure",
+      "name": "Infrastructure Layer",
+      "description": "Cross-cutting infrastructure primitives shared by every other application layer. config.py (fan-in 14) is the single source of truth for all environment settings. logging.py (fan-in 9) provides structured per-request context logging via structlog. metrics.py declares Prometheus instruments, limiter.py initialises the rate-limiter singleton, and middleware.py wires metrics and logging into the Starlette request pipeline.",
+      "nodeIds": [
+        "file:app/core/config.py",
+        "file:app/core/logging.py",
+        "file:app/core/metrics.py",
+        "file:app/core/limiter.py",
+        "file:app/core/middleware.py"
+      ]
+    },
+    {
+      "id": "layer:evaluation",
+      "name": "Evaluation Layer",
+      "description": "Standalone LLM quality-evaluation framework. The CLI entry point drives the Evaluator, which fetches unscored Langfuse traces and scores them using OpenAI structured output against dynamically-loaded Markdown metric definitions. evals/schemas.py defines the scoring contract. This subsystem consumes app/core for config and logging but has no incoming edges from the main application, making it a fully independent offline tooling layer.",
+      "nodeIds": [
+        "file:evals/main.py",
+        "file:evals/evaluator.py",
+        "file:evals/helpers.py",
+        "file:evals/metrics/__init__.py",
+        "file:evals/schemas.py"
+      ]
+    },
+    {
+      "id": "layer:devops",
+      "name": "DevOps Layer",
+      "description": "Shell scripts for container lifecycle management and environment provisioning. These files have zero import fan-out and fan-in (no code dependencies) and operate entirely outside the Python application runtime. They cover Docker image build, container start/stop, log tailing, database user provisioning, and environment variable loading for local development and CI/CD.",
+      "nodeIds": [
+        "file:scripts/build-docker.sh",
+        "file:scripts/docker-entrypoint.sh",
+        "file:scripts/ensure-db-user.sh",
+        "file:scripts/logs-docker.sh",
+        "file:scripts/run-docker.sh",
+        "file:scripts/set_env.sh",
+        "file:scripts/stop-docker.sh"
+      ]
+    }
+  ],
+  "tour": [
+    {
+      "order": 1,
+      "title": "Application Entry Point",
+      "description": "app/main.py is where FastAPI is instantiated, all middleware is registered, and the router tree is mounted. With fan-in of 0 and fan-out of 10, it is the only node in the BFS root \u2014 nothing imports it, yet it reaches every major subsystem. Reading this file gives you the complete wiring diagram of the application before diving into any individual component.",
+      "nodeIds": [
+        "file:app/main.py"
+      ]
+    },
+    {
+      "order": 2,
+      "title": "Infrastructure Foundations",
+      "description": "Before any request is processed, the application loads configuration and sets up observability. app/core/config.py is the single most-imported file in the entire codebase (fan-in 14), providing Settings and environment resolution to every layer. app/core/logging.py is second (fan-in 9) and configures structured JSON logging used throughout \u2014 both are BFS depth-1 direct dependencies of main.py.",
+      "nodeIds": [
+        "file:app/core/config.py",
+        "file:app/core/logging.py"
+      ]
+    },
+    {
+      "order": 3,
+      "title": "Request Pipeline Middleware",
+      "description": "app/core/middleware.py, app/core/limiter.py, and app/core/metrics.py form the request-interception layer registered in main.py. Middleware handles cross-cutting concerns like CORS and request-id injection; the rate limiter enforces per-client quotas; metrics exports Prometheus counters. All three are BFS depth-1 and are consumed before any route handler runs.",
+      "nodeIds": [
+        "file:app/core/middleware.py",
+        "file:app/core/limiter.py",
+        "file:app/core/metrics.py"
+      ]
+    },
+    {
+      "order": 4,
+      "title": "API Router Assembly",
+      "description": "app/api/v1/api.py is the router aggregator that main.py mounts under the /api/v1 prefix. It imports the two route modules \u2014 auth and chatbot \u2014 and registers them so FastAPI discovers every endpoint. Understanding this file reveals the URL surface of the application and which handler module is responsible for each path group.",
+      "nodeIds": [
+        "file:app/api/v1/api.py"
+      ]
+    },
+    {
+      "order": 5,
+      "title": "Authentication Routes and Utilities",
+      "description": "app/api/v1/auth.py has the highest fan-out of any single file (16), orchestrating user registration, session creation, and session deletion. It delegates to app/utils/auth.py (fan-out 8) for JWT signing, password hashing, and token verification. Together these two files define the entire security contract: how identities are established and how bearer tokens are validated on every subsequent request.",
+      "nodeIds": [
+        "file:app/api/v1/auth.py",
+        "file:app/utils/auth.py"
+      ]
+    },
+    {
+      "order": 6,
+      "title": "Data Models and Schemas",
+      "description": "app/models/user.py and app/models/session.py are the SQLAlchemy ORM tables that both the auth and chatbot flows read and write (session.py has fan-in 4, user.py fan-in 3). app/schemas/auth.py and app/schemas/chat.py define the Pydantic request/response contracts used by those same route handlers. Taken together these four files specify every persistent entity and every API payload shape in the system.",
+      "nodeIds": [
+        "file:app/models/user.py",
+        "file:app/models/session.py",
+        "file:app/schemas/auth.py",
+        "file:app/schemas/chat.py"
+      ]
+    },
+    {
+      "order": 7,
+      "title": "Database Service Layer",
+      "description": "app/services/database.py (class DatabaseService) abstracts all SQL operations away from the route handlers, providing a clean repository interface for users, sessions, and conversation threads. It has both high fan-in (3) and high fan-out (10), making it the pivot between the ORM models defined in step 6 and the route handlers above. app/models/base.py and app/models/database.py supply the SQLAlchemy base class and engine setup that DatabaseService depends on.",
+      "nodeIds": [
+        "file:app/services/database.py",
+        "file:app/models/base.py",
+        "file:app/models/database.py"
+      ]
+    },
+    {
+      "order": 8,
+      "title": "Chat Route and the Agent Handoff",
+      "description": "app/api/v1/chatbot.py (fan-out 7) is where HTTP streaming responses begin. It authenticates the caller via the auth utilities from step 5, persists the conversation thread via DatabaseService from step 7, then delegates the actual reasoning to the LangGraph agent. This file is the seam between the HTTP layer and the AI agent layer \u2014 understanding it shows exactly which context is gathered before the agent is invoked.",
+      "nodeIds": [
+        "file:app/api/v1/chatbot.py"
+      ]
+    },
+    {
+      "order": 9,
+      "title": "The LangGraph Agent Core",
+      "description": "app/core/langgraph/graph.py (class LangGraphAgent) is the heart of the AI reasoning pipeline. It constructs the state graph, wires in tool nodes, and streams token output back through the chatbot route. app/utils/graph.py (fan-out 9) provides graph-construction helpers and the thread-state utilities that allow the agent to resume multi-turn conversations. app/schemas/graph.py defines the typed state schema that flows through every graph node.",
+      "nodeIds": [
+        "file:app/core/langgraph/graph.py",
+        "file:app/utils/graph.py",
+        "file:app/schemas/graph.py"
+      ]
+    },
+    {
+      "order": 10,
+      "title": "Agent Tools and Prompts",
+      "description": "app/core/langgraph/tools/__init__.py assembles the tool registry that LangGraphAgent receives at construction time. app/core/langgraph/tools/duckduckgo_search.py implements web-search capability as a LangChain tool, enabling the agent to retrieve real-time information. app/core/prompts/__init__.py centralises system-prompt templates so behaviour can be updated without touching graph wiring logic.",
+      "nodeIds": [
+        "file:app/core/langgraph/tools/__init__.py",
+        "file:app/core/langgraph/tools/duckduckgo_search.py",
+        "file:app/core/prompts/__init__.py"
+      ]
+    },
+    {
+      "order": 11,
+      "title": "LLM Service and Observability",
+      "description": "app/services/llm.py (class LLMService, fan-out 9) wraps the underlying language model client and integrates Langfuse for LLM observability \u2014 capturing every prompt, completion, and latency trace. It is consumed by the LangGraph agent (step 9) and referenced by the evaluation harness (step 12), making it the single point where model selection and instrumentation are configured.",
+      "nodeIds": [
+        "file:app/services/llm.py"
+      ]
+    },
+    {
+      "order": 12,
+      "title": "Evaluation Framework",
+      "description": "The evals/ package closes the feedback loop on agent quality. evals/main.py (fan-out 9) drives evaluation runs, evals/evaluator.py scores individual responses, evals/helpers.py (fan-out 12) fetches Langfuse traces and formats test fixtures, and evals/schemas.py defines the typed contracts shared by all three. This layer consumes the same LLMService and graph utilities as production code, ensuring evaluations reflect real runtime behaviour.",
+      "nodeIds": [
+        "file:evals/main.py",
+        "file:evals/evaluator.py",
+        "file:evals/helpers.py",
+        "file:evals/schemas.py"
+      ]
+    }
+  ]
+}

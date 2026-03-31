@@ -219,10 +219,17 @@ class LangGraphAgent:
             "In 1-2 sentences, describe what you need to do to answer the user. "
             "If it is simple conversation with no tool use needed, output exactly the word: direct (lowercase only)"
         ))
-        response = await self._plain_llm.ainvoke([prompt, last_user_msg], config=config)
-        text = response.content.strip()
-        # Case-sensitive check: prompt instructs lowercase "direct"; same check on frontend
-        reasoning = "" if text.lower().startswith("direct") else text
+        try:
+            response = await self._plain_llm.ainvoke([prompt, last_user_msg], config=config)
+            text = response.content.strip()
+            # Case-sensitive check: prompt instructs lowercase "direct"; same check on frontend
+            reasoning = "" if text.lower().startswith("direct") else text
+        except Exception:
+            logger.exception(
+                "analyze_llm_failed_using_empty_reasoning",
+                session_id=config.get("configurable", {}).get("thread_id"),
+            )
+            reasoning = ""
         logger.debug(
             "analyze_node_completed",
             has_reasoning=bool(reasoning),

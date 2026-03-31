@@ -24,3 +24,8 @@ evals/reports/
 .worktrees/
 
 .superpowers/
+.gstack/
+.agents/
+.claude/
+skills
+skills-lock.json
