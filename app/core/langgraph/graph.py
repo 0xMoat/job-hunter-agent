@@ -528,28 +528,35 @@ class LangGraphAgent:
                 try:
                     _node = _metadata.get("langgraph_node") if _metadata else None
 
-                    # Emit node_enter / node_exit on node transitions
-                    if _node != _current_node:
-                        if _current_node and _current_node in _node_start_time:
-                            _elapsed = int((time.time() - _node_start_time[_current_node]) * 1000)
-                            yield _json.dumps({
-                                "type": "node_exit",
-                                "content": "",
-                                "node_name": _current_node,
-                                "duration_ms": _elapsed,
-                                "done": False,
-                            })
-                        if _node:
-                            yield _json.dumps({
-                                "type": "node_enter",
-                                "content": "",
-                                "node_name": _node,
-                                "done": False,
-                            })
-                            _node_start_time[_node] = time.time()
-                        _current_node = _node
+                    # The "analyze" node uses ainvoke; its AIMessageChunk output still
+                    # appears here in "messages" mode. Skip it entirely — node lifecycle
+                    # events and reasoning_chunk are emitted by the "updates" handler above.
+                    if _node == "analyze":
+                        pass
 
-                    if isinstance(token, AIMessageChunk):
+                    else:
+                    # Emit node_enter / node_exit on node transitions
+                        if _node != _current_node:
+                            if _current_node and _current_node in _node_start_time:
+                                _elapsed = int((time.time() - _node_start_time[_current_node]) * 1000)
+                                yield _json.dumps({
+                                    "type": "node_exit",
+                                    "content": "",
+                                    "node_name": _current_node,
+                                    "duration_ms": _elapsed,
+                                    "done": False,
+                                })
+                            if _node:
+                                yield _json.dumps({
+                                    "type": "node_enter",
+                                    "content": "",
+                                    "node_name": _node,
+                                    "done": False,
+                                })
+                                _node_start_time[_node] = time.time()
+                            _current_node = _node
+
+                    if _node != "analyze" and isinstance(token, AIMessageChunk):
                         if token.tool_call_chunks:
                             for tc in token.tool_call_chunks:
                                 tool_call_id = tc.get("id", "")
