@@ -42,6 +42,17 @@ class LLMRegistry:
     # Class-level variable containing all available LLM models
     LLMS: List[Dict[str, Any]] = [
         {
+            "name": "llama-3.3-70b-versatile",
+            "llm": ChatOpenAI(
+                model="llama-3.3-70b-versatile",
+                tiktoken_model_name="gpt-4o",
+                api_key=settings.GROQ_API_KEY or settings.OPENAI_API_KEY,
+                temperature=settings.DEFAULT_LLM_TEMPERATURE,
+                max_tokens=settings.MAX_TOKENS,
+                base_url="https://api.groq.com/openai/v1",
+            ),
+        },
+        {
             "name": "gemini-2.5-flash",
             "llm": ChatOpenAI(
                 model="gemini-2.5-flash",
