@@ -106,6 +106,8 @@ class LangGraphAgent:
                         "provider": "pgvector",
                         "config": {
                             "collection_name": settings.LONG_TERM_MEMORY_COLLECTION_NAME,
+                            "embedding_model_dims": 3072,
+                            "hnsw": False,
                             "dbname": settings.POSTGRES_DB,
                             "user": settings.POSTGRES_USER,
                             "password": settings.POSTGRES_PASSWORD,
@@ -117,8 +119,8 @@ class LangGraphAgent:
                         "provider": "openai",
                         "config": {
                             "model": settings.LONG_TERM_MEMORY_MODEL,
-                            "api_key": settings.GROQ_API_KEY,
-                            "openai_base_url": "https://api.groq.com/openai/v1",
+                            "api_key": settings.DEEPSEEK_API_KEY,
+                            "openai_base_url": "https://api.deepseek.com",
                         },
                     },
                     "embedder": {
@@ -453,18 +455,19 @@ class LangGraphAgent:
         """
         if self._graph is None:
             self._graph = await self.create_graph()
+        langfuse_handler = CallbackHandler()
         config = {
             "configurable": {
                 "thread_id": session_id,
                 "user_id": user_id,
                 "custom_system_prompt": custom_system_prompt,
             },
-            "callbacks": [CallbackHandler()],
+            "callbacks": [langfuse_handler],
             "metadata": {
                 "user_id": user_id,
                 "session_id": session_id,
                 "langfuse_session_id": session_id,
-                "langfuse_user_id": user_id,
+                "langfuse_user_id": str(user_id),
                 "environment": settings.ENVIRONMENT.value,
                 "debug": settings.DEBUG,
             },
@@ -487,6 +490,8 @@ class LangGraphAgent:
             return self.__process_messages(response["messages"])
         except Exception as e:
             logger.error(f"Error getting response: {str(e)}")
+        finally:
+            langfuse_handler.client.flush()
 
     async def get_stream_response(
         self,
@@ -507,6 +512,7 @@ class LangGraphAgent:
         """
         if self._graph is None:
             self._graph = await self.create_graph()
+        langfuse_handler = CallbackHandler()
         config = {
             "configurable": {
                 "thread_id": session_id,
@@ -514,13 +520,13 @@ class LangGraphAgent:
                 "custom_system_prompt": custom_system_prompt,
             },
             "callbacks": [
-                CallbackHandler()
+                langfuse_handler
             ],
             "metadata": {
                 "user_id": user_id,
                 "session_id": session_id,
                 "langfuse_session_id": session_id,
-                "langfuse_user_id": user_id,
+                "langfuse_user_id": str(user_id),
                 "environment": settings.ENVIRONMENT.value,
                 "debug": settings.DEBUG,
             },
@@ -666,6 +672,8 @@ class LangGraphAgent:
         except Exception as stream_error:
             logger.error("Error in stream processing", error=str(stream_error), session_id=session_id)
             raise stream_error
+        finally:
+            langfuse_handler.client.flush()
 
     async def get_chat_history(self, session_id: str) -> list[HistoryMessage]:
         """Get the chat history for a given thread ID.

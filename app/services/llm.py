@@ -42,6 +42,17 @@ class LLMRegistry:
     # Class-level variable containing all available LLM models
     LLMS: List[Dict[str, Any]] = [
         {
+            "name": "deepseek-chat",
+            "llm": ChatOpenAI(
+                model="deepseek-chat",
+                tiktoken_model_name="gpt-4o",
+                api_key=settings.DEEPSEEK_API_KEY,
+                temperature=settings.DEFAULT_LLM_TEMPERATURE,
+                max_tokens=settings.MAX_TOKENS,
+                base_url="https://api.deepseek.com",
+            ),
+        },
+        {
             "name": "llama-3.3-70b-versatile",
             "llm": ChatOpenAI(
                 model="llama-3.3-70b-versatile",

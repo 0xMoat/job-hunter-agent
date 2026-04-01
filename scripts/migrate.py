@@ -30,11 +30,27 @@ def column_exists(cur, table: str, column: str) -> bool:
     return cur.fetchone() is not None
 
 
+def table_exists(cur, table: str) -> bool:
+    cur.execute(
+        """
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = %s
+        """,
+        (table,),
+    )
+    return cur.fetchone() is not None
+
+
 def run():
     conn = get_conn()
     conn.autocommit = False
     cur = conn.cursor()
     try:
+        if not table_exists(cur, "applications"):
+            print("Table 'applications' does not exist yet, skipping migration.")
+            conn.commit()
+            return
+
         # 1. Add new columns to applications table (idempotent)
         new_columns = [
             ("snippet",      "TEXT"),

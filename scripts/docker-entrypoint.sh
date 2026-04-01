@@ -80,7 +80,7 @@ echo "LLM Model: ${DEFAULT_LLM_MODEL:-Not set}"
 echo "Debug Mode: ${DEBUG:-false}"
 
 # Run database migrations
-python scripts/migrate.py
+/app/.venv/bin/python scripts/migrate.py
 
 # Execute the CMD
 exec "$@"
