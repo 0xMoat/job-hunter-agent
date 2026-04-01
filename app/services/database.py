@@ -93,6 +93,7 @@ class DatabaseService:
             statement = select(User).where(User.google_id == google_id)
             user = session.exec(statement).first()
             if user:
+                user.email = email
                 user.name = name
                 user.avatar_url = avatar_url
                 session.add(user)

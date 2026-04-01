@@ -15,6 +15,7 @@ from fastapi.security import (
     HTTPAuthorizationCredentials,
     HTTPBearer,
 )
+from google.auth import exceptions as google_exceptions
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
 
@@ -162,8 +163,8 @@ async def google_login(request: Request, body: GoogleLoginRequest):
             ),
             token=token,
         )
-    except ValueError as ve:
-        logger.error("google_token_verification_failed", error=str(ve))
+    except (ValueError, google_exceptions.GoogleAuthError) as e:
+        logger.error("google_token_verification_failed", error=str(e))
         raise HTTPException(status_code=401, detail="Invalid Google token")
 
 

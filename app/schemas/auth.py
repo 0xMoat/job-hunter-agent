@@ -7,6 +7,7 @@ from typing import Optional
 from pydantic import (
     BaseModel,
     Field,
+    field_validator,
 )
 
 
@@ -48,6 +49,7 @@ class SessionResponse(BaseModel):
     token: Token = Field(..., description="The authentication token for the session")
     created_at: Optional[datetime] = Field(default=None, description="When the session was created")
 
+    @field_validator("name")
     @classmethod
     def sanitize_name(cls, v: str) -> str:
         """Sanitize the session name."""
