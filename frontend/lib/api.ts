@@ -36,41 +36,24 @@ async function req(
 
 // ── Auth ──────────────────────────────────────────────────────────────────
 
-// Register returns {id, email, token: {access_token, ...}}
-export async function apiRegister(
-  email: string,
-  password: string,
-): Promise<{ id: number; email: string; token: { access_token: string } }> {
-  const res = await req("/api/v1/auth/register", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  })
-  return res.json()
+export interface GoogleLoginResult {
+  user: { id: number; email: string; name: string; avatar_url: string }
+  token: { access_token: string; token_type: string; expires_at: string }
 }
 
-// Login uses form data (OAuth2PasswordRequestForm), NOT JSON.
-// Returns {access_token, token_type, expires_at} (flat — no nested token object).
-export async function apiLogin(
-  email: string,
-  password: string,
-): Promise<{ access_token: string; token_type: string }> {
-  const form = new URLSearchParams()
-  form.set("username", email)
-  form.set("password", password)
-  form.set("grant_type", "password")
-
-  const res = await req("/api/v1/auth/login", {
+export async function apiGoogleLogin(
+  credential: string,
+): Promise<GoogleLoginResult> {
+  const res = await req("/api/v1/auth/google", {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: form.toString(),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ credential }),
   })
   return res.json()
 }
 
 // Create a chat session with the access token.
 // Returns {session_id, name, token: {access_token, ...}}
-// Use token.access_token for all subsequent agent API calls.
 export async function apiCreateSession(
   accessToken: string,
 ): Promise<{ session_id: string; name: string; token: { access_token: string } }> {
