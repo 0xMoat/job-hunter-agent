@@ -15,7 +15,10 @@ _search = DuckDuckGoSearchResults(num_results=8, handle_tool_error=True)
 async def job_search_tool(keywords: str, location: str, job_type: str = "fulltime") -> str:
     """Search for job listings matching the given criteria.
 
-    Use this when the user asks to find jobs, search positions, or look for openings.
+    ONLY call this tool when the user explicitly asks to search or find jobs
+    (e.g. "帮我找工作", "搜索 Python 职位", "find me a job").
+    Do NOT call this for greetings, chitchat, questions, or any message that
+    is not an explicit job search request.
 
     Args:
         keywords: Job title or skills to search for, e.g. "agent engineer", "backend python"

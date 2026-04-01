@@ -10,7 +10,6 @@ from typing import (
 )
 from urllib.parse import quote_plus
 
-from asgiref.sync import sync_to_async
 from langchain_core.messages import (
     AIMessageChunk,
     BaseMessage,
@@ -19,8 +18,8 @@ from langchain_core.messages import (
     ToolMessage,
     convert_to_openai_messages,
 )
-from langchain_openai import ChatOpenAI
 from langfuse.langchain import CallbackHandler
+from opentelemetry import trace
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.graph import (
     END,
@@ -52,12 +51,22 @@ from app.schemas import (
     Message,
     ToolCallRecord,
 )
-from app.services.llm import llm_service
+from app.services.llm import LLMRegistry, llm_service
 from app.utils import (
     dump_messages,
     prepare_messages,
     process_llm_response,
 )
+import mem0.llms.openai
+
+_original_generate_response = mem0.llms.openai.OpenAILLM.generate_response
+
+def _patched_generate_response(self, messages, *args, **kwargs):
+    if hasattr(self.config, "store"):
+        delattr(self.config, "store")
+    return _original_generate_response(self, messages, *args, **kwargs)
+
+mem0.llms.openai.OpenAILLM.generate_response = _patched_generate_response
 
 
 class LangGraphAgent:
@@ -79,14 +88,9 @@ class LangGraphAgent:
         # Tool-free LLM for the analyze node.
         # Must NOT use self.llm_service which has bind_tools() applied —
         # a tool-bound model would emit tool calls instead of plain text, breaking "direct" detection.
-        self._plain_llm = ChatOpenAI(
-            model=settings.DEFAULT_LLM_MODEL,
-            tiktoken_model_name="gpt-4o",
-            api_key=settings.OPENAI_API_KEY,
-            temperature=0.0,
-            max_tokens=256,
-            **({"base_url": settings.LLM_BASE_URL} if settings.LLM_BASE_URL else {}),
-        )
+        # Use LLMRegistry to get the default model instance so credentials (api_key, base_url)
+        # are always correct regardless of which provider is currently primary.
+        self._plain_llm = LLMRegistry.get(settings.DEFAULT_LLM_MODEL)
         logger.info(
             "langgraph_agent_initialized",
             model=settings.DEFAULT_LLM_MODEL,
@@ -111,9 +115,20 @@ class LangGraphAgent:
                     },
                     "llm": {
                         "provider": "openai",
-                        "config": {"model": settings.LONG_TERM_MEMORY_MODEL},
+                        "config": {
+                            "model": settings.LONG_TERM_MEMORY_MODEL,
+                            "api_key": settings.GROQ_API_KEY,
+                            "openai_base_url": "https://api.groq.com/openai/v1",
+                        },
                     },
-                    "embedder": {"provider": "openai", "config": {"model": settings.LONG_TERM_MEMORY_EMBEDDER_MODEL}},
+                    "embedder": {
+                        "provider": "openai",
+                        "config": {
+                            "model": settings.LONG_TERM_MEMORY_EMBEDDER_MODEL,
+                            "api_key": settings.OPENAI_API_KEY,
+                            "openai_base_url": settings.LLM_BASE_URL,
+                        },
+                    },
                     # "custom_fact_extraction_prompt": load_custom_fact_extraction_prompt(),
                 }
             )
@@ -167,14 +182,34 @@ class LangGraphAgent:
         Returns:
             str: The relevant memory.
         """
-        try:
-            memory = await self._long_term_memory()
-            results = await memory.search(user_id=str(user_id), query=query)
-            print(results)
-            return "\n".join([f"* {result['memory']}" for result in results["results"]])
-        except Exception as e:
-            logger.error("failed_to_get_relevant_memory", error=str(e), user_id=user_id, query=query)
-            return ""
+        tracer = trace.get_tracer("langgraph-agent")
+        with tracer.start_as_current_span(
+            "mem0_search",
+            attributes={"mem0.user_id": str(user_id), "mem0.query": query},
+        ) as span:
+            try:
+                memory = await self._long_term_memory()
+                results = await memory.search(user_id=str(user_id), query=query)
+                result_text = "\n".join([f"* {result['memory']}" for result in results["results"]])
+                span.set_attribute("mem0.result_count", len(results["results"]))
+                return result_text
+            except Exception as e:
+                span.set_status(trace.StatusCode.ERROR, str(e))
+                span.record_exception(e)
+                logger.error("failed_to_get_relevant_memory", error=str(e), user_id=user_id, query=query)
+                return ""
+
+    @staticmethod
+    def _get_recent_rounds(messages: list[BaseMessage], num_rounds: int = 3) -> list[BaseMessage]:
+        """Extract the last N rounds of conversation.
+
+        A round starts with a HumanMessage and includes all subsequent
+        messages (AI, Tool, etc.) until the next HumanMessage.
+        """
+        round_starts = [i for i, m in enumerate(messages) if isinstance(m, HumanMessage)]
+        if len(round_starts) <= num_rounds:
+            return messages
+        return messages[round_starts[-num_rounds]:]
 
     async def _update_long_term_memory(self, user_id: str, messages: list[dict], metadata: dict = None) -> None:
         """Update the long term memory.
@@ -184,16 +219,24 @@ class LangGraphAgent:
             messages (list[dict]): The messages to update the long term memory with.
             metadata (dict): Optional metadata to include.
         """
-        try:
-            memory = await self._long_term_memory()
-            await memory.add(messages, user_id=str(user_id), metadata=metadata)
-            logger.info("long_term_memory_updated_successfully", user_id=user_id)
-        except Exception as e:
-            logger.exception(
-                "failed_to_update_long_term_memory",
-                user_id=user_id,
-                error=str(e),
-            )
+        tracer = trace.get_tracer("langgraph-agent")
+        with tracer.start_as_current_span(
+            "mem0_add",
+            attributes={"mem0.user_id": str(user_id), "mem0.message_count": len(messages)},
+        ) as span:
+            try:
+                memory = await self._long_term_memory()
+                result = await memory.add(messages, user_id=str(user_id), metadata=metadata)
+                span.set_attribute("mem0.result", str(result))
+                logger.info("long_term_memory_updated_successfully", user_id=user_id)
+            except Exception as e:
+                span.set_status(trace.StatusCode.ERROR, str(e))
+                span.record_exception(e)
+                logger.exception(
+                    "failed_to_update_long_term_memory",
+                    user_id=user_id,
+                    error=str(e),
+                )
 
     async def _analyze(self, state: GraphState, config: RunnableConfig) -> Command:
         """Analyze node: produces a brief reasoning plan before the chat node.
@@ -277,7 +320,7 @@ class LangGraphAgent:
         try:
             # Use LLM service with automatic retries and circular fallback
             with llm_inference_duration_seconds.labels(model=model_name).time():
-                response_message = await self.llm_service.call(dump_messages(messages))
+                response_message = await self.llm_service.call(dump_messages(messages), config=config)
 
             # Process response to handle structured content blocks
             response_message = process_llm_response(response_message)
@@ -435,9 +478,10 @@ class LangGraphAgent:
                 config=config,
             )
             # Run memory update in background without blocking the response
+            recent_messages = self._get_recent_rounds(response["messages"])
             asyncio.create_task(
                 self._update_long_term_memory(
-                    user_id, convert_to_openai_messages(response["messages"]), config["metadata"]
+                    user_id, convert_to_openai_messages(recent_messages), config["metadata"]
                 )
             )
             return self.__process_messages(response["messages"])
@@ -461,6 +505,8 @@ class LangGraphAgent:
         Yields:
             str: Tokens of the LLM response.
         """
+        if self._graph is None:
+            self._graph = await self.create_graph()
         config = {
             "configurable": {
                 "thread_id": session_id,
@@ -479,8 +525,6 @@ class LangGraphAgent:
                 "debug": settings.DEBUG,
             },
         }
-        if self._graph is None:
-            self._graph = await self.create_graph()
 
         relevant_memory = (
             await self._get_relevant_memory(user_id, messages[-1].content)
@@ -611,11 +655,12 @@ class LangGraphAgent:
                 })
 
             # After streaming completes, get final state and update memory in background
-            state: StateSnapshot = await sync_to_async(self._graph.get_state)(config=config)
+            state: StateSnapshot = await self._graph.aget_state(config=config)
             if state.values and "messages" in state.values:
+                recent_messages = self._get_recent_rounds(state.values["messages"])
                 asyncio.create_task(
                     self._update_long_term_memory(
-                        user_id, convert_to_openai_messages(state.values["messages"]), config["metadata"]
+                        user_id, convert_to_openai_messages(recent_messages), config["metadata"]
                     )
                 )
         except Exception as stream_error:
@@ -634,7 +679,7 @@ class LangGraphAgent:
         if self._graph is None:
             self._graph = await self.create_graph()
 
-        state: StateSnapshot = await sync_to_async(self._graph.get_state)(
+        state: StateSnapshot = await self._graph.aget_state(
             config={"configurable": {"thread_id": session_id}}
         )
         return self._process_messages_for_history(state.values["messages"]) if state.values else []

@@ -22,8 +22,10 @@ async def application_tracker_tool(
 ) -> str:
     """Track job applications — add, update status, list, or delete records.
 
-    Use this when the user says they applied to a company, wants to update an
-    application status, or asks to see their application history.
+    ONLY call this tool when the user explicitly asks to record an application,
+    update a status, or view their application list.
+    Do NOT call this for general conversation or when the user has not mentioned
+    a specific application action.
 
     Args:
         action: One of: "add", "list", "update", "delete"

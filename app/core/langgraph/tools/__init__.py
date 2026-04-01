@@ -8,6 +8,7 @@ from .cover_letter import cover_letter_tool
 from .duckduckgo_search import duckduckgo_search_tool
 from .job_preferences import job_preferences_tool
 from .job_search import job_search_tool
+from .resume_studio import trigger_resume_studio_skill
 
 tools: list[BaseTool] = [
     job_search_tool,
@@ -16,4 +17,5 @@ tools: list[BaseTool] = [
     application_tracker_tool,
     job_preferences_tool,
     duckduckgo_search_tool,
+    trigger_resume_studio_skill,
 ]

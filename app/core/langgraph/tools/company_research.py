@@ -22,8 +22,9 @@ _QUERIES = {
 async def company_research_tool(company_name: str, aspects: str = "overview,culture,news") -> str:
     """Research a company's background, culture, and recent news.
 
-    Use this when the user asks to investigate, research, or learn about a company
-    before applying or in preparation for an interview.
+    ONLY call this tool when the user explicitly names a company and asks to
+    research or investigate it (e.g. "帮我调查一下字节跳动", "research Anthropic").
+    Do NOT call this for general conversation or when no specific company is mentioned.
 
     Args:
         company_name: Name of the company to research, e.g. "字节跳动", "Anthropic"
