@@ -18,6 +18,8 @@ wheels/
 
 # Misc
 *.ipynb
+.DS_Store
+mydb
 
 # Reports
 evals/reports/
