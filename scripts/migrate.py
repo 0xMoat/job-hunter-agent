@@ -47,35 +47,63 @@ def run():
     cur = conn.cursor()
     try:
         if not table_exists(cur, "applications"):
-            print("Table 'applications' does not exist yet, skipping migration.")
-            conn.commit()
-            return
+            print("Table 'applications' does not exist yet, skipping kanban migration.")
+        else:
+            # 1. Add new columns to applications table (idempotent)
+            new_columns = [
+                ("snippet",      "TEXT"),
+                ("found_date",   "DATE"),
+                ("source",       "TEXT NOT NULL DEFAULT 'manual'"),
+                ("archived_at",  "TIMESTAMP WITH TIME ZONE"),
+            ]
+            for col, col_type in new_columns:
+                if not column_exists(cur, "applications", col):
+                    # col and col_type are compile-time constants from the hardcoded list above — not derived from any external input.
+                    cur.execute(f"ALTER TABLE applications ADD COLUMN {col} {col_type}")  # noqa: S608
+                    print(f"  Added column: applications.{col}")
+                else:
+                    print(f"  Column already exists: applications.{col}")
 
-        # 1. Add new columns to applications table (idempotent)
-        new_columns = [
-            ("snippet",      "TEXT"),
-            ("found_date",   "DATE"),
-            ("source",       "TEXT NOT NULL DEFAULT 'manual'"),
-            ("archived_at",  "TIMESTAMP WITH TIME ZONE"),
-        ]
-        for col, col_type in new_columns:
-            if not column_exists(cur, "applications", col):
-                # col and col_type are compile-time constants from the hardcoded list above — not derived from any external input.
-                cur.execute(f"ALTER TABLE applications ADD COLUMN {col} {col_type}")  # noqa: S608
-                print(f"  Added column: applications.{col}")
+            # 2. Migrate legacy status values
+            cur.execute(
+                "UPDATE applications SET status = 'completed' WHERE status = 'offer'"
+            )
+            print(f"  Migrated 'offer' → 'completed': {cur.rowcount} rows")
+
+            cur.execute(
+                "UPDATE applications SET status = 'not_a_match' WHERE status = 'rejected'"
+            )
+            print(f"  Migrated 'rejected' → 'not_a_match': {cur.rowcount} rows")
+
+        # 3. Google OAuth migration on user table
+        if table_exists(cur, "user"):
+            # Add google_id column if missing
+            if not column_exists(cur, "user", "google_id"):
+                # Clear existing user data (foreign key cascade)
+                cur.execute("DELETE FROM session")
+                print("  Cleared session table for Google auth migration")
+                cur.execute('DELETE FROM "user"')
+                print("  Cleared user table for Google auth migration")
+
+                # Drop hashed_password if it exists
+                if column_exists(cur, "user", "hashed_password"):
+                    cur.execute('ALTER TABLE "user" DROP COLUMN hashed_password')
+                    print("  Dropped column: user.hashed_password")
+
+                # Add new columns
+                cur.execute("ALTER TABLE \"user\" ADD COLUMN google_id TEXT NOT NULL DEFAULT ''")
+                cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS ix_user_google_id ON \"user\" (google_id)")
+                print("  Added column: user.google_id (unique)")
+
+                if not column_exists(cur, "user", "name"):
+                    cur.execute("ALTER TABLE \"user\" ADD COLUMN name TEXT NOT NULL DEFAULT ''")
+                    print("  Added column: user.name")
+
+                if not column_exists(cur, "user", "avatar_url"):
+                    cur.execute("ALTER TABLE \"user\" ADD COLUMN avatar_url TEXT NOT NULL DEFAULT ''")
+                    print("  Added column: user.avatar_url")
             else:
-                print(f"  Column already exists: applications.{col}")
-
-        # 2. Migrate legacy status values
-        cur.execute(
-            "UPDATE applications SET status = 'completed' WHERE status = 'offer'"
-        )
-        print(f"  Migrated 'offer' → 'completed': {cur.rowcount} rows")
-
-        cur.execute(
-            "UPDATE applications SET status = 'not_a_match' WHERE status = 'rejected'"
-        )
-        print(f"  Migrated 'rejected' → 'not_a_match': {cur.rowcount} rows")
+                print("  Google auth columns already exist on user table")
 
         conn.commit()
         print("Migration completed successfully.")
