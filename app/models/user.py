@@ -1,4 +1,4 @@
-"""This file contains the user model for the application."""
+"""User model for the application."""
 
 from typing import (
     TYPE_CHECKING,
@@ -6,7 +6,6 @@ from typing import (
     Optional,
 )
 
-import bcrypt
 from sqlmodel import (
     Field,
     Relationship,
@@ -19,33 +18,27 @@ if TYPE_CHECKING:
 
 
 class User(BaseModel, table=True):
-    """User model for storing user accounts.
+    """User model for storing user accounts via Google OAuth.
 
     Attributes:
         id: The primary key
-        email: User's email (unique)
-        hashed_password: Bcrypt hashed password
+        google_id: Google account unique identifier (sub claim)
+        email: User's email from Google
+        name: User's display name from Google
+        avatar_url: User's profile picture URL from Google
         system_prompt: Custom system prompt override (None = use default)
-        created_at: When the user was created
+        resume_text: User's resume text
         sessions: Relationship to user's chat sessions
     """
 
     id: int = Field(default=None, primary_key=True)
-    email: str = Field(unique=True, index=True)
-    hashed_password: str
+    google_id: str = Field(unique=True, index=True)
+    email: str = Field(index=True)
+    name: str = Field(default="")
+    avatar_url: str = Field(default="")
     system_prompt: Optional[str] = Field(default=None)
     resume_text: Optional[str] = Field(default=None)
     sessions: List["Session"] = Relationship(back_populates="user")
-
-    def verify_password(self, password: str) -> bool:
-        """Verify if the provided password matches the hash."""
-        return bcrypt.checkpw(password.encode("utf-8"), self.hashed_password.encode("utf-8"))
-
-    @staticmethod
-    def hash_password(password: str) -> str:
-        """Hash a password using bcrypt."""
-        salt = bcrypt.gensalt()
-        return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
 
 
 # Avoid circular imports
