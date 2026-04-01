@@ -75,22 +75,38 @@ class DatabaseService:
             if settings.ENVIRONMENT != Environment.PRODUCTION:
                 raise
 
-    async def create_user(self, email: str, password: str) -> User:
-        """Create a new user.
+    async def upsert_user_by_google_id(
+        self, google_id: str, email: str, name: str, avatar_url: str
+    ) -> User:
+        """Find user by google_id or create a new one. Updates name/avatar on each login.
 
         Args:
-            email: User's email address
-            password: Hashed password
+            google_id: Google account unique identifier
+            email: User's email from Google
+            name: User's display name from Google
+            avatar_url: User's profile picture URL from Google
 
         Returns:
-            User: The created user
+            User: The found or created user
         """
         with Session(self.engine) as session:
-            user = User(email=email, hashed_password=password)
-            session.add(user)
-            session.commit()
-            session.refresh(user)
-            logger.info("user_created", email=email)
+            statement = select(User).where(User.google_id == google_id)
+            user = session.exec(statement).first()
+            if user:
+                user.name = name
+                user.avatar_url = avatar_url
+                session.add(user)
+                session.commit()
+                session.refresh(user)
+                logger.info("user_updated_on_login", user_id=user.id, google_id=google_id)
+            else:
+                user = User(
+                    google_id=google_id, email=email, name=name, avatar_url=avatar_url
+                )
+                session.add(user)
+                session.commit()
+                session.refresh(user)
+                logger.info("user_created", google_id=google_id, email=email)
             return user
 
     async def get_user(self, user_id: int) -> Optional[User]:
@@ -104,20 +120,6 @@ class DatabaseService:
         """
         with Session(self.engine) as session:
             user = session.get(User, user_id)
-            return user
-
-    async def get_user_by_email(self, email: str) -> Optional[User]:
-        """Get a user by email.
-
-        Args:
-            email: The email of the user to retrieve
-
-        Returns:
-            Optional[User]: The user if found, None otherwise
-        """
-        with Session(self.engine) as session:
-            statement = select(User).where(User.email == email)
-            user = session.exec(statement).first()
             return user
 
     async def update_user_system_prompt(self, user_id: int, prompt: Optional[str]) -> User:
@@ -179,25 +181,6 @@ class DatabaseService:
             session.refresh(user)
             logger.info("user_resume_updated", user_id=user_id, has_resume=resume_text is not None)
             return user
-
-    async def delete_user_by_email(self, email: str) -> bool:
-        """Delete a user by email.
-
-        Args:
-            email: The email of the user to delete
-
-        Returns:
-            bool: True if deletion was successful, False if user not found
-        """
-        with Session(self.engine) as session:
-            user = session.exec(select(User).where(User.email == email)).first()
-            if not user:
-                return False
-
-            session.delete(user)
-            session.commit()
-            logger.info("user_deleted", email=email)
-            return True
 
     async def create_session(self, session_id: str, user_id: int, name: str = "") -> ChatSession:
         """Create a new chat session.
