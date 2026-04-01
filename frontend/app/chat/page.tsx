@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { isAuthenticated, clearAuth, getAccessToken } from "@/lib/auth"
+import { isAuthenticated, clearAuth, getAccessToken, getUser } from "@/lib/auth"
 import { ChatPanel } from "@/components/chat/ChatPanel"
 import { SessionSidebar } from "@/components/chat/SessionSidebar"
 import { KanbanBoard } from "@/components/tracker/KanbanBoard"
@@ -25,6 +25,7 @@ function ChatPageInner() {
   const [streaming, setStreaming] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [kanbanRefreshKey, setKanbanRefreshKey] = useState(0)
+  const user = getUser()
 
   useEffect(() => {
     if (!isAuthenticated()) {
@@ -93,6 +94,19 @@ function ChatPageInner() {
             >
               ⚙
             </button>
+            {user?.avatar_url && (
+              <img
+                src={user.avatar_url}
+                alt=""
+                className="w-7 h-7 rounded-full"
+                referrerPolicy="no-referrer"
+              />
+            )}
+            {user?.name && (
+              <span className="text-xs font-body font-medium text-[var(--text-2)] max-w-[80px] truncate">
+                {user.name}
+              </span>
+            )}
             <button
               onClick={handleLogout}
               className="text-xs font-body text-[var(--text-3)] hover:text-[var(--text-2)]
