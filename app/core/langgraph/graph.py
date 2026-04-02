@@ -100,7 +100,7 @@ class LangGraphAgent:
     async def _long_term_memory(self) -> AsyncMemory:
         """Initialize the long term memory."""
         if self.memory is None:
-            self.memory = await AsyncMemory.from_config(
+            self.memory = AsyncMemory.from_config(
                 config_dict={
                     "vector_store": {
                         "provider": "pgvector",
