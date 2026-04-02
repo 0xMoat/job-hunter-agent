@@ -1,44 +1,69 @@
-name: Build and push to Docker Hub
+name: Deploy
 
 on:
   push:
-    branches:
-      - master
-  pull_request:
-    branches:
-      - master
+    branches: [master]
 
 jobs:
-  build-and-push:
-    name: Build and push to Docker Hub
+  # ── Detect what changed ──────────────────────────────────────────────
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'app/**'
+              - 'scripts/**'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - 'Dockerfile'
+              - 'docker-compose.prod.yml'
+            frontend:
+              - 'frontend/**'
+
+  # ── Backend: SSH deploy to Oracle server ─────────────────────────────
+  deploy-backend:
+    name: Deploy Backend
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            cd /home/ubuntu/apps/job-hunter-agent
+            git fetch origin master
+            git checkout -f FETCH_HEAD
+            docker compose -f docker-compose.prod.yml up -d --build
+            echo "Waiting for health check..."
+            sleep 15
+            curl -sf http://localhost:8000/health || exit 1
+            echo "Backend deployed successfully"
 
-      - name: Install utilities
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y make
-
-      - name: Sanitize repository name
-        id: sanitize
-        run: |
-          REPO_NAME=$(echo "${{ github.event.repository.name }}" | sed 's/^\///' | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g')
-          echo "REPO_NAME=${REPO_NAME}" >> $GITHUB_ENV
-
-      - name: Build Image
-        run: |
-          make docker-build-env ENV=production
-          docker tag fastapi-langgraph-template:production ${{ secrets.DOCKER_USERNAME }}/${{ env.REPO_NAME }}:production
-
-      - name: Log in to Docker Hub
-        run: |
-          echo ${{ secrets.DOCKER_PASSWORD }} | docker login --username ${{ secrets.DOCKER_USERNAME }} --password-stdin
-
-      - name: Push Image
-        run: |
-          docker push ${{ secrets.DOCKER_USERNAME }}/${{ env.REPO_NAME }}:production
-        env:
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+  # ── Frontend: Deploy to Vercel ───────────────────────────────────────
+  deploy-frontend:
+    name: Deploy Frontend
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy to Vercel
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          working-directory: frontend
+          vercel-args: --prod
