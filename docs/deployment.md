@@ -5,8 +5,8 @@
 ```mermaid
 graph LR
     User -->|HTTPS| Vercel[Vercel CDN<br/>jobhunter.mintmind.io]
-    Vercel -->|Static| Next[Next.js Frontend]
-    User -->|HTTPS| Caddy[Caddy Reverse Proxy<br/>api.jobhunter.mintmind.io]
+    Vercel --> Next[Next.js Frontend]
+    Next -->|API calls<br/>HTTPS| Caddy[Caddy Reverse Proxy<br/>api.jobhunter.mintmind.io]
     Caddy -->|HTTP :8000| Docker[Docker Container<br/>FastAPI Backend]
     Docker -->|:5432| PG[(PostgreSQL 14<br/>+ pgvector)]
     Docker -->|:6379| Redis[(Redis)]
