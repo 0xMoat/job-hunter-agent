@@ -2,28 +2,97 @@
 
 ## 架构概览
 
+### 整体交互链路
+
+```mermaid
+sequenceDiagram
+    participant User as 用户 (Frontend)
+    participant API as FastAPI
+    participant Agent as LangGraphAgent
+    participant mem0 as mem0 SDK<br/>(Python Package)
+    participant DeepSeek as DeepSeek API<br/>(LLM)
+    participant Google as Google API<br/>(Embedding)
+    participant PG as PostgreSQL<br/>(pgvector)
+    participant Langfuse as Langfuse<br/>(Tracing)
+
+    User->>API: POST /api/v1/chat/stream
+    API->>Agent: get_stream_response(messages, session_id, user_id)
+
+    Note over Agent: ① mem0 检索 (blocking)
+    Agent->>mem0: search(user_id, query=最后一条用户消息)
+    mem0->>Google: POST /embeddings<br/>model: gemini-embedding-001
+    Google-->>mem0: query 向量
+    mem0->>PG: SELECT ... vector <=> query<br/>(psycopg3 SQL, 非 REST)
+    PG-->>mem0: 匹配的 memory 条目
+    mem0-->>Agent: 记忆文本
+
+    Note over Agent: ② 注入 system prompt
+    Agent->>Agent: long_term_memory → system prompt<br/>{long_term_memory} 占位符
+
+    Note over Agent: ③ LangGraph 执行
+    Agent->>DeepSeek: POST /chat/completions<br/>model: deepseek-chat
+    DeepSeek-->>Agent: AI 响应 (SSE streaming)
+    Agent-->>API: streaming chunks
+    API-->>User: SSE events
+
+    Note over Agent: ④ mem0 存储 (fire-and-forget)
+    Agent->>Agent: asyncio.create_task()
+    Agent->>mem0: add(最近3轮消息, user_id)
+    mem0->>DeepSeek: POST /chat/completions<br/>提取事实 (fact extraction)
+    DeepSeek-->>mem0: 提取的事实列表
+    mem0->>Google: POST /embeddings<br/>事实向量化
+    Google-->>mem0: 事实向量
+    mem0->>PG: INSERT INTO ... (vector, payload)<br/>(psycopg3 SQL, 非 REST)
+
+    Agent->>Langfuse: flush traces
 ```
-用户消息 → _get_relevant_memory (mem0 search) → 注入 system prompt → LangGraph 执行 → _update_long_term_memory (mem0 add)
-```
+
+### 协议说明
+
+| 组件间通信 | 协议 | 说明 |
+|-----------|------|------|
+| mem0 → DeepSeek | **HTTP REST** | OpenAI 兼容 `/chat/completions` 端点 |
+| mem0 → Google | **HTTP REST** | OpenAI 兼容 `/embeddings` 端点 |
+| mem0 → PostgreSQL | **SQL over TCP** | psycopg3 连接池，原生 PostgreSQL 协议，非 REST |
+| Agent → Langfuse | **HTTP REST** | CallbackHandler 通过 OTel 上报 trace |
+
+> mem0 是 Python SDK 包封装（`from mem0 import AsyncMemory`），不暴露显式的 RESTful API。
+> 对外调用（LLM/Embedding）走 HTTP REST，对内存储（pgvector）走 SQL。
 
 ## 模型配置
 
-| 用途 | 模型 | Provider | Base URL | API Key 来源 | 免费配额 |
-|------|------|----------|----------|-------------|---------|
-| 主聊天 LLM | `llama-3.3-70b-versatile` | Groq | `https://api.groq.com/openai/v1` | `GROQ_API_KEY` | 30 RPM, 14,400 RPD |
-| mem0 事实提取 LLM | `llama-3.3-70b-versatile` | Groq | `https://api.groq.com/openai/v1` | `GROQ_API_KEY` | 与主 LLM 共享配额 |
-| mem0 Embedding | `gemini-embedding-001` | Google | `https://generativelanguage.googleapis.com/v1beta/openai/` | `OPENAI_API_KEY` | 5-15 RPM（以 AI Studio 控制台为准）|
-| Analyze 节点 LLM | `llama-3.3-70b-versatile` | Groq（经 LLMRegistry） | 同上 | `GROQ_API_KEY` | 与主 LLM 共享配额 |
+| 用途 | 模型 | Provider | Base URL | API Key 来源 | 备注 |
+|------|------|----------|----------|-------------|------|
+| 主聊天 LLM | `deepseek-chat` | DeepSeek | `https://api.deepseek.com` | `DEEPSEEK_API_KEY` | 主模型，支持 tool calling |
+| Analyze 节点 LLM | `deepseek-chat` | DeepSeek（经 LLMRegistry） | 同上 | `DEEPSEEK_API_KEY` | 无 tool binding 的 plain LLM |
+| mem0 事实提取 LLM | `deepseek-chat` | DeepSeek | `https://api.deepseek.com` | `DEEPSEEK_API_KEY` | 从对话中提取事实 |
+| mem0 Embedding | `gemini-embedding-001` | Google | `https://generativelanguage.googleapis.com/v1beta/openai/` | `OPENAI_API_KEY`（实际存 Google API Key） | 向量维度 3072 |
+| Fallback LLM #1 | `llama-3.3-70b-versatile` | Groq | `https://api.groq.com/openai/v1` | `GROQ_API_KEY` | LLMService 循环降级备选 |
+| Fallback LLM #2 | `gemini-2.5-flash` | Google | `https://generativelanguage.googleapis.com/v1beta/openai/` | `OPENAI_API_KEY` | LLMService 循环降级备选 |
 
 ### 配额隔离设计
 
-mem0 LLM（Groq）和 mem0 Embedding（Google）分走不同 provider，避免共享配额互相打满。
+- **主 LLM + mem0 LLM** 共享 DeepSeek 配额（付费，额度充裕）
+- **mem0 Embedding** 走 Google API（免费 tier，5-15 RPM，轻量调用足够）
+- 两者分走不同 provider，避免单一 provider 配额打满导致全链路故障
 
 ## mem0 检索（Search）
 
 ### 触发时机
 
 **每次用户发送消息时，在 LangGraph graph 执行之前，同步等待（blocking）。**
+
+```mermaid
+flowchart LR
+    A[用户消息到达] --> B[mem0 search<br/>await 阻塞]
+    B --> C[注入 system prompt]
+    C --> D[LangGraph 执行]
+    D --> E[返回响应]
+    E --> F[mem0 add<br/>asyncio.create_task<br/>非阻塞]
+
+    style B fill:#e1f5fe
+    style F fill:#fff3e0
+```
 
 ### 代码位置
 
@@ -60,8 +129,8 @@ relevant_memory = (
 ```
 _get_relevant_memory(user_id, query)
   → AsyncMemory.search(user_id=user_id, query=query)
-    → Embedding 模型将 query 向量化 (gemini-embedding-001)
-    → pgvector 做向量相似度搜索
+    → Google Embedding API: POST /embeddings (gemini-embedding-001, HTTP REST)
+    → PostgreSQL: SELECT ... vector <=> query::vector (psycopg3, SQL over TCP)
     → 返回匹配的 memory 条目
 ```
 
@@ -113,9 +182,9 @@ if state.values and "messages" in state.values:
 ```
 _update_long_term_memory(user_id, messages, metadata)
   → AsyncMemory.add(messages, user_id=user_id, metadata=metadata)
-    → LLM 从对话中提取事实 (llama-3.3-70b-versatile via Groq)
-    → Embedding 模型将事实向量化 (gemini-embedding-001)
-    → pgvector 存储向量 + 元数据
+    → DeepSeek API: POST /chat/completions (deepseek-chat, HTTP REST) — 事实提取
+    → Google Embedding API: POST /embeddings (gemini-embedding-001, HTTP REST) — 向量化
+    → PostgreSQL: INSERT INTO ... (vector, payload) (psycopg3, SQL over TCP) — 持久化
 ```
 
 ## mem0 初始化
@@ -123,9 +192,22 @@ _update_long_term_memory(user_id, messages, metadata)
 ```python
 # app/core/langgraph/graph.py → _long_term_memory()
 AsyncMemory.from_config(config_dict={
-    "vector_store": {"provider": "pgvector", ...},
-    "llm":          {"provider": "openai", model="llama-3.3-70b-versatile", base_url="groq"},
-    "embedder":     {"provider": "openai", model="gemini-embedding-001", base_url="google"},
+    "vector_store": {
+        "provider": "pgvector",
+        "embedding_model_dims": 3072,  # gemini-embedding-001 输出维度
+        "hnsw": False,                 # 不使用 HNSW 索引
+        ...
+    },
+    "llm": {
+        "provider": "openai",
+        "model": "deepseek-chat",
+        "openai_base_url": "https://api.deepseek.com",
+    },
+    "embedder": {
+        "provider": "openai",
+        "model": "gemini-embedding-001",
+        "openai_base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
+    },
 })
 ```
 
@@ -145,13 +227,19 @@ with tracer.start_as_current_span("mem0_search", attributes={...}) as span:
     ...
 ```
 
+Langfuse session 关联通过 metadata 中的 `langfuse_session_id` / `langfuse_user_id` 字段实现（Langfuse 3.x CallbackHandler 从 metadata 中解析）。
+
 ## .env 配置项
 
 ```bash
 # .env.development
-LONG_TERM_MEMORY_MODEL=llama-3.3-70b-versatile       # mem0 事实提取 LLM
-LONG_TERM_MEMORY_EMBEDDER_MODEL=gemini-embedding-001  # mem0 Embedding 模型
-LONG_TERM_MEMORY_COLLECTION_NAME=longterm_memory      # pgvector collection 名
+DEEPSEEK_API_KEY="sk-..."                              # DeepSeek API Key（主 LLM + mem0 LLM）
+OPENAI_API_KEY="AIza..."                               # Google API Key（mem0 Embedding）
+LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
+DEFAULT_LLM_MODEL=deepseek-chat                        # 主聊天模型
+LONG_TERM_MEMORY_MODEL=deepseek-chat                   # mem0 事实提取 LLM
+LONG_TERM_MEMORY_EMBEDDER_MODEL=gemini-embedding-001   # mem0 Embedding 模型
+LONG_TERM_MEMORY_COLLECTION_NAME=longterm_memory        # pgvector collection 名
 ```
 
 ---
@@ -176,9 +264,9 @@ LONG_TERM_MEMORY_COLLECTION_NAME=longterm_memory      # pgvector collection 名
 
 **现象：** `Error code: 429 - You exceeded your current quota`
 
-**根因：** mem0 的 LLM（`gemini-2.5-flash`）和主 agent 的 analyze 节点都走 Google API，共享同一个 API key 的配额，并发请求打满免费额度。
+**根因：** mem0 的 LLM 和主 agent 都走 Google API，共享同一个 API key 的配额，并发请求打满免费额度。
 
-**修复：** 将 mem0 LLM 改为 Groq（`llama-3.3-70b-versatile`），与 Google Embedding 分离 provider，不再共享配额。
+**修复：** 将 mem0 LLM 和主 LLM 改为 DeepSeek（`deepseek-chat`），Embedding 保留 Google，实现配额隔离。
 
 ### 4. `.env` 修改后 hot reload 不生效
 
@@ -221,3 +309,11 @@ LONG_TERM_MEMORY_COLLECTION_NAME=longterm_memory      # pgvector collection 名
 **根因：** Langfuse 3.x 是 OpenTelemetry 架构，`@observe` 和 `langfuse_context` 是 v2.x 的 API，3.x 中已移除。
 
 **修复：** 改用 OpenTelemetry 原生 `trace.get_tracer()` + `start_as_current_span()` 创建 span，Langfuse 3.x 自动采集 OTel span。
+
+### 9. Langfuse 3.x `CallbackHandler` 不接受 `session_id` 构造参数
+
+**现象：** `LangchainCallbackHandler.__init__() got an unexpected keyword argument 'session_id'`
+
+**根因：** Langfuse 3.x 的 `CallbackHandler` 构造函数签名为 `(self, *, public_key, update_trace)`，不支持 `session_id` / `user_id` 参数（这是 v2 API）。v3 通过 metadata 中的 `langfuse_session_id` / `langfuse_user_id` 字段关联。
+
+**修复：** 使用无参 `CallbackHandler()`，在 config metadata 中设置 `langfuse_session_id` 和 `langfuse_user_id`。
