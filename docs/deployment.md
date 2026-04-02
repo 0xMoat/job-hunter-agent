@@ -9,7 +9,7 @@ graph LR
     Next -->|API calls<br/>HTTPS| Caddy[Caddy Reverse Proxy<br/>api.jobhunter.mintmind.io]
     Caddy -->|HTTP :8000| Docker[Docker Container<br/>FastAPI Backend]
     Docker -->|:5432| PG[(PostgreSQL 14<br/>+ pgvector)]
-    Docker -->|:6379| Redis[(Redis)]
+    Docker -->|mem0 pgvector| PG
 ```
 
 | Component | Host | URL |
@@ -17,7 +17,6 @@ graph LR
 | Frontend (Next.js) | Vercel | `https://jobhunter.mintmind.io` |
 | Backend (FastAPI) | Oracle ARM64 Server | `https://api.jobhunter.mintmind.io` |
 | Database (PostgreSQL) | Oracle ARM64 Server | `127.0.0.1:5432` |
-| Redis | Oracle ARM64 Server | `127.0.0.1:6379` |
 
 ## Server Access
 
