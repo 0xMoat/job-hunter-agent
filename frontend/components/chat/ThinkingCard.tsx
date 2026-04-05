@@ -10,7 +10,6 @@ interface Props {
 
 /** Human-readable label for node names. */
 const NODE_LABELS: Record<string, string> = {
-  analyze: "Analyze",
   chat: "Chat",
   tool_call: "Tool",
 }
@@ -29,7 +28,7 @@ export function ThinkingCard({ entry, isStreaming }: Props) {
   }, [isStreaming])
 
   // Don't render if reasoning is empty (simple conversation / "direct")
-  if (!entry.reasoningText || entry.reasoningText.toLowerCase().startsWith("direct")) {
+  if (!entry.reasoningText) {
     return null
   }
 
@@ -100,12 +99,14 @@ export function ThinkingCard({ entry, isStreaming }: Props) {
         {expanded && (
           <div className="px-3 py-2.5">
             {/* Reasoning text */}
-            <p className="font-body text-xs text-[var(--text-3)] italic leading-relaxed mb-2">
-              {entry.reasoningText}
-              {isActive && (
-                <span className="inline-block w-1 h-3 bg-current ml-0.5 animate-pulse rounded-sm align-middle" />
-              )}
-            </p>
+            <div className="max-h-64 overflow-y-auto mb-2">
+              <p className="font-body text-xs text-[var(--text-3)] italic leading-relaxed">
+                {entry.reasoningText}
+                {isActive && (
+                  <span className="inline-block w-1 h-3 bg-current ml-0.5 animate-pulse rounded-sm align-middle" />
+                )}
+              </p>
+            </div>
 
             {/* Node timing list */}
             {entry.nodeSequence.length > 0 && (
