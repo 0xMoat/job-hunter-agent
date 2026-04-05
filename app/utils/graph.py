@@ -22,47 +22,28 @@ def dump_messages(messages: list[Message]) -> list[dict]:
 
 
 def process_llm_response(response: BaseMessage) -> BaseMessage:
-    """Process LLM response to handle structured content blocks (e.g., from GPT-5 models).
+    """Extract text from structured content blocks.
 
-    GPT-5 models return content as a list of blocks like:
-    [
-        {'id': '...', 'summary': [], 'type': 'reasoning'},
-        {'type': 'text', 'text': 'actual response'}
-    ]
-
-    This function extracts the actual text content from such structures.
+    Models with thinking mode (e.g., DeepSeek) return content as a list of blocks.
+    This extracts text content for checkpoint storage; reasoning is delivered
+    to the frontend via streaming events.
 
     Args:
         response: The raw response from the LLM
 
     Returns:
-        BaseMessage with processed content
+        BaseMessage with plain text content
     """
     if isinstance(response.content, list):
-        # Extract text from content blocks
         text_parts = []
         for block in response.content:
             if isinstance(block, dict):
-                # Handle text blocks
                 if block.get("type") == "text" and "text" in block:
                     text_parts.append(block["text"])
-                # Log reasoning blocks for debugging
-                elif block.get("type") == "reasoning":
-                    logger.debug(
-                        "reasoning_block_received",
-                        reasoning_id=block.get("id"),
-                        has_summary=bool(block.get("summary")),
-                    )
             elif isinstance(block, str):
                 text_parts.append(block)
 
-        # Join all text parts
         response.content = "".join(text_parts)
-        logger.debug(
-            "processed_structured_content",
-            block_count=len(response.content) if isinstance(response.content, list) else 1,
-            extracted_length=len(response.content) if isinstance(response.content, str) else 0,
-        )
 
     return response
 
