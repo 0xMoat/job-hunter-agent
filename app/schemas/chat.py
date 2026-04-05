@@ -95,11 +95,9 @@ class StreamChunk(BaseModel):
         done: Whether this is the final chunk.
     """
 
-    type: Literal[
-        "text", "tool_call", "tool_result",
-        "reasoning_chunk", "node_enter", "node_exit",
-        "done"
-    ] = Field(default="text", description="Chunk type")
+    type: Literal["text", "tool_call", "tool_result", "reasoning_chunk", "node_enter", "node_exit", "done"] = Field(
+        default="text", description="Chunk type"
+    )
     content: str = Field(default="", description="Chunk content")
     tool_name: Optional[str] = Field(default=None, description="Tool name")
     tool_call_id: Optional[str] = Field(default=None, description="Tool call ID")

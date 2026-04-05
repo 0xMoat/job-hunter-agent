@@ -60,10 +60,12 @@ import mem0.llms.openai
 
 _original_generate_response = mem0.llms.openai.OpenAILLM.generate_response
 
+
 def _patched_generate_response(self, messages, *args, **kwargs):
     if hasattr(self.config, "store"):
         delattr(self.config, "store")
     return _original_generate_response(self, messages, *args, **kwargs)
+
 
 mem0.llms.openai.OpenAILLM.generate_response = _patched_generate_response
 
@@ -204,7 +206,7 @@ class LangGraphAgent:
         round_starts = [i for i, m in enumerate(messages) if isinstance(m, HumanMessage)]
         if len(round_starts) <= num_rounds:
             return messages
-        return messages[round_starts[-num_rounds]:]
+        return messages[round_starts[-num_rounds] :]
 
     async def _update_long_term_memory(self, user_id: str, messages: list[dict], metadata: dict = None) -> None:
         """Update the long term memory.
@@ -325,13 +327,17 @@ class LangGraphAgent:
                     )
                 )
                 continue
-            logger.info("tool_dispatch", tool_name=tool_name, session_id=config.get("configurable", {}).get("thread_id"))
+            logger.info(
+                "tool_dispatch", tool_name=tool_name, session_id=config.get("configurable", {}).get("thread_id")
+            )
             try:
                 tool_result = await self.tools_by_name[tool_name].ainvoke(tool_call["args"], config=config)
             except Exception:
                 logger.exception("tool_invocation_failed", tool_name=tool_name)
                 raise
-            logger.info("tool_completed", tool_name=tool_name, session_id=config.get("configurable", {}).get("thread_id"))
+            logger.info(
+                "tool_completed", tool_name=tool_name, session_id=config.get("configurable", {}).get("thread_id")
+            )
             outputs.append(
                 ToolMessage(
                     content=tool_result,
@@ -412,9 +418,7 @@ class LangGraphAgent:
                 "user_id": user_id,
                 "custom_system_prompt": custom_system_prompt,
             },
-            "callbacks": [
-                langfuse_handler
-            ],
+            "callbacks": [langfuse_handler],
             "metadata": {
                 "user_id": user_id,
                 "session_id": session_id,
@@ -456,20 +460,24 @@ class LangGraphAgent:
                     if _node != _current_node:
                         if _current_node and _current_node in _node_start_time:
                             _elapsed = int((time.time() - _node_start_time[_current_node]) * 1000)
-                            yield _json.dumps({
-                                "type": "node_exit",
-                                "content": "",
-                                "node_name": _current_node,
-                                "duration_ms": _elapsed,
-                                "done": False,
-                            })
+                            yield _json.dumps(
+                                {
+                                    "type": "node_exit",
+                                    "content": "",
+                                    "node_name": _current_node,
+                                    "duration_ms": _elapsed,
+                                    "done": False,
+                                }
+                            )
                         if _node:
-                            yield _json.dumps({
-                                "type": "node_enter",
-                                "content": "",
-                                "node_name": _node,
-                                "done": False,
-                            })
+                            yield _json.dumps(
+                                {
+                                    "type": "node_enter",
+                                    "content": "",
+                                    "node_name": _node,
+                                    "done": False,
+                                }
+                            )
                             _node_start_time[_node] = time.time()
                         _current_node = _node
 
@@ -480,13 +488,15 @@ class LangGraphAgent:
                                 if tc.get("name"):
                                     # First chunk for this tool call — emit the card, start accumulating args
                                     tool_call_args[tool_call_id] = tc.get("args", "")
-                                    yield _json.dumps({
-                                        "type": "tool_call",
-                                        "content": "",
-                                        "tool_name": tc["name"],
-                                        "tool_call_id": tool_call_id,
-                                        "done": False,
-                                    })
+                                    yield _json.dumps(
+                                        {
+                                            "type": "tool_call",
+                                            "content": "",
+                                            "tool_name": tc["name"],
+                                            "tool_call_id": tool_call_id,
+                                            "done": False,
+                                        }
+                                    )
                                 elif tool_call_id in tool_call_args:
                                     # Subsequent arg chunks — accumulate, don't emit
                                     tool_call_args[tool_call_id] += tc.get("args", "")
@@ -494,27 +504,33 @@ class LangGraphAgent:
                             # Emit reasoning_chunk if present (DeepSeek thinking mode)
                             reasoning = token.additional_kwargs.get("reasoning_content")
                             if reasoning:
-                                yield _json.dumps({
-                                    "type": "reasoning_chunk",
-                                    "content": reasoning,
-                                    "done": False,
-                                })
+                                yield _json.dumps(
+                                    {
+                                        "type": "reasoning_chunk",
+                                        "content": reasoning,
+                                        "done": False,
+                                    }
+                                )
                             # Emit text content
                             if token.content:
-                                yield _json.dumps({
-                                    "type": "text",
-                                    "content": token.content,
-                                    "done": False,
-                                })
+                                yield _json.dumps(
+                                    {
+                                        "type": "text",
+                                        "content": token.content,
+                                        "done": False,
+                                    }
+                                )
                     elif isinstance(token, ToolMessage):
-                        yield _json.dumps({
-                            "type": "tool_result",
-                            "content": str(token.content),
-                            "calling_args": tool_call_args.get(token.tool_call_id, ""),
-                            "tool_name": token.name,
-                            "tool_call_id": token.tool_call_id,
-                            "done": False,
-                        })
+                        yield _json.dumps(
+                            {
+                                "type": "tool_result",
+                                "content": str(token.content),
+                                "calling_args": tool_call_args.get(token.tool_call_id, ""),
+                                "tool_name": token.name,
+                                "tool_call_id": token.tool_call_id,
+                                "done": False,
+                            }
+                        )
                 except Exception:
                     logger.exception("error_processing_token", session_id=session_id)
                     continue
@@ -522,13 +538,15 @@ class LangGraphAgent:
             # Emit node_exit for the last node (loop ends without a final node transition)
             if _current_node and _current_node in _node_start_time:
                 _elapsed = int((time.time() - _node_start_time[_current_node]) * 1000)
-                yield _json.dumps({
-                    "type": "node_exit",
-                    "content": "",
-                    "node_name": _current_node,
-                    "duration_ms": _elapsed,
-                    "done": False,
-                })
+                yield _json.dumps(
+                    {
+                        "type": "node_exit",
+                        "content": "",
+                        "node_name": _current_node,
+                        "duration_ms": _elapsed,
+                        "done": False,
+                    }
+                )
 
             # After streaming completes, get final state and update memory in background
             state: StateSnapshot = await self._graph.aget_state(config=config)
@@ -557,9 +575,7 @@ class LangGraphAgent:
         if self._graph is None:
             self._graph = await self.create_graph()
 
-        state: StateSnapshot = await self._graph.aget_state(
-            config={"configurable": {"thread_id": session_id}}
-        )
+        state: StateSnapshot = await self._graph.aget_state(config={"configurable": {"thread_id": session_id}})
         return self._process_messages_for_history(state.values["messages"]) if state.values else []
 
     def _process_messages_for_history(self, messages: list[BaseMessage]) -> list[HistoryMessage]:
