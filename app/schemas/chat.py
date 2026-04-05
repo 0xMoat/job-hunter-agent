@@ -67,16 +67,6 @@ class ChatRequest(BaseModel):
     )
 
 
-class ChatResponse(BaseModel):
-    """Response model for chat endpoint.
-
-    Attributes:
-        messages: List of messages in the conversation.
-    """
-
-    messages: List[Message] = Field(..., description="List of messages in the conversation")
-
-
 class StreamResponse(BaseModel):
     """Response model for streaming chat endpoint.
 

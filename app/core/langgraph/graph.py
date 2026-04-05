@@ -43,7 +43,7 @@ from app.core.config import (
 from app.core.langgraph.tools import tools
 from app.core.logging import logger
 from app.core.metrics import llm_inference_duration_seconds
-from app.core.prompts import load_system_prompt
+from app.core.prompts import load_fact_extraction_prompt, load_system_prompt
 from app.schemas import (
     GraphState,
     HistoryMessage,
@@ -131,7 +131,7 @@ class LangGraphAgent:
                             "openai_base_url": settings.LLM_BASE_URL,
                         },
                     },
-                    # "custom_fact_extraction_prompt": load_custom_fact_extraction_prompt(),
+                    "custom_fact_extraction_prompt": load_fact_extraction_prompt(),
                 }
             )
         return self.memory
@@ -436,63 +436,6 @@ class LangGraphAgent:
 
         return self._graph
 
-    async def get_response(
-        self,
-        messages: list[Message],
-        session_id: str,
-        user_id: Optional[str] = None,
-        custom_system_prompt: Optional[str] = None,
-    ) -> list[dict]:
-        """Get a response from the LLM.
-
-        Args:
-            messages (list[Message]): The messages to send to the LLM.
-            session_id (str): The session ID for Langfuse tracking.
-            user_id (Optional[str]): The user ID for Langfuse tracking.
-
-        Returns:
-            list[dict]: The response from the LLM.
-        """
-        if self._graph is None:
-            self._graph = await self.create_graph()
-        langfuse_handler = CallbackHandler()
-        config = {
-            "configurable": {
-                "thread_id": session_id,
-                "user_id": user_id,
-                "custom_system_prompt": custom_system_prompt,
-            },
-            "callbacks": [langfuse_handler],
-            "metadata": {
-                "user_id": user_id,
-                "session_id": session_id,
-                "langfuse_session_id": session_id,
-                "langfuse_user_id": str(user_id),
-                "environment": settings.ENVIRONMENT.value,
-                "debug": settings.DEBUG,
-            },
-        }
-        relevant_memory = (
-            await self._get_relevant_memory(user_id, messages[-1].content)
-        ) or "No relevant memory found."
-        try:
-            response = await self._graph.ainvoke(
-                input={"messages": dump_messages(messages), "long_term_memory": relevant_memory},
-                config=config,
-            )
-            # Run memory update in background without blocking the response
-            recent_messages = self._get_recent_rounds(response["messages"])
-            asyncio.create_task(
-                self._update_long_term_memory(
-                    user_id, convert_to_openai_messages(recent_messages), config["metadata"]
-                )
-            )
-            return self.__process_messages(response["messages"])
-        except Exception as e:
-            logger.error(f"Error getting response: {str(e)}")
-        finally:
-            langfuse_handler.client.flush()
-
     async def get_stream_response(
         self,
         messages: list[Message],
@@ -757,15 +700,6 @@ class LangGraphAgent:
                 i += 1
 
         return result
-
-    def __process_messages(self, messages: list[BaseMessage]) -> list[Message]:
-        openai_style_messages = convert_to_openai_messages(messages)
-        # keep just assistant and user messages
-        return [
-            Message(role=message["role"], content=str(message["content"]))
-            for message in openai_style_messages
-            if message["role"] in ["assistant", "user"] and message["content"]
-        ]
 
     async def clear_chat_history(self, session_id: str) -> None:
         """Clear all chat history for a given thread ID.

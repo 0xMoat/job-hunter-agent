@@ -5,7 +5,6 @@ streaming chat, message history management, and chat history clearing.
 """
 
 import json as _json
-from typing import List
 
 from fastapi import (
     APIRouter,
@@ -24,62 +23,13 @@ from app.core.metrics import llm_stream_duration_seconds
 from app.models.session import Session
 from app.schemas.chat import (
     ChatRequest,
-    ChatResponse,
     HistoryResponse,
-    Message,
 )
 from app.services.database import DatabaseService
 
 router = APIRouter()
 agent = LangGraphAgent()
 db_service = DatabaseService()
-
-
-@router.post("/chat", response_model=ChatResponse)
-@limiter.limit(settings.RATE_LIMIT_ENDPOINTS["chat"][0])
-async def chat(
-    request: Request,
-    chat_request: ChatRequest,
-    session: Session = Depends(get_current_session),
-):
-    """Process a chat request using LangGraph.
-
-    Args:
-        request: The FastAPI request object for rate limiting.
-        chat_request: The chat request containing messages.
-        session: The current session from the auth token.
-
-    Returns:
-        ChatResponse: The processed chat response.
-
-    Raises:
-        HTTPException: If there's an error processing the request.
-    """
-    try:
-        logger.info(
-            "chat_request_received",
-            session_id=session.id,
-            message_count=len(chat_request.messages),
-        )
-
-        user = await db_service.get_user(session.user_id)
-        if user is None:
-            logger.warning("user_not_found_falling_back_to_default_prompt", user_id=session.user_id)
-        custom_prompt = user.system_prompt if user else None
-
-        result = await agent.get_response(
-            chat_request.messages,
-            session.id,
-            user_id=session.user_id,
-            custom_system_prompt=custom_prompt,
-        )
-
-        logger.info("chat_request_processed", session_id=session.id)
-
-        return ChatResponse(messages=result)
-    except Exception as e:
-        logger.error("chat_request_failed", session_id=session.id, error=str(e), exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/chat/stream")
