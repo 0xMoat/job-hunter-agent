@@ -42,7 +42,15 @@ All other models (Groq, Gemini) stay as `ChatOpenAI`. Both extend `BaseChatModel
 
 When `LLMRegistry.get()` receives custom kwargs for deepseek-chat, it should instantiate `ChatDeepSeek` (not `ChatOpenAI`). Add a provider-awareness check in the `get()` classmethod.
 
-### 3. Graph simplification — `app/core/langgraph/graph.py`
+### 3. Remove non-streaming path (dead code)
+
+The non-streaming `/chat` endpoint and `get_response` method are unused — frontend only calls `/chat/stream`. Delete:
+- `app/api/v1/chatbot.py`: `POST /chat` endpoint
+- `app/core/langgraph/graph.py`: `get_response` method, `__process_messages` helper
+- `app/schemas/chat.py`: `ChatResponse` class
+- `app/schemas/__init__.py`: remove `ChatResponse` from exports
+
+### 4. Graph simplification — `app/core/langgraph/graph.py`
 
 Remove:
 - `_analyze` method
@@ -54,7 +62,7 @@ Change:
 - Entry point: `analyze` → `chat`
 - `GraphState.reasoning` field: delete (in `app/schemas/graph.py`)
 
-### 4. Streaming reasoning extraction — `app/core/langgraph/graph.py`
+### 5. Streaming reasoning extraction — `app/core/langgraph/graph.py`
 
 In `get_stream_response`, within the `messages` event handler for `AIMessageChunk`:
 
@@ -88,18 +96,17 @@ The `content_blocks` API is LangChain's standard way to surface provider-specifi
 
 Tool call chunk handling remains unchanged.
 
-### 5. Frontend — `frontend/components/chat/ThinkingCard.tsx`
+### 6. Frontend — `frontend/components/chat/ThinkingCard.tsx`
 
 - Remove `"analyze"` from `NODE_LABELS`
 - Add `max-h-64 overflow-y-auto` to the reasoning text container (native reasoning can be hundreds of tokens, unlike the old 1-2 sentence plan)
 
-### 6. No changes needed
+### 7. No changes needed
 
 - `frontend/hooks/useChat.ts` — already handles `reasoning_chunk` events
 - `frontend/lib/types.ts` — `StreamChunk` and `ThinkingEntry` types are compatible
 - `LLMService` retry/fallback — `ChatDeepSeek` extends `BaseChatModel`
 - Langfuse tracing — config passthrough unchanged
-- `get_response` (non-streaming) — benefits from better reasoning quality automatically; reasoning not surfaced to user in this path
 - `get_chat_history` / `_process_messages_for_history` — no reasoning stored in checkpoint messages
 
 ## Implementation risk
