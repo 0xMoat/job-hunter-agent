@@ -490,12 +490,22 @@ class LangGraphAgent:
                                 elif tool_call_id in tool_call_args:
                                     # Subsequent arg chunks — accumulate, don't emit
                                     tool_call_args[tool_call_id] += tc.get("args", "")
-                        elif token.content:
-                            yield _json.dumps({
-                                "type": "text",
-                                "content": token.content,
-                                "done": False,
-                            })
+                        else:
+                            # Emit reasoning_chunk if present (DeepSeek thinking mode)
+                            reasoning = token.additional_kwargs.get("reasoning_content")
+                            if reasoning:
+                                yield _json.dumps({
+                                    "type": "reasoning_chunk",
+                                    "content": reasoning,
+                                    "done": False,
+                                })
+                            # Emit text content
+                            if token.content:
+                                yield _json.dumps({
+                                    "type": "text",
+                                    "content": token.content,
+                                    "done": False,
+                                })
                     elif isinstance(token, ToolMessage):
                         yield _json.dumps({
                             "type": "tool_result",
