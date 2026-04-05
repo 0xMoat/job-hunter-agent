@@ -10,6 +10,7 @@ from typing import (
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import BaseMessage
+from langchain_deepseek import ChatDeepSeek
 from langchain_openai import ChatOpenAI
 from openai import (
     APIError,
@@ -43,13 +44,12 @@ class LLMRegistry:
     LLMS: List[Dict[str, Any]] = [
         {
             "name": "deepseek-chat",
-            "llm": ChatOpenAI(
+            "llm": ChatDeepSeek(
                 model="deepseek-chat",
-                tiktoken_model_name="gpt-4o",
                 api_key=settings.DEEPSEEK_API_KEY,
                 temperature=settings.DEFAULT_LLM_TEMPERATURE,
                 max_tokens=settings.MAX_TOKENS,
-                base_url="https://api.deepseek.com",
+                extra_body={"thinking": {"type": "enabled", "budget_tokens": 1024}},
             ),
         },
         {
@@ -128,6 +128,12 @@ class LLMRegistry:
         # If user provides kwargs, create a new instance with those args
         if kwargs:
             logger.debug("creating_llm_with_custom_args", model_name=model_name, custom_args=list(kwargs.keys()))
+            if model_name.startswith("deepseek"):
+                return ChatDeepSeek(
+                    model=model_name,
+                    api_key=settings.DEEPSEEK_API_KEY,
+                    **kwargs,
+                )
             return ChatOpenAI(
                 model=model_name,
                 tiktoken_model_name="gpt-4o",
