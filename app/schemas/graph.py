@@ -16,4 +16,3 @@ class GraphState(BaseModel):
         default_factory=list, description="The messages in the conversation"
     )
     long_term_memory: str = Field(default="", description="The long term memory of the conversation")
-    reasoning: str = Field(default="", description="Reasoning plan from analyze node. Empty string means direct response.")

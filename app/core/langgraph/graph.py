@@ -14,7 +14,6 @@ from langchain_core.messages import (
     AIMessageChunk,
     BaseMessage,
     HumanMessage,
-    SystemMessage,
     ToolMessage,
     convert_to_openai_messages,
 )
@@ -51,7 +50,7 @@ from app.schemas import (
     Message,
     ToolCallRecord,
 )
-from app.services.llm import LLMRegistry, llm_service
+from app.services.llm import llm_service
 from app.utils import (
     dump_messages,
     prepare_messages,
@@ -85,12 +84,6 @@ class LangGraphAgent:
         self._connection_pool: Optional[AsyncConnectionPool] = None
         self._graph: Optional[CompiledStateGraph] = None
         self.memory: Optional[AsyncMemory] = None
-        # Tool-free LLM for the analyze node.
-        # Must NOT use self.llm_service which has bind_tools() applied —
-        # a tool-bound model would emit tool calls instead of plain text, breaking "direct" detection.
-        # Use LLMRegistry to get the default model instance so credentials (api_key, base_url)
-        # are always correct regardless of which provider is currently primary.
-        self._plain_llm = LLMRegistry.get(settings.DEFAULT_LLM_MODEL)
         logger.info(
             "langgraph_agent_initialized",
             model=settings.DEFAULT_LLM_MODEL,
@@ -240,48 +233,6 @@ class LangGraphAgent:
                     error=str(e),
                 )
 
-    async def _analyze(self, state: GraphState, config: RunnableConfig) -> Command:
-        """Analyze node: produces a brief reasoning plan before the chat node.
-
-        Calls the plain (tool-free) LLM to decide whether planning is needed.
-        Outputs "direct" for simple conversation (no reasoning displayed),
-        or a 1-2 sentence plan that gets streamed to the frontend as reasoning_chunk events.
-
-        Args:
-            state: Current graph state.
-            config: LangGraph runnable config (passed through to ainvoke for Langfuse tracing).
-
-        Returns:
-            Command updating reasoning field and routing to "chat".
-        """
-        last_user_msg = next(
-            (m for m in reversed(state.messages) if isinstance(m, HumanMessage)), None
-        )
-        if not last_user_msg:
-            return Command(update={"reasoning": ""}, goto="chat")
-
-        prompt = SystemMessage(content=(
-            "In 1-2 sentences, describe what you need to do to answer the user. "
-            "If it is simple conversation with no tool use needed, output exactly the word: direct (lowercase only)"
-        ))
-        try:
-            response = await self._plain_llm.ainvoke([prompt, last_user_msg], config=config)
-            text = response.content.strip()
-            # Case-sensitive check: prompt instructs lowercase "direct"; same check on frontend
-            reasoning = "" if text.lower().startswith("direct") else text
-        except Exception:
-            logger.exception(
-                "analyze_llm_failed_using_empty_reasoning",
-                session_id=config.get("configurable", {}).get("thread_id"),
-            )
-            reasoning = ""
-        logger.debug(
-            "analyze_node_completed",
-            has_reasoning=bool(reasoning),
-            session_id=config.get("configurable", {}).get("thread_id"),
-        )
-        return Command(update={"reasoning": reasoning}, goto="chat")
-
     async def _chat(self, state: GraphState, config: RunnableConfig) -> Command:
         """Process the chat state and generate a response.
 
@@ -399,11 +350,10 @@ class LangGraphAgent:
         if self._graph is None:
             try:
                 graph_builder = StateGraph(GraphState)
-                graph_builder.add_node("analyze", self._analyze, ends=["chat"])
                 graph_builder.add_node("chat", self._chat, ends=["tool_call", END])
                 graph_builder.add_node("tool_call", self._tool_call, ends=["chat"])
-                graph_builder.set_entry_point("analyze")   # was: "chat"
-                graph_builder.set_finish_point("chat")     # unchanged
+                graph_builder.set_entry_point("chat")
+                graph_builder.set_finish_point("chat")
 
                 # Get connection pool (may be None in production if DB unavailable)
                 connection_pool = await self._get_connection_pool()
@@ -492,34 +442,8 @@ class LangGraphAgent:
                 config,
                 stream_mode=["messages", "updates"],
             ):
-                # Handle "updates" events: analyze node reasoning arrives here (ainvoke, not streaming)
+                # Handle "updates" events (currently no special processing needed)
                 if event_mode == "updates":
-                    for node_name, state_update in event_data.items():
-                        if node_name == "analyze":
-                            # Emit synthetic node_enter + optional reasoning_chunk + node_exit for the analyze node.
-                            # _analyze uses ainvoke so no "messages" events are emitted for it;
-                            # we synthesize the node lifecycle events here instead.
-                            _analyze_start = time.time()
-                            yield _json.dumps({
-                                "type": "node_enter",
-                                "content": "",
-                                "node_name": "analyze",
-                                "done": False,
-                            })
-                            if state_update.get("reasoning"):
-                                yield _json.dumps({
-                                    "type": "reasoning_chunk",
-                                    "content": state_update["reasoning"],
-                                    "done": False,
-                                })
-                            _analyze_elapsed = int((time.time() - _analyze_start) * 1000)
-                            yield _json.dumps({
-                                "type": "node_exit",
-                                "content": "",
-                                "node_name": "analyze",
-                                "duration_ms": _analyze_elapsed,
-                                "done": False,
-                            })
                     continue
 
                 # event_mode == "messages": unpack (token, metadata) tuple
@@ -528,35 +452,28 @@ class LangGraphAgent:
                 try:
                     _node = _metadata.get("langgraph_node") if _metadata else None
 
-                    # The "analyze" node uses ainvoke; its AIMessageChunk output still
-                    # appears here in "messages" mode. Skip it entirely — node lifecycle
-                    # events and reasoning_chunk are emitted by the "updates" handler above.
-                    if _node == "analyze":
-                        pass
-
-                    else:
                     # Emit node_enter / node_exit on node transitions
-                        if _node != _current_node:
-                            if _current_node and _current_node in _node_start_time:
-                                _elapsed = int((time.time() - _node_start_time[_current_node]) * 1000)
-                                yield _json.dumps({
-                                    "type": "node_exit",
-                                    "content": "",
-                                    "node_name": _current_node,
-                                    "duration_ms": _elapsed,
-                                    "done": False,
-                                })
-                            if _node:
-                                yield _json.dumps({
-                                    "type": "node_enter",
-                                    "content": "",
-                                    "node_name": _node,
-                                    "done": False,
-                                })
-                                _node_start_time[_node] = time.time()
-                            _current_node = _node
+                    if _node != _current_node:
+                        if _current_node and _current_node in _node_start_time:
+                            _elapsed = int((time.time() - _node_start_time[_current_node]) * 1000)
+                            yield _json.dumps({
+                                "type": "node_exit",
+                                "content": "",
+                                "node_name": _current_node,
+                                "duration_ms": _elapsed,
+                                "done": False,
+                            })
+                        if _node:
+                            yield _json.dumps({
+                                "type": "node_enter",
+                                "content": "",
+                                "node_name": _node,
+                                "done": False,
+                            })
+                            _node_start_time[_node] = time.time()
+                        _current_node = _node
 
-                    if _node != "analyze" and isinstance(token, AIMessageChunk):
+                    if isinstance(token, AIMessageChunk):
                         if token.tool_call_chunks:
                             for tc in token.tool_call_chunks:
                                 tool_call_id = tc.get("id", "")
