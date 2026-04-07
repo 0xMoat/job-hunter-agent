@@ -1,6 +1,7 @@
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { ToolCallCard } from "./ToolCallCard"
+import { JobSearchResultCard } from "./JobSearchResultCard"
 import { ThinkingCard } from "./ThinkingCard"
 import type { ChatMessage } from "@/lib/types"
 import { useLanguage } from "@/contexts/LanguageContext"
@@ -25,9 +26,13 @@ export function MessageBubble({ message, isStreaming }: Props) {
         {/* Tool call cards (assistant only) */}
         {message.toolCalls.length > 0 && (
           <div className="mb-2 space-y-1">
-            {message.toolCalls.map((tc) => (
-              <ToolCallCard key={tc.toolCallId} entry={tc} isStreaming={isStreaming} />
-            ))}
+            {message.toolCalls.map((tc) =>
+              tc.toolName === "job_search_tool" && tc.status === "done" ? (
+                <JobSearchResultCard key={tc.toolCallId} entry={tc} />
+              ) : (
+                <ToolCallCard key={tc.toolCallId} entry={tc} isStreaming={isStreaming} />
+              ),
+            )}
           </div>
         )}
 
