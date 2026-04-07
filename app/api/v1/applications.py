@@ -39,6 +39,7 @@ class BatchListingItem(BaseModel):
     url: str = Field(min_length=1)
     snippet: str = ""
     found_date: Optional[str] = None
+    source: str = "scheduler"
 
 
 class BatchCreate(BaseModel):
