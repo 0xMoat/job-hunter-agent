@@ -125,6 +125,7 @@ class LangGraphAgent:
                             "model": settings.LONG_TERM_MEMORY_EMBEDDER_MODEL,
                             "api_key": settings.OPENAI_API_KEY,
                             "openai_base_url": settings.LLM_BASE_URL,
+                            "embedding_dims": 3072,
                         },
                     },
                     "custom_fact_extraction_prompt": load_fact_extraction_prompt(),
