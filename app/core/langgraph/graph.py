@@ -50,6 +50,7 @@ from app.schemas import (
     Message,
     ToolCallRecord,
 )
+from app.services.job_service import job_service
 from app.services.llm import llm_service
 from app.utils import (
     dump_messages,
@@ -235,6 +236,33 @@ class LangGraphAgent:
                     error=str(e),
                 )
 
+    async def _get_pending_applications(self, user_id: str) -> str:
+        """Get pending applications for injection into the system prompt.
+
+        Args:
+            user_id: The user ID.
+
+        Returns:
+            Formatted string of pending applications, or a placeholder if none.
+        """
+        try:
+            apps = await job_service.list_applications(int(user_id))
+            pending = [a for a in apps if a.status == "pending"]
+            if not pending:
+                return "暂无待处理的职位"
+            max_display = 15
+            lines = []
+            for i, app in enumerate(pending[:max_display], 1):
+                company_part = f" {app.company} —" if app.company else ""
+                url_part = f" {app.url}" if app.url else ""
+                lines.append(f"{i}. [{app.title}]{company_part}{url_part}")
+            if len(pending) > max_display:
+                lines.append(f"...还有 {len(pending) - max_display} 条未显示")
+            return "\n".join(lines)
+        except Exception as e:
+            logger.error("failed_to_get_pending_applications", error=str(e), user_id=user_id)
+            return "暂无待处理的职位"
+
     async def _chat(self, state: GraphState, config: RunnableConfig) -> Command:
         """Process the chat state and generate a response.
 
@@ -259,15 +287,22 @@ class LangGraphAgent:
                     agent_name=settings.PROJECT_NAME + " Agent",
                     long_term_memory=state.long_term_memory,
                     current_date_and_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    pending_applications=state.pending_applications,
                 )
             except KeyError:
                 logger.warning(
                     "custom_prompt_format_error_falling_back",
                     session_id=config["configurable"]["thread_id"],
                 )
-                SYSTEM_PROMPT = load_system_prompt(long_term_memory=state.long_term_memory)
+                SYSTEM_PROMPT = load_system_prompt(
+                    long_term_memory=state.long_term_memory,
+                    pending_applications=state.pending_applications,
+                )
         else:
-            SYSTEM_PROMPT = load_system_prompt(long_term_memory=state.long_term_memory)
+            SYSTEM_PROMPT = load_system_prompt(
+                long_term_memory=state.long_term_memory,
+                pending_applications=state.pending_applications,
+            )
 
         # Prepare messages with system prompt
         messages = prepare_messages(state.messages, current_llm, SYSTEM_PROMPT)
@@ -429,9 +464,11 @@ class LangGraphAgent:
             },
         }
 
-        relevant_memory = (
-            await self._get_relevant_memory(user_id, messages[-1].content)
-        ) or "No relevant memory found."
+        relevant_memory, pending_apps = await asyncio.gather(
+            self._get_relevant_memory(user_id, messages[-1].content),
+            self._get_pending_applications(user_id),
+        )
+        relevant_memory = relevant_memory or "No relevant memory found."
 
         # Accumulate tool call args per tool_call_id across streaming chunks
         tool_call_args: dict[str, str] = {}
@@ -442,7 +479,7 @@ class LangGraphAgent:
 
         try:
             async for event_mode, event_data in self._graph.astream(
-                {"messages": dump_messages(messages), "long_term_memory": relevant_memory},
+                {"messages": dump_messages(messages), "long_term_memory": relevant_memory, "pending_applications": pending_apps},
                 config,
                 stream_mode=["messages", "updates"],
             ):
