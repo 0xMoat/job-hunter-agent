@@ -159,7 +159,7 @@ export function JobSearchResultCard({ entry }: Props) {
                   onClick={(e) => e.stopPropagation()}
                   className="inline-block mt-1 font-mono text-[10px] text-[var(--accent)] opacity-60 hover:opacity-100 truncate max-w-[280px]"
                 >
-                  {new URL(r.link).hostname} ↗
+                  {(() => { try { return new URL(r.link).hostname } catch { return r.link } })()} ↗
                 </a>
               </div>
             </label>
