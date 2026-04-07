@@ -14,3 +14,9 @@ def load_system_prompt(**kwargs):
             current_date_and_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             **kwargs,
         )
+
+
+def load_fact_extraction_prompt():
+    """Load the fact extraction prompt from the file."""
+    with open(os.path.join(os.path.dirname(__file__), "fact_extraction.md"), "r") as f:
+        return f.read()
