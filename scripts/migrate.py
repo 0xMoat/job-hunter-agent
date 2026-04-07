@@ -55,6 +55,7 @@ def run():
                 ("found_date",   "DATE"),
                 ("source",       "TEXT NOT NULL DEFAULT 'manual'"),
                 ("archived_at",  "TIMESTAMP WITH TIME ZONE"),
+                ("match_score",  "INTEGER"),
             ]
             for col, col_type in new_columns:
                 if not column_exists(cur, "applications", col):
@@ -64,7 +65,11 @@ def run():
                 else:
                     print(f"  Column already exists: applications.{col}")
 
-            # 2. Migrate legacy status values
+            # 2. Fix applied_date to be nullable (model defines it as Optional)
+            cur.execute("ALTER TABLE applications ALTER COLUMN applied_date DROP NOT NULL")
+            print("  Fixed: applied_date now nullable")
+
+            # 3. Migrate legacy status values
             cur.execute(
                 "UPDATE applications SET status = 'completed' WHERE status = 'offer'"
             )
