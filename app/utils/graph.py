@@ -1,5 +1,6 @@
 """This file contains the graph utilities for the application."""
 
+import tiktoken
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import BaseMessage
 from langchain_core.messages import trim_messages as _trim_messages
@@ -7,6 +8,21 @@ from langchain_core.messages import trim_messages as _trim_messages
 from app.core.config import settings
 from app.core.logging import logger
 from app.schemas import Message
+
+# Shared tiktoken encoder for token counting (works for all models via gpt-4o approximation)
+_encoder = tiktoken.encoding_for_model("gpt-4o")
+
+
+def _count_tokens(messages: list) -> int:
+    """Count tokens in a list of messages using tiktoken."""
+    total = 0
+    for msg in messages:
+        if isinstance(msg, dict):
+            total += len(_encoder.encode(msg.get("content", "") or ""))
+        elif isinstance(msg, BaseMessage):
+            content = msg.content if isinstance(msg.content, str) else str(msg.content)
+            total += len(_encoder.encode(content))
+    return total
 
 
 def dump_messages(messages: list[Message]) -> list[dict]:
@@ -53,7 +69,7 @@ def prepare_messages(messages: list[Message], llm: BaseChatModel, system_prompt:
 
     Args:
         messages (list[Message]): The messages to prepare.
-        llm (BaseChatModel): The LLM to use.
+        llm (BaseChatModel): The LLM instance (unused, kept for call-site compatibility).
         system_prompt (str): The system prompt to use.
 
     Returns:
@@ -63,21 +79,19 @@ def prepare_messages(messages: list[Message], llm: BaseChatModel, system_prompt:
         trimmed_messages = _trim_messages(
             dump_messages(messages),
             strategy="last",
-            token_counter=llm,
+            token_counter=_count_tokens,
             max_tokens=settings.MAX_TOKENS,
             start_on="human",
             include_system=False,
             allow_partial=False,
         )
     except ValueError as e:
-        # Handle unrecognized content blocks (e.g., reasoning blocks from GPT-5)
         if "Unrecognized content block type" in str(e):
             logger.warning(
                 "token_counting_failed_skipping_trim",
                 error=str(e),
                 message_count=len(messages),
             )
-            # Skip trimming and return all messages
             trimmed_messages = messages
         else:
             raise
