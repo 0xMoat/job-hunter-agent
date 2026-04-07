@@ -136,6 +136,22 @@ export async function apiDeleteApplication(
   await req(`/api/v1/applications/${id}`, { method: "DELETE" }, sessionToken)
 }
 
+export async function apiBatchCreateApplications(
+  sessionToken: string,
+  listings: { title: string; company: string; url: string; snippet: string; source: string }[],
+): Promise<{ inserted: number; skipped: number }> {
+  const res = await req(
+    "/api/v1/applications/batch",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ listings }),
+    },
+    sessionToken,
+  )
+  return res.json()
+}
+
 // ── Sessions ──────────────────────────────────────────────────────────────
 
 export async function apiGetSessions(
