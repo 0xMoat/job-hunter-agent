@@ -23,6 +23,130 @@ const painPoints = [
   },
 ]
 
+/* ── Mini Visualization: Data Comparison (Pain Point 01) ── */
+function MiniComparison() {
+  return (
+    <div className="w-full max-w-[400px] glass rounded-xl p-4 font-body text-sm">
+      <div className="flex items-center gap-2 mb-3">
+        <span className="w-1.5 h-1.5 rounded-full bg-[--accent]" />
+        <span className="text-[10px] font-semibold text-[--text-2] uppercase tracking-widest">投递回复率</span>
+      </div>
+      {/* Sent */}
+      <div className="flex items-center gap-3 mb-2">
+        <span className="text-[--text-2] w-12 text-right shrink-0 text-xs">投递</span>
+        <div className="flex-1 h-5 rounded bg-[--border]">
+          <div className="h-full rounded bg-[--text-3]" style={{ width: "100%" }} />
+        </div>
+        <span className="text-[--text] font-semibold w-10 tabular-nums text-right">100+</span>
+      </div>
+      {/* Replies */}
+      <div className="flex items-center gap-3">
+        <span className="text-[--text-2] w-12 text-right shrink-0 text-xs">回复</span>
+        <div className="flex-1 h-5 rounded bg-[--border]">
+          <div className="h-full rounded bg-red-400" style={{ width: "3%" }} />
+        </div>
+        <span className="text-[--text] font-semibold w-10 tabular-nums text-right">3</span>
+      </div>
+      <p className="text-red-400 text-xs font-medium mt-2.5 text-right">
+        回复率不足 3%
+      </p>
+    </div>
+  )
+}
+
+/* ── Mini Visualization: Time Bars (Pain Point 02) ── */
+function MiniTimeBars() {
+  const items = [
+    { label: "简历 A", hours: 2.0 },
+    { label: "简历 B", hours: 1.5 },
+    { label: "简历 C", hours: 2.5 },
+    { label: "简历 D", hours: 1.0 },
+  ]
+  const maxHours = Math.max(...items.map((i) => i.hours))
+  const totalHours = items.reduce((s, i) => s + i.hours, 0)
+
+  return (
+    <div className="w-full max-w-[400px] glass rounded-xl p-4 font-body text-sm">
+      <div className="flex items-center gap-2 mb-3">
+        <span className="w-1.5 h-1.5 rounded-full bg-[--accent]" />
+        <span className="text-[10px] font-semibold text-[--text-2] uppercase tracking-widest">定制耗时</span>
+      </div>
+      <div className="space-y-1.5">
+        {items.map((item) => (
+          <div key={item.label} className="flex items-center gap-3">
+            <span className="text-[--text-2] w-14 text-right shrink-0 text-xs">{item.label}</span>
+            <div className="flex-1 h-4 rounded bg-[--border]">
+              <div
+                className="h-full rounded bg-amber-400"
+                style={{ width: `${(item.hours / maxHours) * 100}%` }}
+              />
+            </div>
+            <span className="text-[--text-2] w-12 text-xs tabular-nums text-right">{item.hours}h</span>
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-[--border]">
+        <span className="text-[--text-3] text-xs">{items.length} 份简历</span>
+        <span className="text-amber-500 text-xs font-semibold">= {totalHours} 小时</span>
+      </div>
+    </div>
+  )
+}
+
+/* ── Mini Visualization: Status Tracker (Pain Point 03) ── */
+function MiniTracker() {
+  const rows = [
+    { company: "字节跳动", stages: ["green", "green", "unknown"] },
+    { company: "阿里巴巴", stages: ["green", "unknown", "unknown"] },
+    { company: "腾讯", stages: ["green", "gray", "gray"] },
+    { company: "美团", stages: ["green", "green", "unknown"] },
+    { company: "小红书", stages: ["green", "unknown", "unknown"] },
+    { company: "拼多多", stages: ["unknown", "unknown", "unknown"] },
+  ] as const
+
+  return (
+    <div className="w-full max-w-[400px] glass rounded-xl p-4 font-body text-sm">
+      <div className="flex items-center gap-2 mb-3">
+        <span className="w-1.5 h-1.5 rounded-full bg-[--accent]" />
+        <span className="text-[10px] font-semibold text-[--text-2] uppercase tracking-widest">申请追踪</span>
+      </div>
+      <div className="grid grid-cols-[1fr_40px_40px_40px] gap-y-1.5 gap-x-2 items-center">
+        {/* Header */}
+        <span className="text-[--text-3] text-[10px] font-medium">公司</span>
+        <span className="text-[--text-3] text-[10px] font-medium text-center">投递</span>
+        <span className="text-[--text-3] text-[10px] font-medium text-center">面试</span>
+        <span className="text-[--text-3] text-[10px] font-medium text-center">结果</span>
+
+        {rows.map((row) => (
+          <div key={row.company} className="contents">
+            <span className="text-[--text-2] text-xs truncate">{row.company}</span>
+            {row.stages.map((s, i) => (
+              <span key={i} className="flex justify-center">
+                {s === "unknown" ? (
+                  <span className="text-orange-400 text-xs font-bold select-none">?</span>
+                ) : s === "green" ? (
+                  <span className="block w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.4)]" />
+                ) : (
+                  <span className="block w-2.5 h-2.5 rounded-full bg-[--border-strong]" />
+                )}
+              </span>
+            ))}
+          </div>
+        ))}
+      </div>
+      <p className="text-orange-400 text-xs font-medium mt-3 text-right">
+        哪家到哪步了？
+      </p>
+    </div>
+  )
+}
+
+const miniVisualizations = [
+  <MiniComparison key="viz-01" />,
+  <MiniTimeBars key="viz-02" />,
+  <MiniTracker key="viz-03" />,
+]
+
 export default function Problem() {
   const sectionRef = useRef<HTMLElement>(null)
 
@@ -54,8 +178,8 @@ export default function Problem() {
         求职，不该<em className="not-italic text-[--text] font-heading italic">这么难</em>
       </h2>
 
-      {/* Pain points — staggered list */}
-      <div className="space-y-20 md:space-y-28">
+      {/* Pain points */}
+      <div className="space-y-16 md:space-y-20">
         {painPoints.map((point, index) => (
           <div
             key={point.number}
@@ -63,24 +187,29 @@ export default function Problem() {
             style={{ transitionDelay: `${index * 120}ms` }}
           >
             <div
-              className={`flex flex-col gap-4 ${
-                index === 1 ? "md:ml-24 lg:ml-40" : index === 2 ? "md:ml-12 lg:ml-20" : ""
+              className={`grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16 items-center ${
+                index === 1 ? "md:[direction:rtl] md:[&>*]:[direction:ltr]" : ""
               }`}
             >
-              {/* Large decorative number */}
-              <span className="font-body text-7xl sm:text-8xl md:text-9xl font-300 text-[--text-3] leading-none select-none -mb-2">
-                {point.number}
-              </span>
+              {/* Text side */}
+              <div className="flex flex-col gap-3">
+                <div className="flex items-baseline gap-3">
+                  <span className="font-body text-4xl sm:text-5xl font-300 text-[--text-3] leading-none select-none">
+                    {point.number}
+                  </span>
+                  <h3 className="font-heading text-xl sm:text-2xl text-[--text] leading-snug">
+                    {point.title}
+                  </h3>
+                </div>
+                <p className="font-body text-base text-[--text-2] leading-relaxed">
+                  {point.description}
+                </p>
+              </div>
 
-              {/* Title */}
-              <h3 className="font-heading text-2xl sm:text-3xl md:text-[2rem] text-[--text] leading-snug max-w-[520px]">
-                {point.title}
-              </h3>
-
-              {/* Description */}
-              <p className="font-body text-base sm:text-lg text-[--text-2] leading-relaxed max-w-[480px]">
-                {point.description}
-              </p>
+              {/* Visualization side */}
+              <div className="flex justify-center md:justify-start">
+                {miniVisualizations[index]}
+              </div>
             </div>
           </div>
         ))}

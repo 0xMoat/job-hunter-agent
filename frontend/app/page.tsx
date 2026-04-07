@@ -4,6 +4,7 @@ import Hero from "@/components/landing/Hero"
 import Problem from "@/components/landing/Problem"
 import Features from "@/components/landing/Features"
 import HowItWorks from "@/components/landing/HowItWorks"
+import Testimonials from "@/components/landing/Testimonials"
 import Memory from "@/components/landing/Memory"
 import FAQ from "@/components/landing/FAQ"
 import FinalCTA from "@/components/landing/FinalCTA"
@@ -22,7 +23,7 @@ function Navbar() {
   return (
     <nav className="fixed top-0 left-0 right-0 z-50">
       <div
-        className="mx-auto max-w-6xl mt-4 px-6 py-3 rounded-full flex items-center justify-between bg-[rgba(232,228,221,0.95)] border border-[var(--border)]"
+        className="mx-auto max-w-6xl mt-4 px-6 py-3 rounded-full flex items-center justify-between bg-[rgba(245,247,250,0.95)] border border-[var(--border)]"
       >
         <Link
           href="/"
@@ -64,6 +65,7 @@ export default function Home() {
       <Problem />
       <Features />
       <HowItWorks />
+      <Testimonials />
       <Memory />
       <FAQ />
       <FinalCTA />

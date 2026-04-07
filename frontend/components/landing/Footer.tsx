@@ -25,12 +25,6 @@ export default function Footer() {
             GitHub
           </a>
           <Link
-            href="/docs"
-            className="font-body text-sm text-[var(--text-3)] hover:text-[var(--text-2)] transition-colors"
-          >
-            文档
-          </Link>
-          <Link
             href="/privacy"
             className="font-body text-sm text-[var(--text-3)] hover:text-[var(--text-2)] transition-colors"
           >

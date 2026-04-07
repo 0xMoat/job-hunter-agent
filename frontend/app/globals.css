@@ -8,18 +8,18 @@
 
 /* ── Color palette ── */
 :root {
-  --bg:             #E8E4DD;
+  --bg:             #F5F7FA;
   --surface:        rgba(255,255,255,0.75);
   --surface-strong: rgba(255,255,255,0.92);
-  --border:         rgba(0,0,0,0.09);
-  --border-strong:  rgba(0,0,0,0.14);
-  --card:           #FEFDFB;
-  --text:           #141210;
-  --text-2:         rgba(20,18,16,0.55);
-  --text-3:         rgba(20,18,16,0.38);
-  --accent:         #141210;
-  --accent-fg:      #E8E4DD;
-  --text-strong-2:  rgba(20,18,16,0.72);
+  --border:         rgba(15,23,42,0.08);
+  --border-strong:  rgba(15,23,42,0.14);
+  --card:           #FFFFFF;
+  --text:           #0F172A;
+  --text-2:         rgba(15,23,42,0.55);
+  --text-3:         rgba(15,23,42,0.38);
+  --accent:         #0F172A;
+  --accent-fg:      #F5F7FA;
+  --text-strong-2:  rgba(15,23,42,0.72);
 }
 
 /* ── Body background ── */
@@ -27,7 +27,7 @@ body {
   background-color: var(--bg);
   background-image:
     radial-gradient(ellipse 80% 50% at 20% 10%, rgba(255,255,255,0.5) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 40% at 80% 90%, rgba(210,200,185,0.4) 0%, transparent 60%);
+    radial-gradient(ellipse 60% 40% at 80% 90%, rgba(200,210,225,0.4) 0%, transparent 60%);
   color: var(--text);
 }
 
