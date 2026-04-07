@@ -157,7 +157,7 @@ class JobService:
                     url=url,
                     snippet=item.get("snippet", ""),
                     found_date=found_date_val,
-                    source="scheduler",
+                    source=item.get("source", "scheduler"),
                     status="pending",
                     match_score=item.get("match_score"),
                 )
