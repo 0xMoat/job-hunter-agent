@@ -8,6 +8,7 @@ from .cover_letter import cover_letter_tool
 from .duckduckgo_search import duckduckgo_search_tool
 from .job_preferences import job_preferences_tool
 from .job_search import job_search_tool
+from .resume_pdf import generate_resume_pdf
 from .resume_studio import trigger_resume_studio_skill
 
 tools: list[BaseTool] = [
@@ -18,4 +19,5 @@ tools: list[BaseTool] = [
     job_preferences_tool,
     duckduckgo_search_tool,
     trigger_resume_studio_skill,
+    generate_resume_pdf,
 ]
