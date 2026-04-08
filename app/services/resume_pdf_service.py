@@ -1,11 +1,13 @@
 """Service for generating resume PDFs from structured data."""
 
 import re
+import subprocess
+import sys
+import tempfile
 import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-import weasyprint
 from jinja2 import Environment, FileSystemLoader
 from jose import jwt
 from markupsafe import Markup
@@ -26,7 +28,12 @@ def _bold_code_filter(text: str) -> Markup:
 
 
 class ResumePDFService:
-    """Renders structured resume data into a PDF via Jinja2 + weasyprint."""
+    """Renders structured resume data into a PDF via Jinja2 + weasyprint.
+
+    weasyprint uses C libraries (Cairo, Pango) that deadlock when called
+    inside uvicorn's uvloop event loop. To avoid this, rendering is done
+    in a subprocess via a small helper script.
+    """
 
     def __init__(self):
         """Initialize the Jinja2 environment with the templates directory."""
@@ -52,22 +59,43 @@ class ResumePDFService:
             generated_date=datetime.now().strftime("%Y.%m"),
         )
 
-        pdf_bytes = weasyprint.HTML(string=html).write_pdf()
+        # Write HTML to a temp file, then invoke weasyprint in a subprocess
+        # to avoid Cairo/Pango deadlock under uvloop.
+        filename = f"resume_{uuid.uuid4().hex[:12]}"
+        html_path = Path("/tmp") / f"{filename}.html"
+        pdf_path = Path("/tmp") / f"{filename}.pdf"
 
-        filename = f"resume_{uuid.uuid4().hex[:12]}.pdf"
-        filepath = Path("/tmp") / filename
-        filepath.write_bytes(pdf_bytes)
+        html_path.write_text(html, encoding="utf-8")
+
+        result = subprocess.run(
+            [sys.executable, "-c", (
+                "import weasyprint, sys; "
+                "weasyprint.HTML(filename=sys.argv[1]).write_pdf(sys.argv[2])"
+            ), str(html_path), str(pdf_path)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+        # Clean up temp HTML
+        html_path.unlink(missing_ok=True)
+
+        if result.returncode != 0:
+            logger.error("weasyprint_subprocess_failed", stderr=result.stderr[:500])
+            raise RuntimeError(f"weasyprint failed: {result.stderr[:200]}")
+
+        pdf_size = pdf_path.stat().st_size
 
         token_payload = {
-            "file": str(filepath),
+            "file": str(pdf_path),
             "exp": datetime.now(UTC) + timedelta(minutes=10),
         }
         token = jwt.encode(token_payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
         logger.info(
             "resume_pdf_generated",
-            filepath=str(filepath),
-            size_bytes=len(pdf_bytes),
+            filepath=str(pdf_path),
+            size_bytes=pdf_size,
         )
 
         return f"/api/v1/resume/download/{token}"

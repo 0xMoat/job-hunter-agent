@@ -154,7 +154,7 @@ class Settings:
         self.LLM_BASE_URL = os.getenv("LLM_BASE_URL", "")
         self.DEFAULT_LLM_MODEL = os.getenv("DEFAULT_LLM_MODEL", "deepseek-chat")
         self.DEFAULT_LLM_TEMPERATURE = float(os.getenv("DEFAULT_LLM_TEMPERATURE", "0.2"))
-        self.MAX_TOKENS = int(os.getenv("MAX_TOKENS", "2000"))
+        self.MAX_TOKENS = int(os.getenv("MAX_TOKENS", "4096"))
         self.MAX_LLM_CALL_RETRIES = int(os.getenv("MAX_LLM_CALL_RETRIES", "3"))
 
         # Long term memory Configuration
