@@ -18,6 +18,12 @@ ENV APP_ENV=${APP_ENV} \
 RUN apt-get update && apt-get install -y \
     build-essential \
     libpq-dev \
+    libcairo2 \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
+    libgdk-pixbuf2.0-0 \
+    libffi-dev \
+    shared-mime-info \
     && pip install --upgrade pip \
     && pip install uv \
     && rm -rf /var/lib/apt/lists/*
