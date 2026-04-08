@@ -14,6 +14,9 @@ from app.core.config import settings
 from app.core.logging import logger
 from app.schemas.resume import ResumeData
 
+# Absolute path to venv python — resolved once at import time.
+_VENV_PYTHON = str((Path(__file__).parent.parent.parent / ".venv" / "bin" / "python").resolve())
+
 
 def _bold_code_filter(text: str) -> Markup:
     """Convert **bold** and `code` markdown to HTML tags.
@@ -28,9 +31,9 @@ def _bold_code_filter(text: str) -> Markup:
 class ResumePDFService:
     """Renders structured resume data into a PDF via Jinja2 + weasyprint.
 
-    weasyprint uses C libraries (Cairo, Pango) that deadlock when called
-    inside uvicorn's uvloop event loop. To avoid this, rendering is done
-    in a subprocess via a small helper script.
+    weasyprint uses C libraries (Cairo/Pango) that conflict with uvicorn's
+    event loop, causing infinite CPU spin. All rendering is done in a
+    subprocess to isolate the C library state.
     """
 
     def __init__(self):
@@ -57,42 +60,25 @@ class ResumePDFService:
             generated_date=datetime.now().strftime("%Y.%m"),
         )
 
-        # Write HTML to a temp file, then invoke weasyprint in a subprocess
-        # to avoid Cairo/Pango deadlock under uvloop.
         filename = f"resume_{uuid.uuid4().hex[:12]}"
         html_path = Path("/tmp") / f"{filename}.html"
         pdf_path = Path("/tmp") / f"{filename}.pdf"
 
         html_path.write_text(html, encoding="utf-8")
 
-        # Use weasyprint CLI from the venv to avoid uvloop deadlocks.
-        weasyprint_bin = str(Path(__file__).parent.parent.parent / ".venv" / "bin" / "weasyprint")
-
-        # Explicitly override system proxy to prevent weasyprint network timeouts.
-        # macOS system proxy (CFNetwork) is inherited by child processes; setting
-        # env vars to empty string forces libcurl/urllib to bypass it.
-        import os
-
-        clean_env = dict(os.environ)
-        clean_env["http_proxy"] = ""
-        clean_env["https_proxy"] = ""
-        clean_env["HTTP_PROXY"] = ""
-        clean_env["HTTPS_PROXY"] = ""
-        clean_env["ALL_PROXY"] = ""
-        clean_env["no_proxy"] = "*"
-
+        # Render in subprocess to avoid Cairo/Pango conflicts with uvicorn.
+        # Use a minimal Python script instead of weasyprint CLI to bypass
+        # macOS system proxy (system proxy affects CLI but not in-process calls
+        # from a fresh Python process).
         result = subprocess.run(
-            [weasyprint_bin,
-             "--timeout", "2",
-             "--allowed-protocols", "file:",
+            [_VENV_PYTHON, "-c",
+             "import weasyprint,sys; weasyprint.HTML(filename=sys.argv[1]).write_pdf(sys.argv[2])",
              str(html_path), str(pdf_path)],
             capture_output=True,
             text=True,
             timeout=30,
-            env=clean_env,
         )
 
-        # Clean up temp HTML
         html_path.unlink(missing_ok=True)
 
         if result.returncode != 0:
