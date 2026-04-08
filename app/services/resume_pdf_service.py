@@ -2,8 +2,6 @@
 
 import re
 import subprocess
-import sys
-import tempfile
 import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -67,14 +65,28 @@ class ResumePDFService:
 
         html_path.write_text(html, encoding="utf-8")
 
+        # Use weasyprint CLI from the venv to avoid uvloop deadlocks.
+        weasyprint_bin = str(Path(__file__).parent.parent.parent / ".venv" / "bin" / "weasyprint")
+
+        # Clean env: explicitly disable all proxies to prevent weasyprint
+        # network timeouts when system proxy (e.g. 127.0.0.1:7890) is active.
+        import os
+
+        clean_env = dict(os.environ)
+        for key in list(clean_env):
+            if key.lower() in ("http_proxy", "https_proxy", "all_proxy", "no_proxy"):
+                del clean_env[key]
+        clean_env["no_proxy"] = "*"
+
         result = subprocess.run(
-            [sys.executable, "-c", (
-                "import weasyprint, sys; "
-                "weasyprint.HTML(filename=sys.argv[1]).write_pdf(sys.argv[2])"
-            ), str(html_path), str(pdf_path)],
+            [weasyprint_bin,
+             "--timeout", "2",
+             "--allowed-protocols", "file:",
+             str(html_path), str(pdf_path)],
             capture_output=True,
             text=True,
             timeout=30,
+            env=clean_env,
         )
 
         # Clean up temp HTML
