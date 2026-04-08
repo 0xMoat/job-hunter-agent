@@ -14,8 +14,10 @@ from app.core.config import settings
 from app.core.logging import logger
 from app.schemas.resume import ResumeData
 
-# Absolute path to venv python — resolved once at import time.
-_VENV_PYTHON = str((Path(__file__).parent.parent.parent / ".venv" / "bin" / "python").resolve())
+# Absolute path to venv python — use parent resolution but NOT resolve()
+# on the final path, because .venv/bin/python is a symlink to system Python
+# and resolve() would follow it, losing the venv site-packages.
+_VENV_PYTHON = str(Path(__file__).resolve().parent.parent.parent / ".venv" / "bin" / "python")
 
 
 def _bold_code_filter(text: str) -> Markup:

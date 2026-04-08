@@ -1,271 +1,117 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{{ resume.name_zh }} — 简历</title>
   <style>
-    :root {
-      --paper: #FAFAF7;
-      --ink: #1C1C1A;
-      --ink-light: #5A5A55;
-      --ink-muted: #8C8C87;
-      --accent: #B85C3A;
-      --accent-light: #E8C4B5;
-      --rule: #D8D8D0;
-      --sidebar-bg: #F2F1EC;
-      --tag-bg: #EAE9E3;
-      --serif: Georgia, 'Times New Roman', 'Songti SC', serif;
-      --sans: -apple-system, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-      --page-w: 210mm;
-      --page-h: 297mm;
-    }
-
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    html { background: #E8E7E2; }
-
-    body {
-      width: var(--page-w);
-      background: var(--paper); color: var(--ink);
-      font-family: var(--sans); font-size: 8.2pt; line-height: 1.65;
-      position: relative; overflow: hidden;
-    }
-
-    .page { display: grid; grid-template-columns: 62mm 1fr; grid-template-rows: auto 1fr; }
-
-    /* HEADER */
-    .header {
-      grid-column: 1 / -1; display: grid; grid-template-columns: 62mm 1fr;
-      border-bottom: 1.5px solid var(--ink); position: relative;
-    }
-    .header::after { content: ''; position: absolute; bottom: -4px; left: 0; width: 100%; height: 1px; background: var(--rule); }
-    .header-identity { padding: 9mm 6mm 7mm 8mm; background: var(--sidebar-bg); border-right: 1.5px solid var(--ink); }
-    .name-en { font-family: var(--serif); font-size: 9pt; font-weight: 400; font-style: italic; color: var(--ink-light); letter-spacing: 0.04em; margin-bottom: 2px; }
-    .name-zh { font-family: var(--serif); font-size: 22pt; font-weight: 700; color: var(--ink); letter-spacing: 0.06em; line-height: 1; }
-    .name-accent { display: inline-block; width: 5px; height: 5px; background: var(--accent); border-radius: 50%; margin-left: 3px; vertical-align: middle; margin-bottom: 4px; }
-    .header-tagline { padding: 9mm 8mm 7mm 7mm; display: flex; flex-direction: column; justify-content: flex-end; }
-    .role-label { font-family: var(--serif); font-size: 7pt; font-style: italic; color: var(--ink-muted); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px; }
-    .role-title { font-family: var(--serif); font-size: 13pt; font-weight: 600; color: var(--ink); letter-spacing: 0.02em; line-height: 1.2; }
-
-    /* SIDEBAR */
-    .sidebar { grid-column: 1; background: var(--sidebar-bg); border-right: 1.5px solid var(--ink); padding: 5mm 5mm 6mm 7mm; }
-
-    /* MAIN */
-    .main { grid-column: 2; padding: 5mm 8mm 6mm 7mm; }
-
-    /* SECTION */
-    .section { margin-bottom: 3.5mm; }
-    .section-title { font-family: var(--serif); font-size: 7pt; font-weight: 600; font-style: italic; color: var(--accent); text-transform: uppercase; letter-spacing: 0.14em; border-bottom: 1px solid var(--accent-light); padding-bottom: 2px; margin-bottom: 2.5mm; }
-
-    /* CONTACT */
-    .contact-list { list-style: none; }
-    .contact-list li { display: flex; align-items: flex-start; gap: 5px; margin-bottom: 2.5px; font-size: 7.4pt; color: var(--ink-light); line-height: 1.5; }
-    .contact-list .label { font-family: var(--serif); font-style: italic; color: var(--ink-muted); min-width: 13mm; font-size: 7pt; flex-shrink: 0; }
-    .contact-list a { color: var(--ink-light); text-decoration: none; word-break: break-all; }
-
-    /* SKILLS */
-    .skill-row { margin-bottom: 3mm; }
-    .skill-domain { font-family: var(--serif); font-size: 7.4pt; font-weight: 600; color: var(--ink); margin-bottom: 1.5mm; }
-    .skill-tags { display: flex; flex-wrap: wrap; gap: 2px; }
-    .tag { background: var(--tag-bg); color: var(--ink-light); font-size: 6.4pt; padding: 1.5px 5px; border-radius: 2px; letter-spacing: 0.02em; border: 0.5px solid var(--rule); font-family: var(--sans); font-weight: 400; }
-    .tag.accent { background: var(--accent-light); color: #7A3A22; border-color: #D4967E; }
-
-    /* EDUCATION */
-    .edu-item { margin-bottom: 3mm; }
-    .edu-school { font-family: var(--serif); font-size: 7.6pt; font-weight: 600; color: var(--ink); margin-bottom: 1px; }
-    .edu-meta { font-size: 7pt; color: var(--ink-muted); line-height: 1.4; }
-    .edu-degree { color: var(--ink-light); font-style: normal; }
-
-    /* SUMMARY */
-    .summary-text { font-family: var(--serif); font-size: 8.6pt; line-height: 1.65; color: var(--ink); font-weight: 400; text-align: justify; hyphens: auto; }
-
-    /* PROJECTS */
-    .project-item { margin-bottom: 3mm; padding-left: 3mm; border-left: 1.5px solid var(--accent-light); position: relative; }
-    .project-item::before { content: ''; position: absolute; left: -3px; top: 4px; width: 5px; height: 5px; background: var(--accent); border-radius: 50%; }
-    .project-header { display: flex; align-items: baseline; gap: 5px; margin-bottom: 1.5mm; flex-wrap: wrap; }
-    .project-name { font-family: var(--serif); font-size: 8.4pt; font-weight: 700; color: var(--ink); }
-    .project-name a { color: inherit; text-decoration: none; }
-    .project-status { font-family: var(--serif); font-style: italic; font-size: 7pt; color: var(--ink-muted); }
-    .project-url { font-size: 7pt; margin-bottom: 1.5mm; }
-    .project-url a { color: var(--accent); text-decoration: none; font-family: var(--sans); letter-spacing: 0.01em; }
-    .project-desc { font-size: 7.8pt; color: var(--ink-light); line-height: 1.6; margin-bottom: 1.5mm; }
-    .project-points { list-style: none; }
-    .project-points li { font-size: 7.6pt; color: var(--ink-light); line-height: 1.6; padding-left: 8px; position: relative; margin-bottom: 1px; }
-    .project-points li::before { content: '—'; position: absolute; left: 0; color: var(--accent-light); font-size: 7pt; }
-    .project-points strong { color: var(--ink); font-weight: 500; }
-    .project-points code { font-family: 'Courier New', Courier, monospace; font-size: 6.6pt; background: var(--tag-bg); color: var(--ink-light); padding: 0 3px; border-radius: 2px; border: 0.5px solid var(--rule); }
-
-    /* WORK EXPERIENCE */
-    .job-item { margin-bottom: 3mm; }
-    .job-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 1mm; }
-    .company-name { font-family: var(--serif); font-size: 9pt; font-weight: 700; color: var(--ink); }
-    .job-period { font-family: var(--serif); font-style: italic; font-size: 7pt; color: var(--ink-muted); white-space: nowrap; }
-    .job-role { font-size: 7.4pt; color: var(--accent); font-weight: 500; margin-bottom: 1.5mm; letter-spacing: 0.02em; }
-    .sub-project { margin-bottom: 2mm; }
-    .sub-project-name { font-family: var(--serif); font-size: 7.8pt; font-weight: 600; color: var(--ink); margin-bottom: 1mm; display: flex; align-items: center; gap: 5px; }
-    .sub-project-name::before { content: ''; display: inline-block; width: 10px; height: 1px; background: var(--accent); flex-shrink: 0; }
-    .sub-points { list-style: none; padding-left: 15px; }
-    .sub-points li { font-size: 7.6pt; color: var(--ink-light); line-height: 1.5; padding-left: 8px; position: relative; margin-bottom: 0; }
-    .sub-points li::before { content: '·'; position: absolute; left: 0; color: var(--accent); font-size: 9pt; line-height: 1.4; }
-
-    /* FOOTER */
-    .page-footer { grid-column: 1 / -1; border-top: 1px solid var(--rule); display: flex; justify-content: space-between; align-items: center; padding: 2mm 8mm; }
-    .footer-note { font-family: var(--serif); font-style: italic; font-size: 6.5pt; color: var(--ink-muted); }
-    .footer-date { font-size: 6.5pt; color: var(--ink-muted); }
-
-    @media print {
-      html { background: none; padding: 0; }
-      body { box-shadow: none; width: 210mm; }
-      @page { size: A4 portrait; margin: 0; }
-    }
+    @page { size: A4 portrait; margin: 15mm 20mm; }
+    body { font-family: sans-serif; font-size: 10pt; line-height: 1.6; color: #1a1a1a; margin: 0; padding: 0; }
+    h1 { font-size: 20pt; margin: 0 0 2mm; }
+    h2 { font-size: 11pt; color: #b85c3a; border-bottom: 1px solid #ddd; padding-bottom: 1mm; margin: 5mm 0 3mm; text-transform: uppercase; letter-spacing: 0.05em; }
+    h3 { font-size: 10pt; margin: 3mm 0 1mm; }
+    .header { text-align: center; margin-bottom: 5mm; }
+    .name-en { font-size: 9pt; color: #666; }
+    .contact { font-size: 8pt; color: #555; margin-top: 2mm; }
+    .contact span { margin: 0 4px; }
+    .summary { margin-bottom: 4mm; }
+    .skill-group { margin-bottom: 2mm; }
+    .skill-group strong { font-size: 9pt; }
+    .tag { display: inline-block; background: #f0efea; border: 0.5px solid #ddd; border-radius: 2px; padding: 1px 5px; font-size: 8pt; margin: 1px 2px; }
+    .tag.accent { background: #e8c4b5; color: #7a3a22; border-color: #d4967e; }
+    .job-header { display: flex; justify-content: space-between; align-items: baseline; }
+    .job-period { font-size: 8pt; color: #888; }
+    .job-role { font-size: 9pt; color: #b85c3a; margin-bottom: 2mm; }
+    .sub-project { margin-left: 4mm; margin-bottom: 2mm; }
+    .sub-project h4 { font-size: 9pt; margin: 0 0 1mm; }
+    ul { margin: 0; padding-left: 5mm; }
+    li { font-size: 9pt; margin-bottom: 1px; }
+    .project { margin-bottom: 3mm; }
+    .project-header { font-weight: bold; }
+    .project-status { font-size: 8pt; color: #888; font-style: italic; }
+    .project-desc { font-size: 9pt; color: #555; margin: 1mm 0; }
+    .edu { margin-bottom: 2mm; }
+    .edu-school { font-weight: bold; }
+    .edu-meta { font-size: 8pt; color: #666; }
+    .footer { text-align: center; font-size: 7pt; color: #aaa; margin-top: 8mm; border-top: 1px solid #eee; padding-top: 2mm; }
+    strong { color: #1a1a1a; }
+    code { font-family: monospace; font-size: 8pt; background: #f0efea; padding: 0 3px; border-radius: 2px; }
   </style>
 </head>
-
 <body>
-  <div class="page">
 
-    <!-- HEADER -->
-    <header class="header">
-      <div class="header-identity">
-        <div class="name-en">{{ resume.name_en }}</div>
-        <div class="name-zh">{{ resume.name_zh }}<span class="name-accent"></span></div>
-      </div>
-      <div class="header-tagline">
-        <div class="role-label">Current Focus</div>
-        <div class="role-title">{{ resume.current_focus }}</div>
-      </div>
-    </header>
-
-    <!-- SIDEBAR -->
-    <aside class="sidebar">
-
-      <!-- Contact -->
-      <section class="section">
-        <div class="section-title">联系方式</div>
-        <ul class="contact-list">
-          <li><span class="label">所在地</span><span>{{ resume.contact.location }}</span></li>
-          <li><span class="label">电话</span><span>{{ resume.contact.phone }}</span></li>
-          <li><span class="label">邮箱</span><a href="mailto:{{ resume.contact.email }}">{{ resume.contact.email }}</a></li>
-          {% if resume.contact.github %}
-          <li><span class="label">GitHub</span><a href="https://github.com/{{ resume.contact.github }}">{{ resume.contact.github }}</a></li>
-          {% endif %}
-          {% if resume.contact.twitter %}
-          <li><span class="label">Twitter/X</span><a href="https://x.com/{{ resume.contact.twitter }}">{{ resume.contact.twitter }}</a></li>
-          {% endif %}
-          {% if resume.contact.youtube %}
-          <li><span class="label">Youtube</span><a href="https://www.youtube.com/@{{ resume.contact.youtube }}">{{ resume.contact.youtube }}</a></li>
-          {% endif %}
-          {% if resume.contact.telegram %}
-          <li><span class="label">Telegram</span><span>{{ resume.contact.telegram }}</span></li>
-          {% endif %}
-          {% if resume.contact.wechat %}
-          <li><span class="label">Wechat</span><span>{{ resume.contact.wechat }}</span></li>
-          {% endif %}
-          {% if resume.contact.linkedin %}
-          <li><span class="label">LinkedIn</span><a href="https://linkedin.com/in/{{ resume.contact.linkedin }}">{{ resume.contact.linkedin }}</a></li>
-          {% endif %}
-        </ul>
-      </section>
-
-      <!-- Skills -->
-      <section class="section">
-        <div class="section-title">核心技能</div>
-        {% for group in resume.skills %}
-        <div class="skill-row">
-          <div class="skill-domain">{{ group.domain }}</div>
-          <div class="skill-tags">
-            {% for item in group.items %}
-            <span class="tag{% if item.accent %} accent{% endif %}">{{ item.name }}</span>
-            {% endfor %}
-          </div>
-        </div>
-        {% endfor %}
-      </section>
-
-      <!-- Education -->
-      <section class="section">
-        <div class="section-title">教育背景</div>
-        {% for edu in resume.education %}
-        <div class="edu-item">
-          <div class="edu-school">{{ edu.school }}</div>
-          <div class="edu-meta">
-            <span class="edu-degree">{{ edu.degree }}</span><br />
-            {{ edu.dates }}
-          </div>
-        </div>
-        {% endfor %}
-      </section>
-
-    </aside>
-
-    <!-- MAIN CONTENT -->
-    <main class="main">
-
-      <!-- Summary -->
-      <section class="section">
-        <div class="section-title">个人总结</div>
-        <p class="summary-text">{{ resume.summary }}</p>
-      </section>
-
-      <!-- Projects -->
-      {% if resume.projects %}
-      <section class="section">
-        <div class="section-title">个人项目</div>
-        {% for proj in resume.projects %}
-        <div class="project-item">
-          <div class="project-header">
-            <div class="project-name">{% if proj.url %}<a href="{{ proj.url }}">{{ proj.name }}</a>{% else %}{{ proj.name }}{% endif %}</div>
-            <div class="project-status">{{ proj.status }}</div>
-          </div>
-          {% if proj.url %}
-          <div class="project-url"><a href="{{ proj.url }}">{{ proj.url }}</a></div>
-          {% endif %}
-          <p class="project-desc">{{ proj.description }}</p>
-          <ul class="project-points">
-            {% for point in proj.points %}
-            <li>{{ point | bold_code }}</li>
-            {% endfor %}
-          </ul>
-        </div>
-        {% endfor %}
-      </section>
-      {% endif %}
-
-      <!-- Work Experience -->
-      <section class="section">
-        <div class="section-title">工作经历</div>
-        {% for job in resume.experience %}
-        <div class="job-item">
-          <div class="job-header">
-            <div class="company-name">{{ job.company }}</div>
-            <div class="job-period">{{ job.dates }}</div>
-          </div>
-          <div class="job-role">{{ job.role }}</div>
-          {% for sp in job.sub_projects %}
-          <div class="sub-project">
-            <div class="sub-project-name">{{ sp.name }}</div>
-            <ul class="sub-points">
-              {% for point in sp.points %}
-              <li>{{ point | bold_code }}</li>
-              {% endfor %}
-            </ul>
-          </div>
-          {% endfor %}
-        </div>
-        {% endfor %}
-      </section>
-
-    </main>
-
-    <!-- FOOTER -->
-    <div class="page-footer">
-      <div class="footer-note">Generated by Resume Studio</div>
-      <div class="footer-date">{{ generated_date }}</div>
+  <div class="header">
+    <div class="name-en">{{ resume.name_en }}</div>
+    <h1>{{ resume.name_zh }}</h1>
+    <div style="font-size:10pt;color:#b85c3a;">{{ resume.current_focus }}</div>
+    <div class="contact">
+      <span>{{ resume.contact.location }}</span> |
+      <span>{{ resume.contact.phone }}</span> |
+      <span>{{ resume.contact.email }}</span>
+      {% if resume.contact.github %} | <span>GitHub: {{ resume.contact.github }}</span>{% endif %}
+      {% if resume.contact.linkedin %} | <span>LinkedIn: {{ resume.contact.linkedin }}</span>{% endif %}
     </div>
-
   </div>
-</body>
 
+  <h2>个人总结</h2>
+  <div class="summary">{{ resume.summary }}</div>
+
+  <h2>核心技能</h2>
+  {% for group in resume.skills %}
+  <div class="skill-group">
+    <strong>{{ group.domain }}：</strong>
+    {% for item in group.items %}
+    <span class="tag{% if item.accent %} accent{% endif %}">{{ item.name }}</span>
+    {% endfor %}
+  </div>
+  {% endfor %}
+
+  {% if resume.projects %}
+  <h2>个人项目</h2>
+  {% for proj in resume.projects %}
+  <div class="project">
+    <span class="project-header">{{ proj.name }}</span>
+    <span class="project-status"> — {{ proj.status }}</span>
+    {% if proj.url %}<span style="font-size:8pt;"> ({{ proj.url }})</span>{% endif %}
+    <div class="project-desc">{{ proj.description }}</div>
+    <ul>
+      {% for point in proj.points %}
+      <li>{{ point | bold_code }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  <h2>工作经历</h2>
+  {% for job in resume.experience %}
+  <div style="margin-bottom:4mm;">
+    <div class="job-header">
+      <h3 style="margin:0;">{{ job.company }}</h3>
+      <span class="job-period">{{ job.dates }}</span>
+    </div>
+    <div class="job-role">{{ job.role }}</div>
+    {% for sp in job.sub_projects %}
+    <div class="sub-project">
+      <h4>{{ sp.name }}</h4>
+      <ul>
+        {% for point in sp.points %}
+        <li>{{ point | bold_code }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+
+  <h2>教育背景</h2>
+  {% for edu in resume.education %}
+  <div class="edu">
+    <span class="edu-school">{{ edu.school }}</span>
+    <span class="edu-meta"> — {{ edu.degree }} | {{ edu.dates }}</span>
+  </div>
+  {% endfor %}
+
+  <div class="footer">Generated by Resume Studio | {{ generated_date }}</div>
+
+</body>
 </html>
