@@ -20,6 +20,7 @@ async def generate_resume_pdf(resume_json: str, config: RunnableConfig) -> str:
 
     Args:
         resume_json: A JSON string conforming to the resume data schema.
+        config: LangGraph runnable config (injected automatically).
 
     Returns:
         A message containing the download URL for the generated PDF.
