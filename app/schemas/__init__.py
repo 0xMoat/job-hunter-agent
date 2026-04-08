@@ -10,6 +10,7 @@ from app.schemas.chat import (
     ToolCallRecord,
 )
 from app.schemas.graph import GraphState
+from app.schemas.resume import ResumeData
 
 __all__ = [
     "Token",
@@ -20,4 +21,5 @@ __all__ = [
     "StreamResponse",
     "ToolCallRecord",
     "GraphState",
+    "ResumeData",
 ]
