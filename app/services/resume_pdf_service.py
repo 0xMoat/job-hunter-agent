@@ -68,14 +68,17 @@ class ResumePDFService:
         # Use weasyprint CLI from the venv to avoid uvloop deadlocks.
         weasyprint_bin = str(Path(__file__).parent.parent.parent / ".venv" / "bin" / "weasyprint")
 
-        # Clean env: explicitly disable all proxies to prevent weasyprint
-        # network timeouts when system proxy (e.g. 127.0.0.1:7890) is active.
+        # Explicitly override system proxy to prevent weasyprint network timeouts.
+        # macOS system proxy (CFNetwork) is inherited by child processes; setting
+        # env vars to empty string forces libcurl/urllib to bypass it.
         import os
 
         clean_env = dict(os.environ)
-        for key in list(clean_env):
-            if key.lower() in ("http_proxy", "https_proxy", "all_proxy", "no_proxy"):
-                del clean_env[key]
+        clean_env["http_proxy"] = ""
+        clean_env["https_proxy"] = ""
+        clean_env["HTTP_PROXY"] = ""
+        clean_env["HTTPS_PROXY"] = ""
+        clean_env["ALL_PROXY"] = ""
         clean_env["no_proxy"] = "*"
 
         result = subprocess.run(
