@@ -98,8 +98,4 @@ async def generate_resume_pdf(resume_json: str | dict, config: RunnableConfig) -
     user_id = config.get("configurable", {}).get("user_id")
     logger.info("resume_pdf_tool_success", user_id=user_id)
 
-    return (
-        f"Resume PDF generated successfully!\n"
-        f"Download link: {download_url}\n"
-        f"This link expires in 10 minutes."
-    )
+    return f"Resume PDF generated successfully! {download_url}"
