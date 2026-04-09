@@ -83,10 +83,10 @@ export function useChat({
         timestamp: new Date(),
       }
 
-      const apiMessages = [...messages, userMsg].map((m) => ({
-        role: m.role,
-        content: m.textContent || "(tool interaction)",
-      }))
+      // Only send the new user message — LangGraph's checkpointer already
+      // holds the full conversation history.  Sending all messages would cause
+      // add_messages to re-append duplicates to the checkpoint state.
+      const apiMessages = [{ role: "user" as const, content: userText.trim() }]
 
       setMessages((prev) => [...prev, userMsg])
 

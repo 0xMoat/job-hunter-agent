@@ -23,8 +23,8 @@ async def download_resume_pdf(request: Request, token: str):
     """
     try:
         payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
-    except JWTError:
-        logger.warning("resume_pdf_download_invalid_token")
+    except JWTError as e:
+        logger.warning("resume_pdf_download_invalid_token", error=str(e), token_len=len(token), token_tail=token[-20:])
         raise HTTPException(status_code=401, detail="Invalid or expired download link")
 
     filepath = payload.get("file", "")

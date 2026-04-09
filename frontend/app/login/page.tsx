@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState, useCallback } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { apiGoogleLogin, apiCreateSession } from "@/lib/api"
 import {
@@ -28,45 +28,56 @@ export default function LoginPage() {
     }
   }, [router])
 
-  const handleCredential = useCallback(
-    async (credential: string) => {
-      setError("")
-      setLoading(true)
-      try {
-        const data = await apiGoogleLogin(credential)
-        setAccessToken(data.token.access_token)
-        setUser(data.user)
+  // Use a ref so the GSI callback always calls the latest version
+  // without re-triggering the effect that loads the script.
+  const handleCredentialRef = useRef<(c: string) => Promise<void>>(null!)
 
-        const session = await apiCreateSession(data.token.access_token)
-        setSessionToken(session.token.access_token)
-        setSessionId(session.session_id)
-        router.push("/chat")
-      } catch (err) {
-        setError(err instanceof Error ? err.message : String(t("login_error")))
-      } finally {
-        setLoading(false)
-      }
-    },
-    [router, t],
-  )
+  handleCredentialRef.current = async (credential: string) => {
+    setError("")
+    setLoading(true)
+    try {
+      const data = await apiGoogleLogin(credential)
+      setAccessToken(data.token.access_token)
+      setUser(data.user)
+
+      const session = await apiCreateSession(data.token.access_token)
+      setSessionToken(session.token.access_token)
+      setSessionId(session.session_id)
+      router.push("/chat")
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(t("login_error")))
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
+    const g = (window as any).google
+    if (g?.accounts) {
+      initGsi(g)
+      return () => { g.accounts.id.cancel() }
+    }
+
     const script = document.createElement("script")
     script.src = "https://accounts.google.com/gsi/client"
     script.async = true
     script.onload = () => {
       const google = (window as any).google
-      if (!google) return
+      if (google) initGsi(google)
+    }
+    document.head.appendChild(script)
 
+    function initGsi(google: any) {
       google.accounts.id.initialize({
         client_id: GOOGLE_CLIENT_ID,
         callback: (response: any) => {
-          handleCredential(response.credential)
+          handleCredentialRef.current(response.credential)
         },
+        cancel_on_tap_outside: true,
       })
 
-      // Render the button
       if (googleBtnRef.current) {
+        googleBtnRef.current.innerHTML = ""
         google.accounts.id.renderButton(googleBtnRef.current, {
           theme: "outline",
           size: "large",
@@ -76,15 +87,14 @@ export default function LoginPage() {
         })
       }
 
-      // Trigger One Tap
       google.accounts.id.prompt()
     }
-    document.head.appendChild(script)
 
     return () => {
+      (window as any).google?.accounts?.id?.cancel()
       script.remove()
     }
-  }, [handleCredential])
+  }, [])
 
   return (
     <div className="min-h-screen flex items-center justify-center">

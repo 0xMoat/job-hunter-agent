@@ -102,7 +102,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [sessions, currentSessionId])
 
   const renameSession = useCallback((id: string, name: string) => {
     setSessions((prev) =>

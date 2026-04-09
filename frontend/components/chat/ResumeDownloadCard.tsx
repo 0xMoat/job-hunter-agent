@@ -15,7 +15,7 @@ function parseDownloadUrl(entry: ToolCallEntry): string | null {
 
 export function ResumeDownloadCard({ entry }: Props) {
   const downloadUrl = parseDownloadUrl(entry)
-  const [status, setStatus] = useState<"idle" | "downloading" | "done">("idle")
+  const [status, setStatus] = useState<"idle" | "downloading" | "done" | "error">("idle")
 
   if (!downloadUrl) {
     return (
@@ -32,7 +32,7 @@ export function ResumeDownloadCard({ entry }: Props) {
   const handleDownload = async () => {
     setStatus("downloading")
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? ""
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
       const res = await fetch(`${baseUrl}${downloadUrl}`)
       if (!res.ok) throw new Error("Download failed")
       const blob = await res.blob()
@@ -46,7 +46,7 @@ export function ResumeDownloadCard({ entry }: Props) {
       URL.revokeObjectURL(url)
       setStatus("done")
     } catch {
-      setStatus("idle")
+      setStatus("error")
     }
   }
 
@@ -60,6 +60,8 @@ export function ResumeDownloadCard({ entry }: Props) {
         </div>
         {status === "done" ? (
           <span className="font-body text-xs font-semibold text-green-600">已下载 ✓</span>
+        ) : status === "error" ? (
+          <span className="font-body text-xs font-semibold text-red-500">链接已失效</span>
         ) : (
           <button
             onClick={handleDownload}
