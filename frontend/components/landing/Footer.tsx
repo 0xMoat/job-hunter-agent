@@ -27,6 +27,14 @@ export default function Footer() {
           >
             GitHub
           </a>
+          <a
+            href="https://github.com/0xMoat/job-hunter-agent/issues"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-body text-sm text-[var(--text-3)] hover:text-[var(--text-2)] transition-colors"
+          >
+            {t("lp_footer_feedback")}
+          </a>
           <Link
             href="/privacy"
             className="font-body text-sm text-[var(--text-3)] hover:text-[var(--text-2)] transition-colors"

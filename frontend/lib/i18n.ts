@@ -172,6 +172,7 @@ const zh: Dict = {
   lp_cta_github: '在 GitHub 上查看源码',
   // Landing page — Footer
   lp_footer_privacy: '隐私政策',
+  lp_footer_feedback: '反馈问题',
 }
 
 const en: Dict = {
@@ -340,6 +341,7 @@ const en: Dict = {
   lp_cta_github: 'View Source on GitHub',
   // Landing page — Footer
   lp_footer_privacy: 'Privacy Policy',
+  lp_footer_feedback: 'Feedback',
 }
 
 const dicts: Record<Locale, Dict> = { 'zh-CN': zh, en }
