@@ -1,33 +1,23 @@
 "use client"
 
-const steps = [
-  {
-    number: "1",
-    title: "告诉 AI 你的背景",
-    description: "通过自然对话输入你的技能、经验和求职偏好",
-  },
-  {
-    number: "2",
-    title: "AI 搜索 + 精准匹配",
-    description:
-      "从 LinkedIn、BOSS直聘等平台自动搜索并推荐最适合你的职位",
-  },
-  {
-    number: "3",
-    title: "一键投递 + 全程追踪",
-    description:
-      "定制简历、撰写求职信，用看板管理每一个申请进度",
-  },
-]
+import { useLanguage } from "@/contexts/LanguageContext"
 
 export default function HowItWorks() {
+  const { t } = useLanguage()
+
+  const steps = [
+    { number: "1", title: t("lp_how_step1_title"), description: t("lp_how_step1_desc") },
+    { number: "2", title: t("lp_how_step2_title"), description: t("lp_how_step2_desc") },
+    { number: "3", title: t("lp_how_step3_title"), description: t("lp_how_step3_desc") },
+  ]
+
   return (
     <section className="py-28 md:py-36">
       <div className="mx-auto max-w-6xl px-6">
         {/* Section heading */}
         <h2 className="font-heading text-3xl md:text-4xl tracking-tight text-[var(--text)] mb-20 md:mb-28">
-          三步开始你的{" "}
-          <span className="italic">AI 求职之旅</span>
+          {t("lp_how_title_1")}{" "}
+          <span className="italic">{t("lp_how_title_2")}</span>
         </h2>
 
         {/* Steps grid */}

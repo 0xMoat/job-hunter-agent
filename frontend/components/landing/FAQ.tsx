@@ -1,29 +1,7 @@
 "use client"
 
 import { useState } from "react"
-
-const faqItems = [
-  {
-    q: "这个产品免费吗？",
-    a: "是的，目前完全免费使用。我们提供 AI 职位搜索、公司调研、简历定制和申请追踪等全部功能。",
-  },
-  {
-    q: "我的数据安全吗？",
-    a: "你的数据存储在加密的数据库中，我们不会与第三方共享你的个人信息。你可以随时删除你的账户和所有相关数据。",
-  },
-  {
-    q: "支持哪些招聘平台？",
-    a: "目前支持搜索 LinkedIn、Indeed、BOSS直聘、拉勾网等主流平台的职位信息。",
-  },
-  {
-    q: "和直接用 ChatGPT 有什么区别？",
-    a: "Job Hunter Agent 专为求职场景设计，具备长期记忆、职位搜索工具、简历定制和申请追踪等专业功能，不需要每次重复描述你的背景。",
-  },
-  {
-    q: "支持英文求职吗？",
-    a: "支持！AI 可以用中文或英文与你对话，搜索全球职位，并用相应语言生成求职信和简历。",
-  },
-]
+import { useLanguage } from "@/contexts/LanguageContext"
 
 function ChevronIcon({ open }: { open: boolean }) {
   return (
@@ -47,6 +25,15 @@ function ChevronIcon({ open }: { open: boolean }) {
 
 export default function FAQ() {
   const [openSet, setOpenSet] = useState<Set<number>>(new Set())
+  const { t } = useLanguage()
+
+  const faqItems = [
+    { q: t("lp_faq_01_q"), a: t("lp_faq_01_a") },
+    { q: t("lp_faq_02_q"), a: t("lp_faq_02_a") },
+    { q: t("lp_faq_03_q"), a: t("lp_faq_03_a") },
+    { q: t("lp_faq_04_q"), a: t("lp_faq_04_a") },
+    { q: t("lp_faq_05_q"), a: t("lp_faq_05_a") },
+  ]
 
   function toggle(index: number) {
     setOpenSet((prev) => {
@@ -64,7 +51,7 @@ export default function FAQ() {
     <section id="faq" className="w-full max-w-6xl mx-auto px-6 sm:px-8 lg:px-12 py-20 lg:py-28">
       <div className="max-w-2xl">
         <h2 className="font-heading italic text-[var(--text)] text-3xl sm:text-4xl lg:text-5xl tracking-tight mb-12 lg:mb-16">
-          常见问题
+          {t("lp_faq_title")}
         </h2>
 
         <div className="flex flex-col">

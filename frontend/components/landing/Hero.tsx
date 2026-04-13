@@ -3,6 +3,7 @@
 import { useEffect } from "react"
 import Link from "next/link"
 import { CardContainer, CardBody, CardItem } from "@/components/ui/3d-card"
+import { useLanguage } from "@/contexts/LanguageContext"
 
 /* ── Inject keyframes via useEffect (Next.js strips inline <style> on hydration) ── */
 const HERO_CSS_ID = "hero-css"
@@ -35,8 +36,8 @@ function useHeroCss() {
 }
 
 /* ── Job search result row ── */
-function JobRow({ title, company, location, match, color, delay }: {
-  title: string; company: string; location: string; match: number; color: string; delay: string
+function JobRow({ title, company, location, match, color, delay, matchLabel }: {
+  title: string; company: string; location: string; match: number; color: string; delay: string; matchLabel: string
 }) {
   return (
     <div
@@ -48,7 +49,7 @@ function JobRow({ title, company, location, match, color, delay }: {
         <div className="font-body text-xs text-[var(--text-3)]">{company}·{location}</div>
       </div>
       <span className={`font-body text-xs font-semibold italic ${color}`}>
-        {match}% 匹配
+        {match}% {matchLabel}
       </span>
     </div>
   )
@@ -56,13 +57,16 @@ function JobRow({ title, company, location, match, color, delay }: {
 
 /* ── Rich product demo mockup ── */
 function MockChat() {
+  const { locale } = useLanguage()
+  const isZh = locale === "zh-CN"
+
   return (
     <div className="flex flex-col gap-3 p-5 text-[var(--text)]">
       {/* Header */}
       <div className="flex items-center gap-2 pb-3 border-b border-[var(--border)]">
         <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]" />
         <span className="font-body text-xs font-medium text-[var(--text-2)] tracking-wide">
-          AI Agent 在线
+          {isZh ? "AI Agent 在线" : "AI Agent Online"}
         </span>
         <span className="ml-auto font-body text-xs text-[var(--text-3)] tracking-wide">
           Job Hunter Agent
@@ -72,7 +76,7 @@ function MockChat() {
       {/* User message 1 */}
       <div className="flex justify-end">
         <div className="bg-[var(--accent)] text-[var(--accent-fg)] rounded-2xl rounded-br-sm px-4 py-2.5 text-sm font-body font-light max-w-[80%]">
-          帮我找上海的 AI 产品经理岗位
+          {isZh ? "帮我找上海的 AI 产品经理岗位" : "Find AI PM roles in Shanghai"}
         </div>
       </div>
 
@@ -88,11 +92,31 @@ function MockChat() {
               Job Search
             </span>
           </div>
-          <span className="font-body text-[10px] text-[var(--text-3)]">12 results</span>
+          <span className="font-body text-[10px] text-[var(--text-3)]">
+            {isZh ? "12 个结果" : "12 results"}
+          </span>
         </div>
-        <JobRow title="AI 产品经理" company="字节跳动" location="上海" match={95} color="text-emerald-600" delay="0.5s" />
-        <JobRow title="高级产品经理 - AI" company="阿里巴巴" location="上海" match={88} color="text-orange-500" delay="0.65s" />
-        <JobRow title="AI Product Lead" company="Moonshot AI" location="上海" match={82} color="text-orange-500" delay="0.8s" />
+        <JobRow
+          title={isZh ? "AI 产品经理" : "AI Product Manager"}
+          company={isZh ? "字节跳动" : "ByteDance"}
+          location={isZh ? "上海" : "Shanghai"}
+          match={95} color="text-emerald-600" delay="0.5s"
+          matchLabel={isZh ? "匹配" : "Match"}
+        />
+        <JobRow
+          title={isZh ? "高级产品经理 - AI" : "Senior PM - AI"}
+          company={isZh ? "阿里巴巴" : "Alibaba"}
+          location={isZh ? "上海" : "Shanghai"}
+          match={88} color="text-orange-500" delay="0.65s"
+          matchLabel={isZh ? "匹配" : "Match"}
+        />
+        <JobRow
+          title="AI Product Lead"
+          company="Moonshot AI"
+          location={isZh ? "上海" : "Shanghai"}
+          match={82} color="text-orange-500" delay="0.8s"
+          matchLabel={isZh ? "匹配" : "Match"}
+        />
       </div>
 
       {/* Assistant message */}
@@ -101,7 +125,11 @@ function MockChat() {
           className="bg-[var(--surface)] text-[var(--text)] rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm font-body font-light max-w-[85%] leading-relaxed border border-[var(--border)]"
           style={{ animation: "fade-rise 0.5s ease-out 0.9s both" }}
         >
-          找到 <span className="font-semibold">12 个</span>匹配岗位。字节跳动的匹配度最高，需要我帮你定制简历吗？
+          {isZh ? (
+            <>找到 <span className="font-semibold">12 个</span>匹配岗位。字节跳动的匹配度最高，需要我帮你定制简历吗？</>
+          ) : (
+            <>Found <span className="font-semibold">12</span> matching roles. ByteDance is the best match — want me to tailor your resume?</>
+          )}
         </div>
       </div>
 
@@ -111,7 +139,7 @@ function MockChat() {
         style={{ animation: "fade-rise 0.5s ease-out 1.2s both" }}
       >
         <div className="bg-[var(--accent)] text-[var(--accent-fg)] rounded-2xl rounded-br-sm px-4 py-2.5 text-sm font-body font-light max-w-[80%]">
-          好的，定制简历
+          {isZh ? "好的，定制简历" : "Yes, tailor my resume"}
         </div>
       </div>
 
@@ -127,7 +155,9 @@ function MockChat() {
               Resume Studio
             </span>
           </div>
-          <span className="font-body text-[10px] text-[var(--text-3)] animate-pulse">正在生成...</span>
+          <span className="font-body text-[10px] text-[var(--text-3)] animate-pulse">
+            {isZh ? "正在生成..." : "Generating..."}
+          </span>
         </div>
         <div className="flex items-center gap-3">
           <div className="w-10 h-12 rounded bg-[var(--bg)] border border-[var(--border)] flex flex-col items-start justify-center px-1.5 gap-1 flex-shrink-0">
@@ -137,8 +167,12 @@ function MockChat() {
             <div className="w-full h-[2px] bg-blue-400 rounded-full" />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="font-body text-sm font-semibold text-[var(--text)]">AI 产品经理 - 字节跳动</div>
-            <div className="font-body text-xs text-[var(--text-3)] mt-0.5">已匹配 6 项技能关键词，优化 3 段经历描述</div>
+            <div className="font-body text-sm font-semibold text-[var(--text)]">
+              {isZh ? "AI 产品经理 - 字节跳动" : "AI Product Manager - ByteDance"}
+            </div>
+            <div className="font-body text-xs text-[var(--text-3)] mt-0.5">
+              {isZh ? "已匹配 6 项技能关键词，优化 3 段经历描述" : "6 skills matched, 3 experience entries optimized"}
+            </div>
             <div className="mt-2 h-1.5 bg-[var(--border)] rounded-full overflow-hidden">
               <div
                 className="h-full bg-blue-500 rounded-full"
@@ -155,6 +189,7 @@ function MockChat() {
 /* ── Hero Section ── */
 export default function Hero() {
   useHeroCss()
+  const { t } = useLanguage()
 
   return (
     <section className="relative min-h-screen flex items-center overflow-hidden">
@@ -180,13 +215,13 @@ export default function Hero() {
               className="animate-fade-rise font-heading italic font-bold text-[var(--text)] leading-[1.1] tracking-tight"
               style={{ fontSize: "clamp(2.5rem, 5vw, 4rem)" }}
             >
-              你的 AI 求职搭档，
+              {t("lp_hero_title_1")}
               <br />
-              从搜索到 Offer 全程陪跑
+              {t("lp_hero_title_2")}
             </h1>
 
             <p className="animate-fade-rise-d1 font-body text-[var(--text-2)] text-lg sm:text-xl font-light leading-relaxed">
-              AI 驱动的一站式求职平台 — 智能搜索职位、研究公司、定制简历、追踪申请进度
+              {t("lp_hero_sub")}
             </p>
 
             <div className="animate-fade-rise-d2 flex flex-wrap items-center gap-4">
@@ -194,13 +229,13 @@ export default function Hero() {
                 href="/login"
                 className="inline-flex items-center justify-center rounded-full bg-[var(--accent)] text-[var(--accent-fg)] font-body font-medium text-base px-8 py-3.5 transition-all hover:opacity-85 hover:scale-[1.03] active:opacity-75"
               >
-                免费开始使用
+                {t("lp_hero_cta")}
               </Link>
               <a
                 href="#features"
                 className="font-body text-[var(--text-2)] text-base font-medium underline underline-offset-4 decoration-[var(--text-3)] hover:text-[var(--text)] transition-colors"
               >
-                了解更多
+                {t("lp_hero_learn_more")}
               </a>
             </div>
 
@@ -209,7 +244,7 @@ export default function Hero() {
                 Powered by
               </span>
               <div className="flex items-center gap-2.5">
-                {["DeepSeek", "LangGraph", "mem0"].map((name) => (
+                {["Claude", "LangGraph", "mem0"].map((name) => (
                   <span
                     key={name}
                     className="font-body text-xs font-medium text-[var(--text-2)] bg-[var(--text)]/[0.04] rounded-full px-3 py-1"

@@ -1,8 +1,11 @@
 "use client"
 
 import Link from "next/link"
+import { useLanguage } from "@/contexts/LanguageContext"
 
 export default function Footer() {
+  const { t } = useLanguage()
+
   return (
     <footer className="w-full max-w-6xl mx-auto px-6 sm:px-8 lg:px-12">
       <div className="border-t border-[var(--border)] py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -28,7 +31,7 @@ export default function Footer() {
             href="/privacy"
             className="font-body text-sm text-[var(--text-3)] hover:text-[var(--text-2)] transition-colors"
           >
-            隐私政策
+            {t("lp_footer_privacy")}
           </Link>
         </nav>
       </div>

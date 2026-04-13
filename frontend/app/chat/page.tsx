@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, Suspense } from "react"
+import { useState, useEffect, useRef, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { isAuthenticated, clearAuth, getAccessToken, getUser } from "@/lib/auth"
 import { ChatPanel } from "@/components/chat/ChatPanel"
@@ -25,7 +25,19 @@ function ChatPageInner() {
   const [streaming, setStreaming] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [kanbanRefreshKey, setKanbanRefreshKey] = useState(0)
+  const [showUserMenu, setShowUserMenu] = useState(false)
+  const userMenuRef = useRef<HTMLDivElement>(null)
   const user = getUser()
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setShowUserMenu(false)
+      }
+    }
+    if (showUserMenu) document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [showUserMenu])
 
   useEffect(() => {
     if (!isAuthenticated()) {
@@ -52,7 +64,7 @@ function ChatPageInner() {
       {/* Navbar */}
       <div className="px-4 pt-3 pb-2 flex-shrink-0">
         <nav className="glass rounded-full px-5 py-2.5 flex items-center justify-between">
-          <span className="font-heading italic text-lg tracking-tight text-[var(--text)]">
+          <span className="flex-1 font-heading italic text-lg tracking-tight text-[var(--text)]">
             Job Hunter ✦
           </span>
           <div role="tablist" className="flex items-center gap-1">
@@ -75,45 +87,52 @@ function ChatPageInner() {
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex-1 flex items-center justify-end gap-2">
             <button
               onClick={() => setLocale(locale === 'zh-CN' ? 'en' : 'zh-CN')}
               aria-label="Switch language"
               className="text-xs font-body font-medium text-[var(--text-3)]
                          hover:text-[var(--text-2)] px-3 py-1.5 rounded-full
-                         hover:bg-black/5 transition-colors tracking-wide"
+                         hover:bg-black/5 transition-colors tracking-wide cursor-pointer"
             >
               {t('lang_toggle')}
             </button>
-            <button
-              onClick={() => setShowSettings(true)}
-              aria-label={t('settings_aria') as string}
-              className="w-8 h-8 flex items-center justify-center rounded-full
-                         text-[var(--text-3)] hover:text-[var(--text-2)]
-                         hover:bg-black/5 transition-colors text-base"
-            >
-              ⚙
-            </button>
-            {user?.avatar_url && (
-              <img
-                src={user.avatar_url}
-                alt=""
-                className="w-7 h-7 rounded-full"
-                referrerPolicy="no-referrer"
-              />
-            )}
-            {user?.name && (
-              <span className="text-xs font-body font-medium text-[var(--text-2)] max-w-[80px] truncate">
-                {user.name}
-              </span>
-            )}
-            <button
-              onClick={handleLogout}
-              className="text-xs font-body text-[var(--text-3)] hover:text-[var(--text-2)]
-                         px-3 py-1.5 rounded-full hover:bg-black/5 transition-colors"
-            >
-              {t('logout')}
-            </button>
+            <div ref={userMenuRef} className="relative">
+              <button
+                onClick={() => setShowUserMenu((v) => !v)}
+                className="flex items-center gap-2 rounded-full px-2 py-1 hover:bg-black/5 transition-colors cursor-pointer"
+              >
+                {user?.avatar_url && (
+                  <img
+                    src={user.avatar_url}
+                    alt=""
+                    className="w-7 h-7 rounded-full"
+                    referrerPolicy="no-referrer"
+                  />
+                )}
+                {user?.name && (
+                  <span className="text-xs font-body font-medium text-[var(--text-2)] max-w-[100px] truncate">
+                    {user.name}
+                  </span>
+                )}
+              </button>
+              {showUserMenu && (
+                <div className="absolute right-0 top-full mt-2 w-36 bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-lg py-1 z-50">
+                  <button
+                    onClick={() => { setShowSettings(true); setShowUserMenu(false) }}
+                    className="w-full text-left px-4 py-2 text-sm font-body text-[var(--text-2)] hover:bg-black/5 transition-colors cursor-pointer"
+                  >
+                    {t('settings_title')}
+                  </button>
+                  <button
+                    onClick={() => { handleLogout(); setShowUserMenu(false) }}
+                    className="w-full text-left px-4 py-2 text-sm font-body text-[var(--text-2)] hover:bg-black/5 transition-colors cursor-pointer"
+                  >
+                    {t('logout')}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </nav>
       </div>

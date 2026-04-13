@@ -155,7 +155,7 @@ export default function Testimonials() {
 
       <div className="mx-auto max-w-6xl px-6 sm:px-8 lg:px-12 mb-12 md:mb-16">
         <h2 className="font-heading italic text-3xl sm:text-4xl md:text-5xl tracking-tight text-[var(--text)]">
-          {locale === "zh-CN" ? "用户怎么说" : "What Our Users Say"}
+          {t("lp_testimonials_title")}
         </h2>
       </div>
 

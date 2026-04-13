@@ -1,21 +1,16 @@
 "use client"
 
-const bullets = [
-  {
-    highlight: "不用每次重复介绍自己",
-    detail: "你的背景、技能和偏好被安全存储",
-  },
-  {
-    highlight: "个性化推荐越来越精准",
-    detail: "AI 从每次互动中学习你的偏好",
-  },
-  {
-    highlight: "无缝衔接每次对话",
-    detail: "打开新会话，AI 依然记得你是谁",
-  },
-]
+import { useLanguage } from "@/contexts/LanguageContext"
 
 export default function Memory() {
+  const { t } = useLanguage()
+
+  const bullets = [
+    { highlight: t("lp_mem_01_highlight"), detail: t("lp_mem_01_detail") },
+    { highlight: t("lp_mem_02_highlight"), detail: t("lp_mem_02_detail") },
+    { highlight: t("lp_mem_03_highlight"), detail: t("lp_mem_03_detail") },
+  ]
+
   return (
     <section className="py-28 md:py-36">
       <div className="mx-auto max-w-6xl px-6">
@@ -33,12 +28,12 @@ export default function Memory() {
           <div className="relative z-10 max-w-2xl">
             {/* Heading */}
             <h2 className="font-heading italic text-3xl md:text-5xl tracking-tight leading-tight mb-4">
-              AI 记住你的一切偏好
+              {t("lp_mem_title")}
             </h2>
 
             {/* Subtext */}
             <p className="font-body text-base md:text-lg mb-14 md:mb-20" style={{ color: "rgba(239,236,230,0.55)" }}>
-              跨会话长期记忆，越用越懂你
+              {t("lp_mem_sub")}
             </p>
 
             {/* Bullet points */}

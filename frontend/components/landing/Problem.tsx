@@ -1,39 +1,26 @@
 "use client"
 
 import { useEffect, useRef } from "react"
-
-const painPoints = [
-  {
-    number: "01",
-    title: "海投 100 份简历，回复寥寥",
-    description:
-      "精心打磨的简历石沉大海，投递数量上去了，质量却跟不上。没有针对性的投递策略，再多努力也是无用功。",
-  },
-  {
-    number: "02",
-    title: "每家公司都要定制简历，太费时间",
-    description:
-      "逐字修改经历描述、调整关键词、重新排版——一份简历就要花掉一个晚上。重复劳动消磨的不只是时间，还有信心。",
-  },
-  {
-    number: "03",
-    title: "投了哪些公司？进度到哪了？全凭记忆",
-    description:
-      "Excel 记了一半就忘了更新，面试时间和公司名字开始混淆。当机会越多，管理混乱带来的代价也越大。",
-  },
-]
+import { useLanguage } from "@/contexts/LanguageContext"
 
 /* ── Mini Visualization: Data Comparison (Pain Point 01) ── */
 function MiniComparison() {
+  const { locale } = useLanguage()
+  const isZh = locale === "zh-CN"
+
   return (
     <div className="w-full max-w-[400px] glass rounded-xl p-4 font-body text-sm">
       <div className="flex items-center gap-2 mb-3">
         <span className="w-1.5 h-1.5 rounded-full bg-[--accent]" />
-        <span className="text-[10px] font-semibold text-[--text-2] uppercase tracking-widest">投递回复率</span>
+        <span className="text-[10px] font-semibold text-[--text-2] uppercase tracking-widest">
+          {isZh ? "投递回复率" : "Reply Rate"}
+        </span>
       </div>
       {/* Sent */}
       <div className="flex items-center gap-3 mb-2">
-        <span className="text-[--text-2] w-12 text-right shrink-0 text-xs">投递</span>
+        <span className="text-[--text-2] w-12 text-right shrink-0 text-xs">
+          {isZh ? "投递" : "Sent"}
+        </span>
         <div className="flex-1 h-5 rounded bg-[--border]">
           <div className="h-full rounded bg-[--text-3]" style={{ width: "100%" }} />
         </div>
@@ -41,14 +28,16 @@ function MiniComparison() {
       </div>
       {/* Replies */}
       <div className="flex items-center gap-3">
-        <span className="text-[--text-2] w-12 text-right shrink-0 text-xs">回复</span>
+        <span className="text-[--text-2] w-12 text-right shrink-0 text-xs">
+          {isZh ? "回复" : "Replies"}
+        </span>
         <div className="flex-1 h-5 rounded bg-[--border]">
           <div className="h-full rounded bg-red-400" style={{ width: "3%" }} />
         </div>
         <span className="text-[--text] font-semibold w-10 tabular-nums text-right">3</span>
       </div>
       <p className="text-red-400 text-xs font-medium mt-2.5 text-right">
-        回复率不足 3%
+        {isZh ? "回复率不足 3%" : "Reply rate under 3%"}
       </p>
     </div>
   )
@@ -56,11 +45,14 @@ function MiniComparison() {
 
 /* ── Mini Visualization: Time Bars (Pain Point 02) ── */
 function MiniTimeBars() {
+  const { locale } = useLanguage()
+  const isZh = locale === "zh-CN"
+
   const items = [
-    { label: "简历 A", hours: 2.0 },
-    { label: "简历 B", hours: 1.5 },
-    { label: "简历 C", hours: 2.5 },
-    { label: "简历 D", hours: 1.0 },
+    { label: isZh ? "简历 A" : "Resume A", hours: 2.0 },
+    { label: isZh ? "简历 B" : "Resume B", hours: 1.5 },
+    { label: isZh ? "简历 C" : "Resume C", hours: 2.5 },
+    { label: isZh ? "简历 D" : "Resume D", hours: 1.0 },
   ]
   const maxHours = Math.max(...items.map((i) => i.hours))
   const totalHours = items.reduce((s, i) => s + i.hours, 0)
@@ -69,7 +61,9 @@ function MiniTimeBars() {
     <div className="w-full max-w-[400px] glass rounded-xl p-4 font-body text-sm">
       <div className="flex items-center gap-2 mb-3">
         <span className="w-1.5 h-1.5 rounded-full bg-[--accent]" />
-        <span className="text-[10px] font-semibold text-[--text-2] uppercase tracking-widest">定制耗时</span>
+        <span className="text-[10px] font-semibold text-[--text-2] uppercase tracking-widest">
+          {isZh ? "定制耗时" : "Customization Time"}
+        </span>
       </div>
       <div className="space-y-1.5">
         {items.map((item) => (
@@ -86,8 +80,12 @@ function MiniTimeBars() {
         ))}
       </div>
       <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-[--border]">
-        <span className="text-[--text-3] text-xs">{items.length} 份简历</span>
-        <span className="text-amber-500 text-xs font-semibold">= {totalHours} 小时</span>
+        <span className="text-[--text-3] text-xs">
+          {isZh ? `${items.length} 份简历` : `${items.length} resumes`}
+        </span>
+        <span className="text-amber-500 text-xs font-semibold">
+          = {totalHours} {isZh ? "小时" : "hours"}
+        </span>
       </div>
     </div>
   )
@@ -95,27 +93,49 @@ function MiniTimeBars() {
 
 /* ── Mini Visualization: Status Tracker (Pain Point 03) ── */
 function MiniTracker() {
-  const rows = [
-    { company: "字节跳动", stages: ["green", "green", "unknown"] },
-    { company: "阿里巴巴", stages: ["green", "unknown", "unknown"] },
-    { company: "腾讯", stages: ["green", "gray", "gray"] },
-    { company: "美团", stages: ["green", "green", "unknown"] },
-    { company: "小红书", stages: ["green", "unknown", "unknown"] },
-    { company: "拼多多", stages: ["unknown", "unknown", "unknown"] },
-  ] as const
+  const { locale } = useLanguage()
+  const isZh = locale === "zh-CN"
+
+  const rows = isZh
+    ? [
+        { company: "字节跳动", stages: ["green", "green", "unknown"] as const },
+        { company: "阿里巴巴", stages: ["green", "unknown", "unknown"] as const },
+        { company: "腾讯", stages: ["green", "gray", "gray"] as const },
+        { company: "美团", stages: ["green", "green", "unknown"] as const },
+        { company: "小红书", stages: ["green", "unknown", "unknown"] as const },
+        { company: "拼多多", stages: ["unknown", "unknown", "unknown"] as const },
+      ]
+    : [
+        { company: "ByteDance", stages: ["green", "green", "unknown"] as const },
+        { company: "Alibaba", stages: ["green", "unknown", "unknown"] as const },
+        { company: "Tencent", stages: ["green", "gray", "gray"] as const },
+        { company: "Meituan", stages: ["green", "green", "unknown"] as const },
+        { company: "Xiaohongshu", stages: ["green", "unknown", "unknown"] as const },
+        { company: "Pinduoduo", stages: ["unknown", "unknown", "unknown"] as const },
+      ]
 
   return (
     <div className="w-full max-w-[400px] glass rounded-xl p-4 font-body text-sm">
       <div className="flex items-center gap-2 mb-3">
         <span className="w-1.5 h-1.5 rounded-full bg-[--accent]" />
-        <span className="text-[10px] font-semibold text-[--text-2] uppercase tracking-widest">申请追踪</span>
+        <span className="text-[10px] font-semibold text-[--text-2] uppercase tracking-widest">
+          {isZh ? "申请追踪" : "Application Tracking"}
+        </span>
       </div>
       <div className="grid grid-cols-[1fr_40px_40px_40px] gap-y-1.5 gap-x-2 items-center">
         {/* Header */}
-        <span className="text-[--text-3] text-[10px] font-medium">公司</span>
-        <span className="text-[--text-3] text-[10px] font-medium text-center">投递</span>
-        <span className="text-[--text-3] text-[10px] font-medium text-center">面试</span>
-        <span className="text-[--text-3] text-[10px] font-medium text-center">结果</span>
+        <span className="text-[--text-3] text-[10px] font-medium">
+          {isZh ? "公司" : "Company"}
+        </span>
+        <span className="text-[--text-3] text-[10px] font-medium text-center">
+          {isZh ? "投递" : "Applied"}
+        </span>
+        <span className="text-[--text-3] text-[10px] font-medium text-center">
+          {isZh ? "面试" : "Interview"}
+        </span>
+        <span className="text-[--text-3] text-[10px] font-medium text-center">
+          {isZh ? "结果" : "Result"}
+        </span>
 
         {rows.map((row) => (
           <div key={row.company} className="contents">
@@ -135,7 +155,7 @@ function MiniTracker() {
         ))}
       </div>
       <p className="text-orange-400 text-xs font-medium mt-3 text-right">
-        哪家到哪步了？
+        {isZh ? "哪家到哪步了？" : "Lost track?"}
       </p>
     </div>
   )
@@ -149,6 +169,13 @@ const miniVisualizations = [
 
 export default function Problem() {
   const sectionRef = useRef<HTMLElement>(null)
+  const { t } = useLanguage()
+
+  const painPoints = [
+    { number: "01", title: t("lp_pain_01_title"), description: t("lp_pain_01_desc") },
+    { number: "02", title: t("lp_pain_02_title"), description: t("lp_pain_02_desc") },
+    { number: "03", title: t("lp_pain_03_title"), description: t("lp_pain_03_desc") },
+  ]
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -175,7 +202,7 @@ export default function Problem() {
     >
       {/* Section heading */}
       <h2 className="font-heading text-4xl sm:text-5xl md:text-6xl tracking-tight text-[--text] mb-24 max-w-[560px]">
-        求职，不该<em className="not-italic text-[--text] font-heading italic">这么难</em>
+        {t("lp_problem_title")}<em className="not-italic text-[--text] font-heading italic">{t("lp_problem_title_em")}</em>
       </h2>
 
       {/* Pain points */}

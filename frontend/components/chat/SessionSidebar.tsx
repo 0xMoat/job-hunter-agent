@@ -30,7 +30,6 @@ function formatSessionDate(dateStr: string | undefined, locale: Locale): string 
 export function SessionSidebar({ streaming }: { streaming: boolean }) {
   const { sessions, currentSessionId, loading, langfuseUrlBase, switchSession, createSession, deleteSession } = useSession()
   const { t, locale } = useLanguage()
-  const [collapsed, setCollapsed] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   async function handleDelete(e: React.MouseEvent, sessionId: string) {
@@ -45,14 +44,8 @@ export function SessionSidebar({ streaming }: { streaming: boolean }) {
   }
 
   return (
-    <div className="flex-shrink-0 flex">
-      {/* Sidebar panel */}
-      <div
-        className={`transition-all duration-200 overflow-hidden ${
-          collapsed ? "w-0" : "w-52"
-        }`}
-      >
-        <div className="glass-strong rounded-3xl h-full flex flex-col w-52 overflow-hidden">
+    <div className="flex-shrink-0 w-52">
+      <div className="glass-strong rounded-3xl h-full flex flex-col w-52 overflow-hidden">
 
           {/* New chat button */}
           <div className="px-3 pt-4 pb-2 flex-shrink-0">
@@ -155,20 +148,6 @@ export function SessionSidebar({ streaming }: { streaming: boolean }) {
           </div>
 
         </div>
-      </div>
-
-      {/* Collapse toggle button */}
-      <button
-        onClick={() => setCollapsed((c) => !c)}
-        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        className="self-center ml-1.5 flex-shrink-0
-                   w-5 h-10 rounded-full glass
-                   flex items-center justify-center
-                   text-[var(--text-3)] hover:text-[var(--text-2)]
-                   text-xs transition-colors"
-      >
-        {collapsed ? "›" : "‹"}
-      </button>
     </div>
   )
 }

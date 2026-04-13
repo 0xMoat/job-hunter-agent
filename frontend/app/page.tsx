@@ -12,9 +12,31 @@ import Footer from "@/components/landing/Footer"
 import Link from "next/link"
 import { isAuthenticated } from "@/lib/auth"
 import { useEffect, useState } from "react"
+import { useLanguage } from "@/contexts/LanguageContext"
+
+function LanguageToggle() {
+  const { locale, setLocale, t } = useLanguage()
+
+  return (
+    <button
+      type="button"
+      onClick={() => setLocale(locale === "zh-CN" ? "en" : "zh-CN")}
+      className="hidden sm:inline-flex items-center gap-1.5 font-body text-sm font-medium text-[var(--text-2)] hover:text-[var(--text)] transition-colors cursor-pointer"
+      aria-label="Switch language"
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+        <circle cx="12" cy="12" r="10" />
+        <path d="M2 12h20" />
+        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+      </svg>
+      {t("lang_toggle")}
+    </button>
+  )
+}
 
 function Navbar() {
   const [authed, setAuthed] = useState(false)
+  const { t } = useLanguage()
 
   useEffect(() => {
     setAuthed(isAuthenticated())
@@ -37,7 +59,7 @@ function Navbar() {
             href="#features"
             className="hidden sm:inline font-body text-sm font-medium text-[var(--text-2)] hover:text-[var(--text)] transition-colors"
           >
-            功能
+            {t("lp_nav_features")}
           </a>
           <a
             href="#faq"
@@ -45,11 +67,12 @@ function Navbar() {
           >
             FAQ
           </a>
+          <LanguageToggle />
           <Link
             href={authed ? "/chat" : "/login"}
             className="font-body text-sm font-medium bg-[var(--accent)] text-[var(--accent-fg)] rounded-full px-5 py-2 hover:opacity-90 transition-opacity"
           >
-            {authed ? "进入应用" : "免费开始"}
+            {authed ? t("lp_nav_open_app") : t("lp_nav_get_started")}
           </Link>
         </div>
       </div>
