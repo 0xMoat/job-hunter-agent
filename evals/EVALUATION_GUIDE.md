@@ -385,22 +385,31 @@ flowchart TB
 
 ### 在线 LLM-as-a-Judge 配置说明
 
-如需重新配置（如更换 judge 模型），在 Langfuse Dashboard → Evaluation → LLM-as-a-Judge 中：
+**当前状态：未配置（DeepSeek 兼容性问题）**
+
+Langfuse 的 LLM Connection 验证会用默认模型名（如 `gpt-4o-mini`）测试连接，
+DeepSeek 只支持 `deepseek-chat`，导致验证失败（`400 Model Not Exist`）。
+
+**临时方案：** 保留 `evals/evaluator.py` 作为手动在线评估工具（`make eval-quick` 已修复兼容 DeepSeek）。
+
+**解决条件（满足任一即可）：**
+1. 配置 OpenAI API key → Langfuse Dashboard → Settings → LLM Connections
+2. Langfuse 更新支持 OpenAI-compatible provider 的自定义模型验证
+
+配好 LLM Connection 后，在 Langfuse Dashboard → Evaluation → LLM-as-a-Judge 中创建：
 
 1. **relevancy evaluator**
-   - Model: DeepSeek (OpenAI-compatible, base URL: `https://api.deepseek.com/v1`)
    - Template: `evals/metrics/prompts/relevancy.md` + JSON output instruction
    - Score: 0-1 NUMERIC
 
 2. **helpfulness evaluator**
-   - Model: DeepSeek (同上)
    - Template: `evals/metrics/prompts/helpfulness.md` + JSON output instruction
    - Score: 0-1 NUMERIC
 
 ### 废弃文件
 
-以下文件已标记 DEPRECATED，功能由新系统接管：
-- `evals/evaluator.py` → Langfuse LLM-as-a-Judge (在线) + `evals/evaluators.py` (离线)
+以下文件已标记 DEPRECATED，但 `evaluator.py` 暂时保留作在线评估替代：
+- `evals/evaluator.py` → 暂保留（在线 Judge 未配好前的替代方案）
 - `evals/helpers.py` → 不再需要（Langfuse Dashboard 替代本地 JSON 报告）
 - `evals/schemas.py` → `langfuse.Evaluation` 替代
 - `evals/main.py` → `evals/experiment.py` 替代
