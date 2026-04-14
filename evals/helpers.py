@@ -1,3 +1,4 @@
+# DEPRECATED: Replaced by Langfuse Experiments. See evals/experiment.py.
 """Helper functions for the evaluation process."""
 
 import json

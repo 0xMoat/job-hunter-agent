@@ -1,6 +1,9 @@
+# DEPRECATED: Replaced by Langfuse LLM-as-a-Judge (online) and evals/experiment.py (offline).
+# Kept for reference. Will be removed in a future cleanup.
 """Evaluator for evals."""
 
 import asyncio
+import json
 import os
 import sys
 import time
@@ -154,7 +157,10 @@ class Evaluator:
         return score
 
     async def _call_openai(self, metric_system_prompt: str, input: str, output: str) -> ScoreSchema | None:
-        """Call OpenAI API to evaluate a trace.
+        """Call evaluation LLM to score a trace.
+
+        Uses json_object response format for broad provider compatibility
+        (OpenAI, DeepSeek, etc.) instead of OpenAI-specific structured output.
 
         Args:
             metric_system_prompt: System prompt defining the evaluation metric.
@@ -162,23 +168,29 @@ class Evaluator:
             output: Formatted output message.
 
         Returns:
-            ScoreSchema with evaluation results or None if API call failed.
+            ScoreSchema with evaluation results or None if evaluation failed.
         """
+        json_instruction = (
+            '\n\nRespond with a JSON object containing exactly two fields:\n'
+            '{"score": <float between 0 and 1>, "reasoning": "<one sentence>"}'
+        )
         num_retries = 3
         for _ in range(num_retries):
             try:
-                response = await self.client.beta.chat.completions.parse(
+                response = await self.client.chat.completions.create(
                     model=settings.EVALUATION_LLM,
                     messages=[
-                        {"role": "system", "content": metric_system_prompt},
+                        {"role": "system", "content": metric_system_prompt + json_instruction},
                         {"role": "user", "content": f"Input: {input}\nGeneration: {output}"},
                     ],
-                    response_format=ScoreSchema,
+                    response_format={"type": "json_object"},
                 )
-                return response.choices[0].message.parsed
+                content = response.choices[0].message.content
+                parsed = json.loads(content)
+                return ScoreSchema(score=parsed["score"], reasoning=parsed["reasoning"])
             except Exception as e:
                 SLEEP_TIME = 10
-                logger.error("Error calling OpenAI", error=str(e), sleep_time=SLEEP_TIME)
+                logger.error("Error calling evaluation LLM", error=str(e), sleep_time=SLEEP_TIME)
                 sleep(SLEEP_TIME)
                 continue
         return None

@@ -28,18 +28,14 @@ dev:
 	@echo "Starting server in development environment"
 	@bash -c "source scripts/set_env.sh development && uv run uvicorn app.main:app --reload --port 8000"
 
-# Evaluation commands
-eval:
-	@echo "Running evaluation with interactive mode"
-	@bash -c "source scripts/set_env.sh ${ENV:-development} && python -m evals.main --interactive"
+# Evaluation commands (Langfuse Experiments)
+eval-golden:
+	@echo "Running golden dataset experiment"
+	@bash -c "source scripts/set_env.sh $${ENV:-development} && .venv/bin/python -m evals.experiment"
 
-eval-quick:
-	@echo "Running evaluation with default settings"
-	@bash -c "source scripts/set_env.sh ${ENV:-development} && python -m evals.main --quick"
-
-eval-no-report:
-	@echo "Running evaluation without generating report"
-	@bash -c "source scripts/set_env.sh ${ENV:-development} && python -m evals.main --no-report"
+eval-upload:
+	@echo "Uploading golden dataset to Langfuse"
+	@bash -c "source scripts/set_env.sh $${ENV:-development} && .venv/bin/python -m evals.experiment --upload-only"
 
 lint:
 	ruff check .
@@ -174,9 +170,8 @@ help:
 	@echo "  prod: Run server in production environment"
 	@echo "  staging: Run server in staging environment"
 	@echo "  dev: Run server in development environment"
-	@echo "  eval: Run evaluation with interactive mode"
-	@echo "  eval-quick: Run evaluation with default settings"
-	@echo "  eval-no-report: Run evaluation without generating report"
+	@echo "  eval-golden: Run golden dataset experiment (offline regression test)"
+	@echo "  eval-upload: Upload golden dataset to Langfuse (no experiment)"
 	@echo "  test: Run tests"
 	@echo "  clean: Clean up"
 	@echo "  docker-build: Build default Docker image"

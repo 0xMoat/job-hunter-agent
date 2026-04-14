@@ -1,3 +1,4 @@
+# DEPRECATED: Replaced by langfuse.Evaluation. See evals/evaluators.py.
 """Schemas for evals."""
 
 from pydantic import (

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# DEPRECATED: Replaced by evals/experiment.py. Use `make eval-golden` instead.
 """Command-line interface for running evaluations."""
 
 import argparse
