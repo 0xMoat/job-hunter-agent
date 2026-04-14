@@ -27,7 +27,7 @@ services:
     image: sosedoff/pgweb:latest
     network_mode: host
     environment:
-      - DATABASE_URL=postgres://jobhunter:jhAgent2026%21@127.0.0.1:5432/jobhunter_db?sslmode=disable
+      - PGWEB_DATABASE_URL=postgres://jobhunter:jhAgent2026%21@127.0.0.1:5432/jobhunter_db?sslmode=disable
     command: ["--bind=127.0.0.1", "--listen=15050"]
     restart: always
 
