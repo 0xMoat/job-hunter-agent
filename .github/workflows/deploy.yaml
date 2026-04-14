@@ -25,6 +25,9 @@ jobs:
               - 'uv.lock'
               - 'Dockerfile'
               - 'docker-compose.prod.yml'
+              - 'prometheus/**'
+              - 'grafana/**'
+              - 'caddy/**'
             frontend:
               - 'frontend/**'
 
@@ -46,6 +49,9 @@ jobs:
             git fetch origin master
             git checkout -f FETCH_HEAD
             docker compose -f docker-compose.prod.yml up -d --build
+            # Sync Caddy site configs and restart
+            sudo cp caddy/sites/*.conf /etc/caddy/sites/
+            sudo systemctl restart caddy
             echo "Waiting for health check..."
             sleep 15
             curl -sf http://localhost:8000/health || exit 1

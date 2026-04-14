@@ -99,19 +99,25 @@ ALLOWED_ORIGINS="https://jobhunter.mintmind.io,https://job-hunter-agent.vercel.a
 
 ### Caddy Config
 
-File: `/etc/caddy/sites/api.jobhunter.mintmind.io.conf`
+Site configs live in `caddy/sites/` and are synced to `/etc/caddy/sites/` on deploy.
 
-```
-api.jobhunter.mintmind.io {
-    reverse_proxy 127.0.0.1:8000
-}
-```
+| File | Domain | Target |
+|------|--------|--------|
+| `api.jobhunter.mintmind.io.conf` | `api.jobhunter.mintmind.io` | `127.0.0.1:8000` (FastAPI) |
+| `grafana.mintmind.io.conf` | `grafana.mintmind.io` | `127.0.0.1:3000` (Grafana) |
+| `prometheus.mintmind.io.conf` | `prometheus.mintmind.io` | `127.0.0.1:9090` (Prometheus, basic auth) |
+| `cadvisor.mintmind.io.conf` | `cadvisor.mintmind.io` | `127.0.0.1:8080` (cAdvisor, basic auth) |
 
 Caddy handles automatic HTTPS via Let's Encrypt. Restart with `systemctl restart caddy` (not reload, since admin API is disabled).
 
+Prometheus and cAdvisor basic auth credentials: `admin` / `jobhunter`
+
 ### Docker Architecture
 
-- `network_mode: host` — container shares host network, connects to PostgreSQL and Redis on localhost
+- `network_mode: host` — app container shares host network, connects to PostgreSQL and Redis on localhost
+- Monitoring stack (Prometheus, Grafana, cAdvisor) runs on a `monitoring` bridge network
+- Prometheus reaches the app via `host.docker.internal:8000`
+- All monitoring ports bind to `127.0.0.1` only — public access via Caddy reverse proxy
 - Health check: `curl -f http://localhost:8000/health` (30s interval)
 - Log rotation: 10MB max, 3 files
 
@@ -126,6 +132,11 @@ curl https://api.jobhunter.mintmind.io/health
 
 # Container status
 docker ps
+
+# Monitoring dashboards
+# Grafana:    https://grafana.mintmind.io    (Grafana login)
+# Prometheus: https://prometheus.mintmind.io  (basic auth: admin / jobhunter)
+# cAdvisor:   https://cadvisor.mintmind.io    (basic auth: admin / jobhunter)
 ```
 
 ---
