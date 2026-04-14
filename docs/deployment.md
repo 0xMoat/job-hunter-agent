@@ -104,9 +104,9 @@ Site configs live in `caddy/sites/` and are synced to `/etc/caddy/sites/` on dep
 | File | Domain | Target |
 |------|--------|--------|
 | `api.jobhunter.mintmind.io.conf` | `api.jobhunter.mintmind.io` | `127.0.0.1:8000` (FastAPI) |
-| `grafana.mintmind.io.conf` | `grafana.mintmind.io` | `127.0.0.1:3001` (Grafana) |
-| `prometheus.mintmind.io.conf` | `prometheus.mintmind.io` | `127.0.0.1:9090` (Prometheus, basic auth) |
-| `cadvisor.mintmind.io.conf` | `cadvisor.mintmind.io` | `127.0.0.1:8080` (cAdvisor, basic auth) |
+| `grafana.mintmind.io.conf` | `grafana.mintmind.io` | `127.0.0.1:13000` (Grafana) |
+| `prometheus.mintmind.io.conf` | `prometheus.mintmind.io` | `127.0.0.1:19090` (Prometheus, basic auth) |
+| `cadvisor.mintmind.io.conf` | `cadvisor.mintmind.io` | `127.0.0.1:18080` (cAdvisor, basic auth) |
 
 Caddy handles automatic HTTPS via Let's Encrypt. Restart with `systemctl restart caddy` (not reload, since admin API is disabled).
 
