@@ -67,12 +67,14 @@ async def agent_task(*, item, **kwargs):
     returns structured output with text and tool_calls.
 
     Args:
-        item: Dict with "input" key containing the user message string.
+        item: DatasetItemClient (from Langfuse) or dict with "input" key.
 
     Returns:
         Dict with "text" (response content) and "tool_calls" (list of tool names).
     """
-    user_input = item["input"]
+    # DatasetItemClient uses attribute access; plain dicts use subscript
+    raw_input = item.input if hasattr(item, "input") else item
+    user_input = raw_input["input"]
     messages = [
         SystemMessage(content=_get_system_prompt()),
         HumanMessage(content=user_input),
