@@ -104,7 +104,7 @@ Site configs live in `caddy/sites/` and are synced to `/etc/caddy/sites/` on dep
 | File | Domain | Target |
 |------|--------|--------|
 | `api.jobhunter.mintmind.io.conf` | `api.jobhunter.mintmind.io` | `127.0.0.1:8000` (FastAPI) |
-| `grafana.mintmind.io.conf` | `grafana.mintmind.io` | `127.0.0.1:3000` (Grafana) |
+| `grafana.mintmind.io.conf` | `grafana.mintmind.io` | `127.0.0.1:3001` (Grafana) |
 | `prometheus.mintmind.io.conf` | `prometheus.mintmind.io` | `127.0.0.1:9090` (Prometheus, basic auth) |
 | `cadvisor.mintmind.io.conf` | `cadvisor.mintmind.io` | `127.0.0.1:8080` (cAdvisor, basic auth) |
 
