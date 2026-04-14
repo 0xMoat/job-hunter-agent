@@ -385,26 +385,19 @@ flowchart TB
 
 ### 在线 LLM-as-a-Judge 配置说明
 
-**当前状态：未配置（DeepSeek 兼容性问题）**
+**当前状态：已配置（2026-04-14）**
 
-Langfuse 的 LLM Connection 验证会用默认模型名（如 `gpt-4o-mini`）测试连接，
-DeepSeek 只支持 `deepseek-chat`，导致验证失败（`400 Model Not Exist`）。
+- LLM Connection: Google AI Studio (`gemini-2.5-flash`)
+- 注意：DeepSeek 不可用作 Langfuse Judge（[#8778](https://github.com/langfuse/langfuse/issues/8778)，验证要求 json_schema structured output，DeepSeek 不支持）
 
-**临时方案：** 保留 `evals/evaluator.py` 作为手动在线评估工具（`make eval-quick` 已修复兼容 DeepSeek）。
+**已配置的 evaluator（自动对每条新 trace 打分）：**
 
-**解决条件（满足任一即可）：**
-1. 配置 OpenAI API key → Langfuse Dashboard → Settings → LLM Connections
-2. Langfuse 更新支持 OpenAI-compatible provider 的自定义模型验证
+1. **Relevance** — Langfuse 内置模板，0-1 NUMERIC
+2. **Helpfulness** — Langfuse 内置模板，0-1 NUMERIC
 
-配好 LLM Connection 后，在 Langfuse Dashboard → Evaluation → LLM-as-a-Judge 中创建：
-
-1. **relevancy evaluator**
-   - Template: `evals/metrics/prompts/relevancy.md` + JSON output instruction
-   - Score: 0-1 NUMERIC
-
-2. **helpfulness evaluator**
-   - Template: `evals/metrics/prompts/helpfulness.md` + JSON output instruction
-   - Score: 0-1 NUMERIC
+**如需重新配置：**
+1. Settings → LLM Connections → 确认 Google AI Studio 连接存在
+2. LLM-as-a-Judge → Evaluator Library → 选择模板 → Use Evaluator → Execute
 
 ### 废弃文件
 
