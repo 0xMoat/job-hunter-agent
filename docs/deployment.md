@@ -107,10 +107,11 @@ Site configs live in `caddy/sites/` and are synced to `/etc/caddy/sites/` on dep
 | `grafana.mintmind.io.conf` | `grafana.mintmind.io` | `127.0.0.1:13000` (Grafana) |
 | `prometheus.mintmind.io.conf` | `prometheus.mintmind.io` | `127.0.0.1:19090` (Prometheus, basic auth) |
 | `cadvisor.mintmind.io.conf` | `cadvisor.mintmind.io` | `127.0.0.1:18080` (cAdvisor, basic auth) |
+| `pgweb.mintmind.io.conf` | `pgweb.mintmind.io` | `127.0.0.1:15050` (pgweb, basic auth) |
 
 Caddy handles automatic HTTPS via Let's Encrypt. Restart with `systemctl restart caddy` (not reload, since admin API is disabled).
 
-Prometheus and cAdvisor basic auth credentials: `admin` / `jobhunter`
+Prometheus, cAdvisor, and pgweb basic auth credentials: `admin` / `jobhunter`
 
 ### Docker Architecture
 
@@ -137,6 +138,7 @@ docker ps
 # Grafana:    https://grafana.mintmind.io    (Grafana login)
 # Prometheus: https://prometheus.mintmind.io  (basic auth: admin / jobhunter)
 # cAdvisor:   https://cadvisor.mintmind.io    (basic auth: admin / jobhunter)
+# pgweb:      https://pgweb.mintmind.io       (basic auth: admin / jobhunter)
 ```
 
 ---
