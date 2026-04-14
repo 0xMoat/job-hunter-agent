@@ -354,3 +354,53 @@ flowchart TB
     D --> I[迭代决策: 是否上线]
     H --> I
 ```
+
+---
+
+## Phase 1 实施记录（2026-04-14）
+
+### 决策：采用 Langfuse 原生方案
+
+经调研 Langfuse Dashboard 内置的 Datasets、Experiments、LLM-as-a-Judge 功能后，
+决定不引入 DeepEval，改用 Langfuse 原生方案。理由：
+
+1. 已深度绑定 Langfuse 做追踪，评估统一在此维护成本最低
+2. Dashboard 可视化对面试 demo 展示更有价值
+3. 代码量显著减少（4 个新文件 vs DeepEval 方案的 6+ 个文件）
+4. Langfuse Experiments 支持 SDK 调用，可集成 CI
+
+### 新架构
+
+**离线评估（回归测试）：**
+- Golden Dataset: 30 个测试用例，8 个场景类别
+- 运行方式: `make eval-golden`
+- 评估维度: relevancy, helpfulness, task_completion, tool_appropriateness
+- 结果: Langfuse Dashboard → Experiments 页面
+
+**在线评估（生产监控）：**
+- Langfuse LLM-as-a-Judge 托管 evaluator
+- 评估维度: relevancy, helpfulness
+- 触发: 每条新 trace 自动评分
+- 结果: Langfuse Dashboard → Scores / 每条 trace 详情
+
+### 在线 LLM-as-a-Judge 配置说明
+
+如需重新配置（如更换 judge 模型），在 Langfuse Dashboard → Evaluation → LLM-as-a-Judge 中：
+
+1. **relevancy evaluator**
+   - Model: DeepSeek (OpenAI-compatible, base URL: `https://api.deepseek.com/v1`)
+   - Template: `evals/metrics/prompts/relevancy.md` + JSON output instruction
+   - Score: 0-1 NUMERIC
+
+2. **helpfulness evaluator**
+   - Model: DeepSeek (同上)
+   - Template: `evals/metrics/prompts/helpfulness.md` + JSON output instruction
+   - Score: 0-1 NUMERIC
+
+### 废弃文件
+
+以下文件已标记 DEPRECATED，功能由新系统接管：
+- `evals/evaluator.py` → Langfuse LLM-as-a-Judge (在线) + `evals/evaluators.py` (离线)
+- `evals/helpers.py` → 不再需要（Langfuse Dashboard 替代本地 JSON 报告）
+- `evals/schemas.py` → `langfuse.Evaluation` 替代
+- `evals/main.py` → `evals/experiment.py` 替代
