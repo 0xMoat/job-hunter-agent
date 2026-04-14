@@ -4,6 +4,7 @@ import { ToolCallCard } from "./ToolCallCard"
 import { JobSearchResultCard } from "./JobSearchResultCard"
 import { ThinkingCard } from "./ThinkingCard"
 import { ResumeDownloadCard } from "./ResumeDownloadCard"
+import { ResumeDownloadLink } from "./ResumeDownloadLink"
 import type { ChatMessage } from "@/lib/types"
 import { useLanguage } from "@/contexts/LanguageContext"
 
@@ -52,16 +53,21 @@ export function MessageBubble({ message, isStreaming }: Props) {
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
-                  a: ({ href, children }) => (
-                    <a
-                      href={href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline underline-offset-2 opacity-80 hover:opacity-100 break-all"
-                    >
-                      {children}
-                    </a>
-                  ),
+                  a: ({ href, children }) => {
+                    if (href && /\/api\/v1\/resume\/download\//.test(href)) {
+                      return <ResumeDownloadLink href={href}>{children}</ResumeDownloadLink>
+                    }
+                    return (
+                      <a
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline underline-offset-2 opacity-80 hover:opacity-100 break-all"
+                      >
+                        {children}
+                      </a>
+                    )
+                  },
                   p: ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
                   ul: ({ children }) => <ul className="list-disc pl-4 mb-1 space-y-0.5">{children}</ul>,
                   ol: ({ children }) => <ol className="list-decimal pl-4 mb-1 space-y-0.5">{children}</ol>,

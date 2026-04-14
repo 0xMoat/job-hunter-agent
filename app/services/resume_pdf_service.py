@@ -91,7 +91,7 @@ class ResumePDFService:
 
         token_payload = {
             "file": str(pdf_path),
-            "exp": datetime.now(UTC) + timedelta(minutes=10),
+            "exp": datetime.now(UTC) + timedelta(hours=24),
         }
         token = jwt.encode(token_payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 

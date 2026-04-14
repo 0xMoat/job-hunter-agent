@@ -56,7 +56,7 @@ export function ResumeDownloadCard({ entry }: Props) {
         <div className="flex items-center gap-2">
           <span className="w-[7px] h-[7px] rounded-full bg-green-500 flex-shrink-0" />
           <span className="font-body font-semibold text-sm text-[var(--text-2)]">Resume PDF</span>
-          <span className="font-mono text-xs text-[var(--text-3)]">10 分钟内有效</span>
+          <span className="font-mono text-xs text-[var(--text-3)]">24 小时内有效</span>
         </div>
         {status === "done" ? (
           <span className="font-body text-xs font-semibold text-green-600">已下载 ✓</span>
