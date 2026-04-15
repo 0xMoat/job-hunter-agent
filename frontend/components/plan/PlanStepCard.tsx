@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import type { PlanStep } from "@/lib/types"
 
 const STATUS_STYLES: Record<PlanStep["status"], string> = {
@@ -17,6 +18,10 @@ const STATUS_ICON: Record<PlanStep["status"], string> = {
 }
 
 export function PlanStepCard({ step }: { step: PlanStep }) {
+  // Expand by default while running; collapse once done/failed.
+  const [expanded, setExpanded] = useState(step.status === "running")
+  const hasResult = Boolean(step.result && step.result.length > 0)
+
   return (
     <div
       className={`rounded-lg border px-4 py-3 transition-colors ${STATUS_STYLES[step.status]}`}
@@ -26,10 +31,21 @@ export function PlanStepCard({ step }: { step: PlanStep }) {
           {STATUS_ICON[step.status]}
         </span>
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-medium">Step {step.index + 1}</div>
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-sm font-medium">Step {step.index + 1}</div>
+            {hasResult && (
+              <button
+                type="button"
+                onClick={() => setExpanded((v) => !v)}
+                className="shrink-0 text-xs font-medium opacity-70 hover:opacity-100 underline-offset-2 hover:underline cursor-pointer"
+              >
+                {expanded ? "收起 ▲" : "查看过程 ▼"}
+              </button>
+            )}
+          </div>
           <div className="mt-1 text-sm opacity-90">{step.text}</div>
-          {step.result && (
-            <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap rounded bg-white/60 p-2 text-xs">
+          {hasResult && expanded && (
+            <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap rounded bg-white/70 p-2 text-xs leading-relaxed">
               {step.result}
             </pre>
           )}
