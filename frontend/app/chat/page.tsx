@@ -147,16 +147,16 @@ function ChatPageInner() {
 
       {/* Content */}
       <div className="flex-1 overflow-hidden px-4 pb-4">
-        {tab === "chat" ? (
-          <div className="h-full flex gap-3">
-            <SessionSidebar streaming={streaming} />
-            <div className="flex-1 min-w-0 overflow-hidden">
-              <ChatPanel onStreamingChange={setStreaming} />
-            </div>
+        {/* Both panels stay mounted so in-flight chat + P&E state survive tab switches. */}
+        <div className={`h-full ${tab === "chat" ? "flex gap-3" : "hidden"}`}>
+          <SessionSidebar streaming={streaming} />
+          <div className="flex-1 min-w-0 overflow-hidden">
+            <ChatPanel onStreamingChange={setStreaming} />
           </div>
-        ) : (
+        </div>
+        <div className={`h-full ${tab === "tracker" ? "" : "hidden"}`}>
           <KanbanBoard key={kanbanRefreshKey} />
-        )}
+        </div>
       </div>
     </div>
   )

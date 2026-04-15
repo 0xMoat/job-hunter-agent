@@ -380,7 +380,9 @@ export function useChat({
                   const newRemaining: PlanStep[] = chunk.remaining.map((text, i) => ({
                     index: offset + i,
                     text,
-                    status: "pending" as const,
+                    // Mark the first upcoming step as running so the UI never shows
+                    // a dead "all pending" state between replanner and next executor.
+                    status: i === 0 ? ("running" as const) : ("pending" as const),
                   }))
                   return {
                     ...m,
