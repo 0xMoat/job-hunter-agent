@@ -274,3 +274,120 @@ class PlanExecuteAgent:
         )
         logger.info("pe_graph_created", environment=settings.ENVIRONMENT.value)
         return self._graph
+
+    # ---------- public streaming API ----------
+
+    async def astream(
+        self,
+        goal: str,
+        session_id: str,
+        user_id: str,
+    ) -> AsyncGenerator[str, None]:
+        """Stream SSE JSON chunks for a Plan-and-Execute run.
+
+        Emits (in order):
+          plan_created → [step_started → tool_* (from executor) → step_completed
+                          → plan_updated?]* → final_response
+        """
+        if self._graph is None:
+            await self.create_graph()
+
+        long_term_memory, pending = await asyncio.gather(
+            self._get_relevant_memory(user_id, goal),
+            self._get_pending_applications(user_id),
+        )
+
+        if not pending:
+            yield _json.dumps({
+                "type": "final_response",
+                "content": "暂无待处理的职位。请先在看板中添加职位后再运行一键处理。",
+                "done": True,
+            })
+            return
+
+        langfuse_handler = CallbackHandler()
+        config: RunnableConfig = {
+            "configurable": {"thread_id": session_id, "user_id": user_id},
+            "callbacks": [langfuse_handler],
+            "metadata": {
+                "user_id": user_id,
+                "session_id": session_id,
+                "langfuse_session_id": session_id,
+                "langfuse_user_id": str(user_id),
+                "environment": settings.ENVIRONMENT.value,
+                "pipeline": "plan_execute",
+            },
+            "recursion_limit": 50,
+        }
+
+        initial_state = {
+            "input": goal,
+            "long_term_memory": long_term_memory or "",
+            "pending_applications": pending,
+        }
+
+        emitted_plan = False
+        current_plan: list[str] = []
+        current_step_index = -1
+
+        try:
+            async for event in self._graph.astream(initial_state, config, stream_mode="values"):
+                new_plan = event.get("plan", [])
+                past_steps = event.get("past_steps", [])
+                response = event.get("response")
+
+                # plan_created: first time we see a non-empty plan
+                if not emitted_plan and new_plan:
+                    emitted_plan = True
+                    current_plan = list(new_plan)
+                    yield _json.dumps({
+                        "type": "plan_created",
+                        "steps": current_plan,
+                        "done": False,
+                    })
+
+                # step_completed: past_steps grew — emit started+completed for each new entry
+                if len(past_steps) > current_step_index + 1:
+                    for i in range(current_step_index + 1, len(past_steps)):
+                        step_text, result_text = past_steps[i]
+                        yield _json.dumps({
+                            "type": "step_started",
+                            "index": i,
+                            "text": step_text,
+                            "total": i + 1 + len(new_plan),
+                            "done": False,
+                        })
+                        yield _json.dumps({
+                            "type": "step_completed",
+                            "index": i,
+                            "text": step_text,
+                            "result": result_text,
+                            "done": False,
+                        })
+                    current_step_index = len(past_steps) - 1
+
+                # plan_updated: replanner replaced remaining plan with something different
+                if emitted_plan and new_plan and new_plan != current_plan[len(past_steps):]:
+                    current_plan = [s for s, _ in past_steps] + list(new_plan)
+                    yield _json.dumps({
+                        "type": "plan_updated",
+                        "remaining": list(new_plan),
+                        "done": False,
+                    })
+
+                if response:
+                    yield _json.dumps({
+                        "type": "final_response",
+                        "content": response,
+                        "done": True,
+                    })
+                    return
+        except Exception as e:
+            logger.exception("pe_astream_failed", session_id=session_id)
+            yield _json.dumps({
+                "type": "error",
+                "message": str(e),
+                "done": True,
+            })
+        finally:
+            langfuse_handler.client.flush()
