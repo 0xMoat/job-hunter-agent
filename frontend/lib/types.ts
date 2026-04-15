@@ -41,6 +41,13 @@ export interface ThinkingEntry {
   doneNodes: Record<string, number>
 }
 
+export interface PlanExecuteView {
+  steps: PlanStep[]
+  finalResponse: string | null
+  errorMsg: string | null
+  running: boolean
+}
+
 export interface ChatMessage {
   id: string
   role: MessageRole
@@ -48,6 +55,7 @@ export interface ChatMessage {
   toolCalls: ToolCallEntry[]
   thinking?: ThinkingEntry
   timestamp?: Date
+  planExecute?: PlanExecuteView
 }
 
 export interface StreamChunk {

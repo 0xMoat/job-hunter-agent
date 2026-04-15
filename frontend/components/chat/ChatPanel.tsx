@@ -10,7 +10,7 @@ import { useSession } from "@/contexts/SessionContext"
 export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boolean) => void }) {
   const { currentSessionToken, currentSessionId, sessions, renameSession, langfuseUrlBase } = useSession()
   const currentSession = sessions.find((s) => s.session_id === currentSessionId)
-  const { messages, streaming, error, historyLoading, sendMessage } = useChat({
+  const { messages, streaming, error, historyLoading, sendMessage, startPlanExecute } = useChat({
     sessionToken: currentSessionToken,
     currentSessionId,
     currentSessionName: currentSession?.name ?? "",
@@ -44,6 +44,14 @@ export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boole
               <span className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />
               {t('chat_badge')}
             </div>
+            <button
+              onClick={() => startPlanExecute()}
+              disabled={streaming}
+              className="bg-indigo-600 text-white rounded-full px-3 py-1.5 text-xs font-body font-medium
+                         hover:bg-indigo-700 transition-colors disabled:opacity-50 cursor-pointer"
+            >
+              一键处理今日推荐
+            </button>
             {langfuseUrlBase && currentSessionId && (
               <a
                 href={`${langfuseUrlBase}/sessions/${currentSessionId}`}
@@ -103,6 +111,14 @@ export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boole
                     <span className="text-[var(--text-3)] flex-shrink-0 ml-2" aria-hidden="true">↗</span>
                   </button>
                 ))}
+                <button
+                  onClick={() => startPlanExecute()}
+                  disabled={streaming}
+                  className="bg-indigo-600 text-white rounded-full px-3 py-1.5 text-xs font-body font-medium
+                             hover:bg-indigo-700 transition-colors disabled:opacity-50 cursor-pointer self-start"
+                >
+                  一键处理今日推荐
+                </button>
               </div>
             </div>
           )}

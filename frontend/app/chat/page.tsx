@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import Link from "next/link"
 import { isAuthenticated, clearAuth, getAccessToken, getUser } from "@/lib/auth"
 import { ChatPanel } from "@/components/chat/ChatPanel"
 import { SessionSidebar } from "@/components/chat/SessionSidebar"
@@ -88,14 +87,6 @@ function ChatPageInner() {
               </button>
             ))}
           </div>
-          <Link
-            href="/auto-process"
-            aria-label="自动处理今日推荐"
-            className="ml-2 rounded-full px-3 py-1.5 text-sm font-body font-medium
-                       bg-indigo-600 text-white hover:bg-indigo-700 transition-colors cursor-pointer"
-          >
-            一键处理推荐
-          </Link>
           <div className="flex-1 flex items-center justify-end gap-2">
             <button
               onClick={() => setLocale(locale === 'zh-CN' ? 'en' : 'zh-CN')}

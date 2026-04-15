@@ -5,6 +5,7 @@ import { JobSearchResultCard } from "./JobSearchResultCard"
 import { ThinkingCard } from "./ThinkingCard"
 import { ResumeDownloadCard } from "./ResumeDownloadCard"
 import { ResumeDownloadLink } from "./ResumeDownloadLink"
+import { PlanTimelineView } from "@/components/plan/PlanTimeline"
 import type { ChatMessage } from "@/lib/types"
 import { useLanguage } from "@/contexts/LanguageContext"
 
@@ -40,8 +41,15 @@ export function MessageBubble({ message, isStreaming }: Props) {
           </div>
         )}
 
+        {/* Plan-and-Execute timeline (assistant only) */}
+        {!isUser && message.planExecute && (
+          <div className="glass rounded-[18px] rounded-bl-[4px] px-4 py-3 text-sm">
+            <PlanTimelineView view={message.planExecute} />
+          </div>
+        )}
+
         {/* Text bubble */}
-        {(message.textContent || isStreaming) && (
+        {!message.planExecute && (message.textContent || isStreaming) && (
           <div
             className={`rounded-[18px] px-4 py-2.5 text-sm leading-relaxed font-body ${
               isUser
