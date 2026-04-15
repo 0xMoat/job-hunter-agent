@@ -340,9 +340,12 @@ class PlanExecuteAgent:
             })
             return
 
+        # Use a fresh checkpoint thread per invocation so the graph re-runs
+        # the planner instead of restoring a prior `response` state.
+        pe_thread_id = f"pe_{session_id}_{uuid.uuid4().hex[:8]}"
         langfuse_handler = CallbackHandler()
         config: RunnableConfig = {
-            "configurable": {"thread_id": f"pe_{session_id}", "user_id": user_id},
+            "configurable": {"thread_id": pe_thread_id, "user_id": user_id},
             "callbacks": [langfuse_handler],
             "metadata": {
                 "user_id": user_id,
