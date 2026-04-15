@@ -77,3 +77,22 @@ export interface Application {
   updated_at: string
   match_score?: number | null
 }
+
+// ── Plan-and-Execute ───────────────────────────────────────────────────────
+
+export type PlanStepStatus = "pending" | "running" | "done" | "failed"
+
+export interface PlanStep {
+  index: number
+  text: string
+  status: PlanStepStatus
+  result?: string
+}
+
+export type PlanStreamChunk =
+  | { type: "plan_created"; steps: string[]; done: false }
+  | { type: "step_started"; index: number; text: string; total: number; done: false }
+  | { type: "step_completed"; index: number; text: string; result: string; done: false }
+  | { type: "plan_updated"; remaining: string[]; reason?: string; done: false }
+  | { type: "final_response"; content: string; done: true }
+  | { type: "error"; message: string; step_index?: number; done: true }

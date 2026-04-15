@@ -329,3 +329,20 @@ export async function apiRunSearch(
   const res = await req("/api/v1/search/run", { method: "POST" }, accessToken)
   return res.json()
 }
+
+// ── Plan-and-Execute ─────────────────────────────────────────────────────
+
+export async function startPlanExecute(
+  token: string,
+  goal?: string,
+): Promise<Response> {
+  const body = goal ? JSON.stringify({ goal }) : JSON.stringify({})
+  return fetch(`${BASE_URL}/api/v1/chatbot/plan-execute`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body,
+  })
+}
