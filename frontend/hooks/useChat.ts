@@ -15,7 +15,13 @@ function loadPlanExecuteCache(sessionId: string): ChatMessage[] {
   try {
     const raw = localStorage.getItem(PE_CACHE_PREFIX + sessionId)
     if (!raw) return []
-    return JSON.parse(raw) as ChatMessage[]
+    const parsed = JSON.parse(raw) as ChatMessage[]
+    // JSON serialization converts Date → string; MessageBubble calls
+    // toLocaleTimeString on timestamp, so we must revive it.
+    return parsed.map((m) => ({
+      ...m,
+      timestamp: m.timestamp ? new Date(m.timestamp) : undefined,
+    }))
   } catch {
     return []
   }
@@ -55,10 +61,14 @@ export function useChat({
   const [error, setError] = useState<string | null>(null)
   const [historyLoading, setHistoryLoading] = useState(false)
   const streamingMsgIdRef = useRef<string | null>(null)
+  // Gate that prevents the save-effect from wiping localStorage before
+  // the initial history-load + cache-restore has completed.
+  const hydratedRef = useRef(false)
 
   // Load history whenever the session changes
   useEffect(() => {
     if (!sessionToken) return
+    hydratedRef.current = false
     setMessages([])
     setError(null)
     setHistoryLoading(true)
@@ -89,12 +99,17 @@ export function useChat({
       .catch(() => {
         setError("Failed to load conversation history")
       })
-      .finally(() => setHistoryLoading(false))
+      .finally(() => {
+        setHistoryLoading(false)
+        hydratedRef.current = true
+      })
   }, [sessionToken, currentSessionId])
 
   // Persist finished P&E bubbles to localStorage so they survive page refresh.
+  // Gated on hydratedRef so we never wipe the cache with an empty initial state.
   useEffect(() => {
     if (!currentSessionId) return
+    if (!hydratedRef.current) return
     savePlanExecuteCache(currentSessionId, messages)
   }, [messages, currentSessionId])
 
