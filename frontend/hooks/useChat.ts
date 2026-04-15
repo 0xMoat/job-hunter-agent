@@ -378,9 +378,9 @@ export function useChat({
             }
 
             if (chunk.type === "plan_created") {
-              const steps: PlanStep[] = chunk.steps.map((text, i) => ({
-                index: i,
-                text,
+              const steps: PlanStep[] = chunk.steps.map((s) => ({
+                id: s.id,
+                text: s.text,
                 status: "pending" as const,
               }))
               setMessages((prev) =>
@@ -399,7 +399,7 @@ export function useChat({
                     planExecute: {
                       ...m.planExecute,
                       steps: m.planExecute.steps.map((s) =>
-                        s.index === chunk.index ? { ...s, status: "running" as const } : s,
+                        s.id === chunk.id ? { ...s, status: "running" as const } : s,
                       ),
                     },
                   }
@@ -415,7 +415,7 @@ export function useChat({
                     planExecute: {
                       ...m.planExecute,
                       steps: m.planExecute.steps.map((s) =>
-                        s.index === chunk.index
+                        s.id === chunk.id
                           ? { ...s, status: failed ? ("failed" as const) : ("done" as const), result: chunk.result }
                           : s,
                       ),
@@ -430,13 +430,10 @@ export function useChat({
                   const doneOrFailed = m.planExecute.steps.filter(
                     (s) => s.status === "done" || s.status === "failed",
                   )
-                  const offset = doneOrFailed.length
-                  const newRemaining: PlanStep[] = chunk.remaining.map((text, i) => ({
-                    index: offset + i,
-                    text,
-                    // Mark the first upcoming step as running so the UI never shows
-                    // a dead "all pending" state between replanner and next executor.
-                    status: i === 0 ? ("running" as const) : ("pending" as const),
+                  const newRemaining: PlanStep[] = chunk.remaining.map((s) => ({
+                    id: s.id,
+                    text: s.text,
+                    status: "pending" as const,
                   }))
                   return {
                     ...m,

@@ -17,7 +17,7 @@ const STATUS_ICON: Record<PlanStep["status"], string> = {
   failed: "✗",
 }
 
-export function PlanStepCard({ step }: { step: PlanStep }) {
+export function PlanStepCard({ step, position }: { step: PlanStep; position: number }) {
   // Expand by default while running; collapse once done/failed.
   const [expanded, setExpanded] = useState(step.status === "running")
   const hasResult = Boolean(step.result && step.result.length > 0)
@@ -32,7 +32,7 @@ export function PlanStepCard({ step }: { step: PlanStep }) {
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
-            <div className="text-sm font-medium">Step {step.index + 1}</div>
+            <div className="text-sm font-medium">Step {position}</div>
             {hasResult && (
               <button
                 type="button"

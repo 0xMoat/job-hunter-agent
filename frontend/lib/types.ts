@@ -91,16 +91,21 @@ export interface Application {
 export type PlanStepStatus = "pending" | "running" | "done" | "failed"
 
 export interface PlanStep {
-  index: number
+  id: string
   text: string
   status: PlanStepStatus
   result?: string
 }
 
+export interface PlanStepDescriptor {
+  id: string
+  text: string
+}
+
 export type PlanStreamChunk =
-  | { type: "plan_created"; steps: string[]; done: false }
-  | { type: "step_started"; index: number; text: string; total: number; done: false }
-  | { type: "step_completed"; index: number; text: string; result: string; done: false }
-  | { type: "plan_updated"; remaining: string[]; reason?: string; done: false }
+  | { type: "plan_created"; steps: PlanStepDescriptor[]; done: false }
+  | { type: "step_started"; id: string; done: false }
+  | { type: "step_completed"; id: string; result: string; done: false }
+  | { type: "plan_updated"; remaining: PlanStepDescriptor[]; done: false }
   | { type: "final_response"; content: string; done: true }
-  | { type: "error"; message: string; step_index?: number; done: true }
+  | { type: "error"; message: string; done: true }

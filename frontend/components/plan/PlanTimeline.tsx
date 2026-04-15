@@ -6,7 +6,8 @@ import { PlanStepCard } from "./PlanStepCard"
 export function PlanTimelineView({ view }: { view: PlanExecuteView }) {
   const completed = view.steps.filter((s) => s.status === "done" || s.status === "failed").length
   const total = view.steps.length
-  const runningStep = view.steps.find((s) => s.status === "running")
+  const runningIndex = view.steps.findIndex((s) => s.status === "running")
+  const runningStep = runningIndex >= 0 ? view.steps[runningIndex] : null
 
   let statusBadge: { label: string; className: string } | null = null
   if (view.errorMsg) {
@@ -50,7 +51,7 @@ export function PlanTimelineView({ view }: { view: PlanExecuteView }) {
       {view.running && runningStep && (
         <div className="rounded-lg border border-indigo-300 bg-indigo-50 px-4 py-2 text-sm text-indigo-900">
           <span className="mr-2 inline-block h-2 w-2 animate-pulse rounded-full bg-indigo-500" />
-          正在执行 Step {runningStep.index + 1}：{runningStep.text}
+          正在执行 Step {runningIndex + 1}：{runningStep.text}
         </div>
       )}
 
@@ -63,8 +64,8 @@ export function PlanTimelineView({ view }: { view: PlanExecuteView }) {
 
       {/* Step list */}
       <div className="flex flex-col gap-2">
-        {view.steps.map((s) => (
-          <PlanStepCard key={s.index} step={s} />
+        {view.steps.map((s, i) => (
+          <PlanStepCard key={s.id} step={s} position={i + 1} />
         ))}
       </div>
 

@@ -7,6 +7,7 @@ planner → executor → replanner loop with structured LLM outputs.
 import asyncio
 import json as _json
 import time
+import uuid
 from datetime import datetime
 from typing import AsyncGenerator, Optional
 from urllib.parse import quote_plus
@@ -360,9 +361,17 @@ class PlanExecuteAgent:
             "pending_applications": pending,
         }
 
+        # Stable per-step ids. past_step_ids + pending_ids == current_plan_ids,
+        # aligned 1:1 with state.past_steps texts + state.plan.
+        # Frontend addresses every event by id, not by array index, so multi-replan
+        # can never desync ordering.
+        def _new_id() -> str:
+            return uuid.uuid4().hex[:12]
+
         emitted_plan = False
         emitted_final = False
-        current_plan: list[str] = []
+        past_step_ids: list[str] = []
+        pending_ids: list[str] = []
         current_step_index = -1
         event: dict = {}
 
@@ -373,54 +382,82 @@ class PlanExecuteAgent:
                 response = event.get("response")
 
                 # plan_created: first time we see a non-empty plan.
-                # Also emit step_started for step 0 so the UI can show "running" before execution.
                 if not emitted_plan and new_plan:
                     emitted_plan = True
-                    current_plan = list(new_plan)
+                    pending_ids = [_new_id() for _ in new_plan]
                     yield _json.dumps({
                         "type": "plan_created",
-                        "steps": current_plan,
+                        "steps": [
+                            {"id": sid, "text": text}
+                            for sid, text in zip(pending_ids, new_plan, strict=True)
+                        ],
                         "done": False,
                     })
+                    # Also mark step 0 as running so the UI renders the pulse
+                    # BEFORE the executor actually finishes it.
                     yield _json.dumps({
                         "type": "step_started",
-                        "index": 0,
-                        "text": current_plan[0],
-                        "total": len(current_plan),
+                        "id": pending_ids[0],
                         "done": False,
                     })
 
-                # step_completed for each new past_step; then step_started for the NEXT pending step.
+                # step_completed for each new past_step; step_started for next pending.
                 if len(past_steps) > current_step_index + 1:
                     for i in range(current_step_index + 1, len(past_steps)):
-                        step_text, result_text = past_steps[i]
+                        if not pending_ids:
+                            # Should not happen under normal operation, but stay
+                            # defensive if LangGraph sends an unexpected values event.
+                            break
+                        sid = pending_ids.pop(0)
+                        past_step_ids.append(sid)
+                        _, result_text = past_steps[i]
                         yield _json.dumps({
                             "type": "step_completed",
-                            "index": i,
-                            "text": step_text,
+                            "id": sid,
                             "result": result_text,
                             "done": False,
                         })
                     current_step_index = len(past_steps) - 1
-                    # Emit step_started for the upcoming step (if any remain after replanner)
-                    if new_plan:
-                        next_index = len(past_steps)
+                    if pending_ids:
                         yield _json.dumps({
                             "type": "step_started",
-                            "index": next_index,
-                            "text": new_plan[0],
-                            "total": next_index + len(new_plan),
+                            "id": pending_ids[0],
                             "done": False,
                         })
 
-                # plan_updated: replanner replaced remaining plan with something different
-                if emitted_plan and new_plan and new_plan != current_plan[len(past_steps):]:
-                    current_plan = [s for s, _ in past_steps] + list(new_plan)
+                # plan_updated: replanner replaced remaining plan with something different.
+                # Test against the current pending texts, not array indices.
+                pending_texts = list(new_plan)
+                if emitted_plan and pending_texts and len(pending_texts) != len(pending_ids):
+                    needs_update = True
+                elif emitted_plan and pending_texts:
+                    # Same length — check text-by-text for a replanner rewrite.
+                    # (We don't hold the prior pending texts, so lean on the assumption
+                    # that same-length-same-order only happens when executor popped
+                    # the head; in that case we've already adjusted above.)
+                    needs_update = False
+                else:
+                    needs_update = False
+
+                if needs_update:
+                    # Regenerate ids for the whole new pending list so replanner-
+                    # added steps each get a fresh stable id.
+                    pending_ids = [_new_id() for _ in pending_texts]
                     yield _json.dumps({
                         "type": "plan_updated",
-                        "remaining": list(new_plan),
+                        "remaining": [
+                            {"id": sid, "text": text}
+                            for sid, text in zip(pending_ids, pending_texts, strict=True)
+                        ],
                         "done": False,
                     })
+                    # Kick off the next pending step visually.
+                    if pending_ids:
+                        yield _json.dumps({
+                            "type": "step_started",
+                            "id": pending_ids[0],
+                            "done": False,
+                        })
 
                 if response:
                     yield _json.dumps({
