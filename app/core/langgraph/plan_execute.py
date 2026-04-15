@@ -12,6 +12,7 @@ from typing import AsyncGenerator, Optional
 from urllib.parse import quote_plus
 
 from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_deepseek import ChatDeepSeek
 from langfuse.langchain import CallbackHandler
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.graph import END, StateGraph
@@ -132,6 +133,22 @@ class PlanExecuteAgent:
 
     # ---------- planner node ----------
 
+    def _structured_llm(self, schema):
+        """Build an LLM instance suitable for structured output.
+
+        DeepSeek's `thinking` mode rejects requests with `tool_choice`, which is
+        what `with_structured_output` emits under the hood. The global
+        `llm_service.get_llm()` returns a tools-bound RunnableBinding whose
+        underlying ChatDeepSeek still has `extra_body.thinking` set — cloning
+        the binding does not touch it. Construct a fresh non-thinking instance.
+        """
+        fresh = ChatDeepSeek(
+            model="deepseek-chat",
+            api_key=settings.DEEPSEEK_API_KEY,
+            temperature=settings.DEFAULT_LLM_TEMPERATURE,
+        )
+        return fresh.with_structured_output(schema)
+
     async def _planner(self, state: PlanExecuteState, config: RunnableConfig) -> dict:
         """Generate the initial plan using structured output."""
         system_prompt = load_plan_execute_planner_prompt(
@@ -139,7 +156,7 @@ class PlanExecuteAgent:
             long_term_memory=state.long_term_memory or "（无）",
             pending_applications=state.pending_applications or "（无）",
         )
-        planner_llm = llm_service.get_llm().with_structured_output(Plan)
+        planner_llm = self._structured_llm(Plan)
         result: Plan = await planner_llm.ainvoke(
             [SystemMessage(content=system_prompt)],
             config=config,
@@ -214,7 +231,7 @@ class PlanExecuteAgent:
             original_plan=original_plan_text,
             past_steps=past_steps_text,
         )
-        replanner_llm = llm_service.get_llm().with_structured_output(Act)
+        replanner_llm = self._structured_llm(Act)
         try:
             act: Act = await replanner_llm.ainvoke(
                 [SystemMessage(content=system_prompt)],
