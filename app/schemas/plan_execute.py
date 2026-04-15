@@ -1,7 +1,5 @@
 """Schemas for the Plan-and-Execute subgraph."""
 
-from typing import Union
-
 from pydantic import BaseModel, Field
 
 
@@ -23,7 +21,7 @@ class Response(BaseModel):
 class Act(BaseModel):
     """Replanner output: either continue with a new plan or finish with a response."""
 
-    action: Union[Response, Plan] = Field(
+    action: Response | Plan = Field(
         ...,
         description="返回 Response 以结束；返回 Plan 以替换剩余待执行步骤。",
     )
