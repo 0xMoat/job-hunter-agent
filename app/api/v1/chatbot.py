@@ -38,7 +38,10 @@ db_service = DatabaseService()
 class PlanExecuteRequest(BaseModel):
     """Request body for the plan-execute endpoint."""
 
-    goal: str = "处理用户的今日推荐职位：按匹配度筛选、研究公司、撰写求职信、并更新看板状态。"
+    goal: str = (
+        "处理看板上所有状态为 pending 的职位：逐一研究公司、撰写求职信，"
+        "并将处理结果更新回看板。"
+    )
 
 
 @router.post("/chat/stream")

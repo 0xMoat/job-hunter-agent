@@ -303,7 +303,7 @@ export function useChat({
       const userMsg: ChatMessage = {
         id: makeId(),
         role: "user",
-        textContent: "一键处理今日推荐",
+        textContent: "自动处理看板上的待投递职位",
         toolCalls: [],
         timestamp: new Date(),
       }
