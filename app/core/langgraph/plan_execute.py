@@ -18,6 +18,7 @@ from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
+from langgraph.prebuilt.chat_agent_executor import AgentState
 from langgraph.types import RunnableConfig
 from mem0 import AsyncMemory
 from psycopg_pool import AsyncConnectionPool
@@ -35,6 +36,17 @@ from app.services.job_service import job_service
 from app.services.llm import llm_service
 
 MAX_ITERATIONS = 10
+
+
+class _ExecutorState(AgentState):
+    """Extended state for the executor sub-agent.
+
+    Adds `long_term_memory` and `pending_applications` so tools using
+    `InjectedState(...)` (e.g. cover_letter) can read them from graph state.
+    """
+
+    long_term_memory: str
+    pending_applications: str
 
 
 class PlanExecuteAgent:
@@ -178,6 +190,7 @@ class PlanExecuteAgent:
             self._executor = create_react_agent(
                 llm_service.get_llm(),
                 tools=tools,
+                state_schema=_ExecutorState,
             )
         return self._executor
 
@@ -199,7 +212,11 @@ class PlanExecuteAgent:
         executor = self._get_executor()
         try:
             result = await executor.ainvoke(
-                {"messages": [HumanMessage(content=step_prompt)]},
+                {
+                    "messages": [HumanMessage(content=step_prompt)],
+                    "long_term_memory": state.long_term_memory or "",
+                    "pending_applications": state.pending_applications or "",
+                },
                 config=config,
             )
             final_msg = result["messages"][-1]
