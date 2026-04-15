@@ -197,3 +197,80 @@ class PlanExecuteAgent:
             "plan": state.plan[1:],
             "iterations": state.iterations + 1,
         }
+
+    # ---------- replanner node ----------
+
+    async def _replan(self, state: PlanExecuteState, config: RunnableConfig) -> dict:
+        """Decide whether to finish with a Response or continue with a new Plan."""
+        past_steps_text = "\n".join(
+            f"{i + 1}. {step}\n   → {result}" for i, (step, result) in enumerate(state.past_steps)
+        ) or "（尚无）"
+        original_plan_text = "\n".join(
+            f"{i + 1}. {s}" for i, s in enumerate([s for s, _ in state.past_steps] + state.plan)
+        ) if (state.past_steps or state.plan) else "（无）"
+
+        system_prompt = load_plan_execute_replanner_prompt(
+            input=state.input,
+            original_plan=original_plan_text,
+            past_steps=past_steps_text,
+        )
+        replanner_llm = llm_service.get_llm().with_structured_output(Act)
+        try:
+            act: Act = await replanner_llm.ainvoke(
+                [SystemMessage(content=system_prompt)],
+                config=config,
+            )
+        except Exception:
+            logger.exception("pe_replanner_failed_fallback_to_summary")
+            summary = "## 已完成\n" + "\n".join(
+                f"- {s}\n  {r[:200]}" for s, r in state.past_steps
+            )
+            return {"response": summary}
+
+        if isinstance(act.action, PlanResponse):
+            logger.info("pe_replan_finish", iterations=state.iterations)
+            return {"response": act.action.content}
+
+        logger.info("pe_replan_continue", new_step_count=len(act.action.steps))
+        return {"plan": act.action.steps}
+
+    # ---------- routing ----------
+
+    def _should_end(self, state: PlanExecuteState) -> str:
+        """Edge: from replanner → executor (continue) or END (finish)."""
+        if state.response is not None:
+            return END
+        if state.iterations >= MAX_ITERATIONS:
+            logger.warning("pe_max_iterations_reached", iterations=state.iterations)
+            return END
+        if not state.plan:
+            return END
+        return "executor"
+
+    # ---------- graph construction ----------
+
+    async def create_graph(self) -> Optional[CompiledStateGraph]:
+        """Build and cache the Plan-Execute StateGraph with checkpointer."""
+        if self._graph is not None:
+            return self._graph
+
+        builder = StateGraph(PlanExecuteState)
+        builder.add_node("planner", self._planner)
+        builder.add_node("executor", self._execute_step)
+        builder.add_node("replanner", self._replan)
+        builder.set_entry_point("planner")
+        builder.add_edge("planner", "executor")
+        builder.add_edge("executor", "replanner")
+        builder.add_conditional_edges("replanner", self._should_end, ["executor", END])
+
+        pool = await self._get_connection_pool()
+        checkpointer = AsyncPostgresSaver(pool) if pool else None
+        if checkpointer:
+            await checkpointer.setup()
+
+        self._graph = builder.compile(
+            checkpointer=checkpointer,
+            name=f"{settings.PROJECT_NAME} PE ({settings.ENVIRONMENT.value})",
+        )
+        logger.info("pe_graph_created", environment=settings.ENVIRONMENT.value)
+        return self._graph
