@@ -13,10 +13,12 @@ from fastapi import (
     Request,
 )
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
 from app.api.v1.auth import get_current_session
 from app.core.config import settings
 from app.core.langgraph.graph import LangGraphAgent
+from app.core.langgraph.plan_execute import PlanExecuteAgent
 from app.core.limiter import limiter
 from app.core.logging import logger
 from app.core.metrics import llm_stream_duration_seconds
@@ -29,7 +31,14 @@ from app.services.database import DatabaseService
 
 router = APIRouter()
 agent = LangGraphAgent()
+plan_execute_agent = PlanExecuteAgent()
 db_service = DatabaseService()
+
+
+class PlanExecuteRequest(BaseModel):
+    """Request body for the plan-execute endpoint."""
+
+    goal: str = "处理用户的今日推荐职位：按匹配度筛选、研究公司、撰写求职信、并更新看板状态。"
 
 
 @router.post("/chat/stream")
@@ -146,3 +155,35 @@ async def clear_chat_history(
     except Exception as e:
         logger.error("clear_chat_history_failed", session_id=session.id, error=str(e), exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/plan-execute")
+@limiter.limit(settings.RATE_LIMIT_ENDPOINTS.get("chat_stream", ["20/minute"])[0])
+async def plan_execute(
+    request: Request,
+    body: PlanExecuteRequest,
+    session: Session = Depends(get_current_session),
+):
+    """Run the Plan-and-Execute subgraph and stream SSE chunks.
+
+    Distinct from /chat/stream — this runs a multi-step batch pipeline.
+    """
+    logger.info(
+        "plan_execute_request_received",
+        session_id=session.id,
+        user_id=session.user_id,
+    )
+
+    async def event_generator():
+        try:
+            async for chunk in plan_execute_agent.astream(
+                goal=body.goal,
+                session_id=session.id,
+                user_id=str(session.user_id),
+            ):
+                yield f"data: {chunk}\n\n"
+        except Exception as e:
+            logger.exception("plan_execute_stream_failed", session_id=session.id)
+            yield f"data: {_json.dumps({'type': 'error', 'message': str(e), 'done': True})}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
