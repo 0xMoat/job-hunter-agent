@@ -150,3 +150,50 @@ class PlanExecuteAgent:
             session_id=config.get("configurable", {}).get("thread_id"),
         )
         return {"plan": result.steps}
+
+    # ---------- executor node ----------
+
+    def _get_executor(self):
+        """Build (lazily) the ReAct sub-agent used to execute a single step."""
+        if self._executor is None:
+            # Bind tools at the LLMService level to reuse retry/fallback
+            llm_service.bind_tools(tools)
+            self._executor = create_react_agent(
+                llm_service.get_llm(),
+                tools=tools,
+            )
+        return self._executor
+
+    async def _execute_step(self, state: PlanExecuteState, config: RunnableConfig) -> dict:
+        """Execute the first step in state.plan with a ReAct sub-agent."""
+        if not state.plan:
+            logger.warning("pe_executor_called_with_empty_plan")
+            return {"iterations": state.iterations + 1}
+
+        step_text = state.plan[0]
+        step_index = len(state.past_steps)
+        step_prompt = (
+            f"You are executing step {step_index + 1} of a larger plan.\n\n"
+            f"Your task now: {step_text}\n\n"
+            f"User profile (use when helpful):\n{state.long_term_memory or '(none)'}\n\n"
+            f"Pending jobs snapshot:\n{state.pending_applications or '(none)'}"
+        )
+
+        executor = self._get_executor()
+        try:
+            result = await executor.ainvoke(
+                {"messages": [HumanMessage(content=step_prompt)]},
+                config=config,
+            )
+            final_msg = result["messages"][-1]
+            result_text = final_msg.content if isinstance(final_msg.content, str) else str(final_msg.content)
+            logger.info("pe_step_executed", step_index=step_index, step_text=step_text)
+        except Exception as e:
+            result_text = f"FAILED: {e!s}"
+            logger.exception("pe_step_failed", step_index=step_index, step_text=step_text)
+
+        return {
+            "past_steps": state.past_steps + [(step_text, result_text)],
+            "plan": state.plan[1:],
+            "iterations": state.iterations + 1,
+        }
