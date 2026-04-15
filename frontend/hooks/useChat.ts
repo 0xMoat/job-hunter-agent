@@ -8,6 +8,35 @@ function makeId(): string {
   return Math.random().toString(36).slice(2)
 }
 
+const PE_CACHE_PREFIX = "pe_session_"
+
+function loadPlanExecuteCache(sessionId: string): ChatMessage[] {
+  if (typeof window === "undefined") return []
+  try {
+    const raw = localStorage.getItem(PE_CACHE_PREFIX + sessionId)
+    if (!raw) return []
+    return JSON.parse(raw) as ChatMessage[]
+  } catch {
+    return []
+  }
+}
+
+function savePlanExecuteCache(sessionId: string, messages: ChatMessage[]): void {
+  if (typeof window === "undefined") return
+  const toCache = messages.filter(
+    (m) => m.planExecute && !m.planExecute.running,
+  )
+  try {
+    if (toCache.length === 0) {
+      localStorage.removeItem(PE_CACHE_PREFIX + sessionId)
+    } else {
+      localStorage.setItem(PE_CACHE_PREFIX + sessionId, JSON.stringify(toCache))
+    }
+  } catch {
+    // silent: localStorage quota / JSON cycles etc
+  }
+}
+
 interface UseChatOptions {
   sessionToken: string | null
   currentSessionId: string | null
@@ -51,13 +80,23 @@ export function useChat({
             })),
             timestamp: undefined,
           }))
-        setMessages(loaded)
+        // Merge cached P&E messages (terminal state only) at the end.
+        // Order within this session is lost on refresh, but the pipeline
+        // result is preserved so the user sees what was processed.
+        const cached = currentSessionId ? loadPlanExecuteCache(currentSessionId) : []
+        setMessages([...loaded, ...cached])
       })
       .catch(() => {
         setError("Failed to load conversation history")
       })
       .finally(() => setHistoryLoading(false))
-  }, [sessionToken])
+  }, [sessionToken, currentSessionId])
+
+  // Persist finished P&E bubbles to localStorage so they survive page refresh.
+  useEffect(() => {
+    if (!currentSessionId) return
+    savePlanExecuteCache(currentSessionId, messages)
+  }, [messages, currentSessionId])
 
   const sendMessage = useCallback(
     async (userText: string) => {
