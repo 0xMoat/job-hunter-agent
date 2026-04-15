@@ -307,7 +307,7 @@ class PlanExecuteAgent:
 
         langfuse_handler = CallbackHandler()
         config: RunnableConfig = {
-            "configurable": {"thread_id": session_id, "user_id": user_id},
+            "configurable": {"thread_id": f"pe_{session_id}", "user_id": user_id},
             "callbacks": [langfuse_handler],
             "metadata": {
                 "user_id": user_id,
@@ -327,8 +327,10 @@ class PlanExecuteAgent:
         }
 
         emitted_plan = False
+        emitted_final = False
         current_plan: list[str] = []
         current_step_index = -1
+        event: dict = {}
 
         try:
             async for event in self._graph.astream(initial_state, config, stream_mode="values"):
@@ -336,7 +338,8 @@ class PlanExecuteAgent:
                 past_steps = event.get("past_steps", [])
                 response = event.get("response")
 
-                # plan_created: first time we see a non-empty plan
+                # plan_created: first time we see a non-empty plan.
+                # Also emit step_started for step 0 so the UI can show "running" before execution.
                 if not emitted_plan and new_plan:
                     emitted_plan = True
                     current_plan = list(new_plan)
@@ -345,18 +348,18 @@ class PlanExecuteAgent:
                         "steps": current_plan,
                         "done": False,
                     })
+                    yield _json.dumps({
+                        "type": "step_started",
+                        "index": 0,
+                        "text": current_plan[0],
+                        "total": len(current_plan),
+                        "done": False,
+                    })
 
-                # step_completed: past_steps grew — emit started+completed for each new entry
+                # step_completed for each new past_step; then step_started for the NEXT pending step.
                 if len(past_steps) > current_step_index + 1:
                     for i in range(current_step_index + 1, len(past_steps)):
                         step_text, result_text = past_steps[i]
-                        yield _json.dumps({
-                            "type": "step_started",
-                            "index": i,
-                            "text": step_text,
-                            "total": i + 1 + len(new_plan),
-                            "done": False,
-                        })
                         yield _json.dumps({
                             "type": "step_completed",
                             "index": i,
@@ -365,6 +368,16 @@ class PlanExecuteAgent:
                             "done": False,
                         })
                     current_step_index = len(past_steps) - 1
+                    # Emit step_started for the upcoming step (if any remain after replanner)
+                    if new_plan:
+                        next_index = len(past_steps)
+                        yield _json.dumps({
+                            "type": "step_started",
+                            "index": next_index,
+                            "text": new_plan[0],
+                            "total": next_index + len(new_plan),
+                            "done": False,
+                        })
 
                 # plan_updated: replanner replaced remaining plan with something different
                 if emitted_plan and new_plan and new_plan != current_plan[len(past_steps):]:
@@ -381,7 +394,20 @@ class PlanExecuteAgent:
                         "content": response,
                         "done": True,
                     })
+                    emitted_final = True
                     return
+
+            # Graph exhausted without a Response — likely MAX_ITERATIONS or empty-plan exit.
+            # Emit a summary so the UI doesn't hang silently.
+            if not emitted_final:
+                summary = "## 执行结束\n" + "\n".join(
+                    f"- {s}\n  {(r or '')[:200]}" for s, r in (event.get("past_steps") or [])
+                ) if event.get("past_steps") else "执行结束，无可汇报的步骤。"
+                yield _json.dumps({
+                    "type": "final_response",
+                    "content": summary,
+                    "done": True,
+                })
         except Exception as e:
             logger.exception("pe_astream_failed", session_id=session_id)
             yield _json.dumps({
