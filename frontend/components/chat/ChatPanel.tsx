@@ -1,11 +1,13 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { MessageBubble } from "./MessageBubble"
 import { ChatInput } from "./ChatInput"
 import { useChat } from "@/hooks/useChat"
 import { useLanguage } from "@/contexts/LanguageContext"
 import { useSession } from "@/contexts/SessionContext"
+import { apiListApplications } from "@/lib/api"
+import { getSessionToken } from "@/lib/auth"
 
 export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boolean) => void }) {
   const { currentSessionToken, currentSessionId, sessions, renameSession, langfuseUrlBase } = useSession()
@@ -18,6 +20,28 @@ export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boole
   })
   const { t } = useLanguage()
   const bottomRef = useRef<HTMLDivElement>(null)
+  const [pendingCount, setPendingCount] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    async function refresh() {
+      const token = getSessionToken()
+      if (!token) return
+      try {
+        const { applications } = await apiListApplications(token)
+        if (cancelled) return
+        setPendingCount(applications.filter((a) => a.status === "pending").length)
+      } catch {
+        // silent
+      }
+    }
+    refresh()
+    // refetch after any streaming session ends (plan-execute may have mutated the board)
+    if (!streaming) refresh()
+    return () => {
+      cancelled = true
+    }
+  }, [streaming, currentSessionId])
 
   const QUICK_PROMPTS = [
     t('quick_prompt_1'),
@@ -44,14 +68,16 @@ export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boole
               <span className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />
               {t('chat_badge')}
             </div>
-            <button
-              onClick={() => startPlanExecute()}
-              disabled={streaming}
-              className="bg-indigo-600 text-white rounded-full px-3 py-1.5 text-xs font-body font-medium
-                         hover:bg-indigo-700 transition-colors disabled:opacity-50 cursor-pointer"
-            >
-              一键处理今日推荐
-            </button>
+            {pendingCount > 0 && (
+              <button
+                onClick={() => startPlanExecute()}
+                disabled={streaming}
+                className="bg-indigo-600 text-white rounded-full px-3 py-1.5 text-xs font-body font-medium
+                           hover:bg-indigo-700 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                自动处理看板 · {pendingCount} 个
+              </button>
+            )}
             {langfuseUrlBase && currentSessionId && (
               <a
                 href={`${langfuseUrlBase}/sessions/${currentSessionId}`}
@@ -111,14 +137,16 @@ export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boole
                     <span className="text-[var(--text-3)] flex-shrink-0 ml-2" aria-hidden="true">↗</span>
                   </button>
                 ))}
-                <button
-                  onClick={() => startPlanExecute()}
-                  disabled={streaming}
-                  className="bg-indigo-600 text-white rounded-full px-3 py-1.5 text-xs font-body font-medium
-                             hover:bg-indigo-700 transition-colors disabled:opacity-50 cursor-pointer self-start"
-                >
-                  一键处理今日推荐
-                </button>
+                {pendingCount > 0 && (
+                  <button
+                    onClick={() => startPlanExecute()}
+                    disabled={streaming}
+                    className="bg-indigo-600 text-white rounded-full px-3 py-1.5 text-xs font-body font-medium
+                               hover:bg-indigo-700 transition-colors disabled:opacity-50 cursor-pointer self-start"
+                  >
+                    自动处理看板 · {pendingCount} 个
+                  </button>
+                )}
               </div>
             </div>
           )}
