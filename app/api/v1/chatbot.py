@@ -5,6 +5,7 @@ streaming chat, message history management, and chat history clearing.
 """
 
 import json as _json
+from typing import Literal
 
 from fastapi import (
     APIRouter,
@@ -36,12 +37,21 @@ db_service = DatabaseService()
 
 
 class PlanExecuteRequest(BaseModel):
-    """Request body for the plan-execute endpoint."""
+    """Request body for the plan-execute endpoint.
+
+    Two modes:
+    - start: thread_id/resume_action are None — runs from the top.
+    - resume: provide thread_id + resume_action (optionally feedback) to
+      continue an interrupted HITL run.
+    """
 
     goal: str = (
         "处理看板上所有状态为 pending 的职位：逐一研究公司、撰写求职信，"
         "并将处理结果更新回看板。"
     )
+    thread_id: str | None = None
+    resume_action: Literal["approve", "revise", "cancel"] | None = None
+    feedback: str | None = None
 
 
 @router.post("/chat/stream")
@@ -167,22 +177,33 @@ async def plan_execute(
     body: PlanExecuteRequest,
     session: Session = Depends(get_current_session),
 ):
-    """Run the Plan-and-Execute subgraph and stream SSE chunks.
+    """Run Plan-and-Execute or resume an interrupted HITL run via SSE."""
+    is_resume = body.thread_id is not None
+    if is_resume and body.resume_action == "revise" and not body.feedback:
+        raise HTTPException(status_code=400, detail="feedback required for revise action")
 
-    Distinct from /chat/stream — this runs a multi-step batch pipeline.
-    """
     logger.info(
         "plan_execute_request_received",
         session_id=session.id,
         user_id=session.user_id,
+        mode="resume" if is_resume else "start",
+        thread_id=body.thread_id,
+        resume_action=body.resume_action,
     )
 
     async def event_generator():
         try:
+            resume_payload = None
+            if is_resume:
+                resume_payload = {"action": body.resume_action}
+                if body.resume_action == "revise":
+                    resume_payload["feedback"] = body.feedback
             async for chunk in plan_execute_agent.astream(
                 goal=body.goal,
                 session_id=session.id,
                 user_id=str(session.user_id),
+                resume_thread_id=body.thread_id,
+                resume_payload=resume_payload,
             ):
                 yield f"data: {chunk}\n\n"
         except Exception as e:
