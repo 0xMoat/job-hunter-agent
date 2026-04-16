@@ -6,6 +6,7 @@ import { ThinkingCard } from "./ThinkingCard"
 import { ResumeDownloadCard } from "./ResumeDownloadCard"
 import { ResumeDownloadLink } from "./ResumeDownloadLink"
 import { PlanTimelineView } from "@/components/plan/PlanTimeline"
+import { PlanExecuteSuggestionCard } from "@/components/plan/PlanExecuteSuggestionCard"
 import type { ChatMessage } from "@/lib/types"
 import { useLanguage } from "@/contexts/LanguageContext"
 
@@ -16,9 +17,17 @@ interface Props {
     messageId: string,
     args: { action: "approve" | "revise" | "cancel"; feedback?: string },
   ) => void
+  onSuggestionTrigger?: (savedCount: number) => void
+  onSuggestionAccept?: (suggestionMsgId: string) => void
 }
 
-export function MessageBubble({ message, isStreaming, onResume }: Props) {
+export function MessageBubble({
+  message,
+  isStreaming,
+  onResume,
+  onSuggestionTrigger,
+  onSuggestionAccept,
+}: Props) {
   const { locale } = useLanguage()
   const isUser = message.role === "user"
 
@@ -35,13 +44,32 @@ export function MessageBubble({ message, isStreaming, onResume }: Props) {
           <div className="mb-2 space-y-1">
             {message.toolCalls.map((tc) =>
               tc.toolName === "job_search_tool" && tc.status === "done" ? (
-                <JobSearchResultCard key={tc.toolCallId} entry={tc} />
+                <JobSearchResultCard
+                  key={tc.toolCallId}
+                  entry={tc}
+                  onSaved={onSuggestionTrigger}
+                />
               ) : tc.toolName === "generate_resume_pdf" && tc.status === "done" ? (
                 <ResumeDownloadCard key={tc.toolCallId} entry={tc} />
               ) : (
                 <ToolCallCard key={tc.toolCallId} entry={tc} isStreaming={isStreaming} />
               ),
             )}
+          </div>
+        )}
+
+        {/* Plan-Execute suggestion bubble (assistant only) */}
+        {!isUser && message.planExecuteSuggestion && (
+          <div className="mb-2">
+            <PlanExecuteSuggestionCard
+              suggestion={message.planExecuteSuggestion}
+              onAccept={
+                onSuggestionAccept
+                  ? () => onSuggestionAccept(message.id)
+                  : () => undefined
+              }
+              disabled={isStreaming}
+            />
           </div>
         )}
 
@@ -67,7 +95,7 @@ export function MessageBubble({ message, isStreaming, onResume }: Props) {
         )}
 
         {/* Text bubble */}
-        {!message.planExecute && (message.textContent || isStreaming) && (
+        {!message.planExecute && !message.planExecuteSuggestion && (message.textContent || isStreaming) && (
           <div
             className={`rounded-[18px] px-4 py-2.5 text-sm leading-relaxed font-body ${
               isUser
