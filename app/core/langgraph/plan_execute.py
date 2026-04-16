@@ -9,7 +9,7 @@ import json as _json
 import time
 import uuid
 from datetime import datetime
-from typing import AsyncGenerator, Optional
+from typing import Any, AsyncGenerator, Optional
 from urllib.parse import quote_plus
 
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -20,7 +20,7 @@ from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
 from langgraph.prebuilt.chat_agent_executor import AgentState
-from langgraph.types import Command, RunnableConfig, interrupt  # noqa: F401
+from langgraph.types import Command, RunnableConfig, interrupt
 from mem0 import AsyncMemory
 from psycopg_pool import AsyncConnectionPool
 
@@ -401,32 +401,47 @@ class PlanExecuteAgent:
         goal: str,
         session_id: str,
         user_id: str,
+        resume_thread_id: str | None = None,
+        resume_payload: dict | None = None,
     ) -> AsyncGenerator[str, None]:
         """Stream SSE JSON chunks for a Plan-and-Execute run.
 
-        Emits (in order):
-          plan_created → [step_started → tool_* (from executor) → step_completed
-                          → plan_updated?]* → final_response
+        Two modes:
+        - start:  resume_thread_id is None — generate a new thread id, prefetch
+          memory/pending, run from the top.
+        - resume: resume_thread_id is given — skip prefetch, call astream with
+          Command(resume=payload) on the existing checkpoint.
+
+        Events emitted (in order, per stream):
+          plan_created, step_started, step_completed, plan_updated,
+          awaiting_approval (terminal), plan_revised, final_response (terminal),
+          error (terminal).
         """
         if self._graph is None:
             await self.create_graph()
 
-        long_term_memory, pending = await asyncio.gather(
-            self._get_relevant_memory(user_id, goal),
-            self._get_pending_applications(user_id),
-        )
+        if resume_thread_id is None:
+            long_term_memory, pending = await asyncio.gather(
+                self._get_relevant_memory(user_id, goal),
+                self._get_pending_applications(user_id),
+            )
+            if not pending:
+                yield _json.dumps({
+                    "type": "final_response",
+                    "content": "暂无待处理的职位。请先在看板中添加职位后再运行一键处理。",
+                    "done": True,
+                })
+                return
+            pe_thread_id = f"pe_{session_id}_{uuid.uuid4().hex[:8]}"
+            graph_input: Any = {
+                "input": goal,
+                "long_term_memory": long_term_memory or "",
+                "pending_applications": pending,
+            }
+        else:
+            pe_thread_id = resume_thread_id
+            graph_input = Command(resume=resume_payload or {})
 
-        if not pending:
-            yield _json.dumps({
-                "type": "final_response",
-                "content": "暂无待处理的职位。请先在看板中添加职位后再运行一键处理。",
-                "done": True,
-            })
-            return
-
-        # Use a fresh checkpoint thread per invocation so the graph re-runs
-        # the planner instead of restoring a prior `response` state.
-        pe_thread_id = f"pe_{session_id}_{uuid.uuid4().hex[:8]}"
         langfuse_handler = CallbackHandler()
         config: RunnableConfig = {
             "configurable": {"thread_id": pe_thread_id, "user_id": user_id},
@@ -438,20 +453,11 @@ class PlanExecuteAgent:
                 "langfuse_user_id": str(user_id),
                 "environment": settings.ENVIRONMENT.value,
                 "pipeline": "plan_execute",
+                "pe_thread_id": pe_thread_id,
             },
             "recursion_limit": 50,
         }
 
-        initial_state = {
-            "input": goal,
-            "long_term_memory": long_term_memory or "",
-            "pending_applications": pending,
-        }
-
-        # Stable per-step ids. past_step_ids + pending_ids == current_plan_ids,
-        # aligned 1:1 with state.past_steps texts + state.plan.
-        # Frontend addresses every event by id, not by array index, so multi-replan
-        # can never desync ordering.
         def _new_id() -> str:
             return uuid.uuid4().hex[:12]
 
@@ -460,40 +466,55 @@ class PlanExecuteAgent:
         past_step_ids: list[str] = []
         pending_ids: list[str] = []
         current_step_index = -1
+        last_pending_revise_state = False
         event: dict = {}
 
         try:
-            async for event in self._graph.astream(initial_state, config, stream_mode="values"):
-                new_plan = event.get("plan", [])
-                past_steps = event.get("past_steps", [])
+            async for event in self._graph.astream(
+                graph_input,
+                config,
+                stream_mode="values",
+            ):
+                new_plan = event.get("plan", []) or []
+                past_steps = event.get("past_steps", []) or []
                 response = event.get("response")
+                pending_revise = event.get("pending_revise", False)
 
-                # plan_created: first time we see a non-empty plan.
                 if not emitted_plan and new_plan:
                     emitted_plan = True
                     pending_ids = [_new_id() for _ in new_plan]
                     yield _json.dumps({
                         "type": "plan_created",
                         "steps": [
-                            {"id": sid, "text": text}
-                            for sid, text in zip(pending_ids, new_plan, strict=True)
+                            {"id": sid, "text": t}
+                            for sid, t in zip(pending_ids, new_plan, strict=True)
                         ],
                         "done": False,
                     })
-                    # Also mark step 0 as running so the UI renders the pulse
-                    # BEFORE the executor actually finishes it.
+
+                # Detect revise-cycle transition: was pending_revise, no longer;
+                # this values event carries the rewritten plan from Replanner.
+                if (
+                    last_pending_revise_state
+                    and not pending_revise
+                    and emitted_plan
+                    and new_plan
+                ):
+                    pending_ids = [_new_id() for _ in new_plan]
                     yield _json.dumps({
-                        "type": "step_started",
-                        "id": pending_ids[0],
+                        "type": "plan_revised",
+                        "plan": [
+                            {"id": sid, "text": t}
+                            for sid, t in zip(pending_ids, new_plan, strict=True)
+                        ],
+                        "reason": "user_feedback",
                         "done": False,
                     })
+                last_pending_revise_state = pending_revise
 
-                # step_completed for each new past_step; step_started for next pending.
                 if len(past_steps) > current_step_index + 1:
                     for i in range(current_step_index + 1, len(past_steps)):
                         if not pending_ids:
-                            # Should not happen under normal operation, but stay
-                            # defensive if LangGraph sends an unexpected values event.
                             break
                         sid = pending_ids.pop(0)
                         past_step_ids.append(sid)
@@ -512,40 +533,6 @@ class PlanExecuteAgent:
                             "done": False,
                         })
 
-                # plan_updated: replanner replaced remaining plan with something different.
-                # Test against the current pending texts, not array indices.
-                pending_texts = list(new_plan)
-                if emitted_plan and pending_texts and len(pending_texts) != len(pending_ids):
-                    needs_update = True
-                elif emitted_plan and pending_texts:
-                    # Same length — check text-by-text for a replanner rewrite.
-                    # (We don't hold the prior pending texts, so lean on the assumption
-                    # that same-length-same-order only happens when executor popped
-                    # the head; in that case we've already adjusted above.)
-                    needs_update = False
-                else:
-                    needs_update = False
-
-                if needs_update:
-                    # Regenerate ids for the whole new pending list so replanner-
-                    # added steps each get a fresh stable id.
-                    pending_ids = [_new_id() for _ in pending_texts]
-                    yield _json.dumps({
-                        "type": "plan_updated",
-                        "remaining": [
-                            {"id": sid, "text": text}
-                            for sid, text in zip(pending_ids, pending_texts, strict=True)
-                        ],
-                        "done": False,
-                    })
-                    # Kick off the next pending step visually.
-                    if pending_ids:
-                        yield _json.dumps({
-                            "type": "step_started",
-                            "id": pending_ids[0],
-                            "done": False,
-                        })
-
                 if response:
                     yield _json.dumps({
                         "type": "final_response",
@@ -555,12 +542,38 @@ class PlanExecuteAgent:
                     emitted_final = True
                     return
 
-            # Graph exhausted without a Response — likely MAX_ITERATIONS or empty-plan exit.
-            # Emit a summary so the UI doesn't hang silently.
+            # Stream loop ended — inspect the graph state to detect an interrupt.
+            state_snapshot = await self._graph.aget_state(config)
+            tasks = getattr(state_snapshot, "tasks", None) or []
+            interrupts = [t for t in tasks if getattr(t, "interrupts", None)]
+            if interrupts:
+                snapshot_values = state_snapshot.values or {}
+                plan_texts = snapshot_values.get("plan", []) or []
+                approval_round = (snapshot_values.get("approval_round") or 0) + 1
+                if len(pending_ids) != len(plan_texts):
+                    pending_ids = [_new_id() for _ in plan_texts]
+                yield _json.dumps({
+                    "type": "awaiting_approval",
+                    "thread_id": pe_thread_id,
+                    "plan": [
+                        {"id": sid, "text": t}
+                        for sid, t in zip(pending_ids, plan_texts, strict=True)
+                    ],
+                    "round": approval_round,
+                    "done": True,
+                })
+                return
+
             if not emitted_final:
-                summary = "## 执行结束\n" + "\n".join(
-                    f"- {s}\n  {(r or '')[:200]}" for s, r in (event.get("past_steps") or [])
-                ) if event.get("past_steps") else "执行结束，无可汇报的步骤。"
+                summary = (
+                    "## 执行结束\n"
+                    + "\n".join(
+                        f"- {s}\n  {(r or '')[:200]}"
+                        for s, r in (event.get("past_steps") or [])
+                    )
+                    if event.get("past_steps")
+                    else "执行结束，无可汇报的步骤。"
+                )
                 yield _json.dumps({
                     "type": "final_response",
                     "content": summary,
