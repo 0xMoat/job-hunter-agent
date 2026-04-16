@@ -65,7 +65,9 @@ def run_experiment_sync(langfuse):
     from evals.agent_runner import agent_task
     from evals.evaluators import (
         helpfulness_evaluator,
+        plan_quality_evaluator,
         relevancy_evaluator,
+        replan_decision_evaluator,
         task_completion_evaluator,
         tool_appropriateness_evaluator,
     )
@@ -76,7 +78,10 @@ def run_experiment_sync(langfuse):
 
     print(f"Running experiment '{experiment_name}' on {len(dataset.items)} items...")
     print(f"Model: {settings.DEFAULT_LLM_MODEL}")
-    print(f"Evaluators: relevancy, helpfulness, task_completion, tool_appropriateness")
+    print(
+        "Evaluators: relevancy, helpfulness, task_completion, tool_appropriateness, "
+        "plan_quality, replan_decision"
+    )
 
     result = langfuse.run_experiment(
         name=experiment_name,
@@ -87,6 +92,8 @@ def run_experiment_sync(langfuse):
             helpfulness_evaluator,
             task_completion_evaluator,
             tool_appropriateness_evaluator,
+            plan_quality_evaluator,
+            replan_decision_evaluator,
         ],
         max_concurrency=3,
         metadata={

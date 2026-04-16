@@ -63,15 +63,24 @@ def _get_llm():
 async def agent_task(*, item, **kwargs):
     """Task function for Langfuse run_experiment.
 
-    Takes a dataset item, calls the LLM with system prompt + tools,
-    returns structured output with text and tool_calls.
+    Routes by metadata.category: `plan_execute` items run against the real
+    PlanExecuteAgent graph; everything else takes the lightweight ReAct path
+    (system prompt + tool schemas, single LLM call without execution).
 
     Args:
-        item: DatasetItemClient (from Langfuse) or dict with "input" key.
+        item: DatasetItemClient (from Langfuse) or dict with "input"/"metadata" keys.
+        **kwargs: Additional kwargs forwarded by Langfuse (ignored here).
 
     Returns:
-        Dict with "text" (response content) and "tool_calls" (list of tool names).
+        Dict. For P&E: {text, plan, past_steps, final_response, replan_count}.
+        For ReAct: {text, tool_calls}.
     """
+    metadata = item.metadata if hasattr(item, "metadata") else {}
+    if metadata.get("category") == "plan_execute":
+        from evals.plan_execute_runner import plan_execute_task
+
+        return await plan_execute_task(item=item, **kwargs)
+
     # DatasetItemClient uses attribute access; plain dicts use subscript
     raw_input = item.input if hasattr(item, "input") else item
     user_input = raw_input["input"]

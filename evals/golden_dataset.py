@@ -163,4 +163,32 @@ GOLDEN_DATASET = [
         "expected_output": "调用job_preferences_tool更新偏好：keywords=全栈工程师, job_type=remote",
         "metadata": {"category": "preferences", "expected_tools": ["job_preferences_tool"]},
     },
+    # ── I. Plan-and-Execute 批处理（2 cases）────────────────────
+    {
+        "input": "处理看板上所有状态为 pending 的职位：逐一研究公司、撰写求职信，并将处理结果更新回看板。",
+        "expected_output": (
+            "Planner 为 2 条 pending 分别规划：研究公司 → 撰写求职信 → 更新看板状态；"
+            "最后一步汇总。每步应引用具体公司 + 职位名，且不应包含 job_search。"
+        ),
+        "metadata": {
+            "category": "plan_execute",
+            "pending_applications": [
+                {"company": "蚂蚁集团", "title": "AI 应用研发（Agent/大模型应用）"},
+                {"company": "腾讯", "title": "大模型应用 agent 开发工程师"},
+            ],
+        },
+    },
+    {
+        "input": "自动处理看板上的待投递职位",
+        "expected_output": (
+            "Planner 为 1 条 pending 规划公司调研 → 求职信 → 看板更新 → 汇总；"
+            "Replanner 正常终止并返回包含处理结果的 final_response。"
+        ),
+        "metadata": {
+            "category": "plan_execute",
+            "pending_applications": [
+                {"company": "字节跳动", "title": "Agent Engineer / LLM Platform"},
+            ],
+        },
+    },
 ]

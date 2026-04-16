@@ -33,6 +33,8 @@ eval-golden:
 	@echo "Running golden dataset experiment"
 	@bash -c "source scripts/set_env.sh $${ENV:-development} && .venv/bin/python -m evals.experiment"
 
+eval: eval-golden
+
 eval-upload:
 	@echo "Uploading golden dataset to Langfuse"
 	@bash -c "source scripts/set_env.sh $${ENV:-development} && .venv/bin/python -m evals.experiment --upload-only"

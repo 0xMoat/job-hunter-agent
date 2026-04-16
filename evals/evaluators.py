@@ -118,11 +118,54 @@ async def task_completion_evaluator(*, input, output, expected_output, **kwargs)
     return await _llm_judge("task_completion", prompt, input_text, output_text)
 
 
-def tool_appropriateness_evaluator(*, output, metadata, **kwargs) -> Evaluation:
+_PLAN_QUALITY_PROMPT: str | None = None
+_REPLAN_DECISION_PROMPT: str | None = None
+
+
+async def plan_quality_evaluator(*, input, output, metadata, **kwargs) -> Evaluation | None:
+    """Score the Planner's initial plan. Returns None for non-P&E items."""
+    if metadata.get("category") != "plan_execute":
+        return None
+    global _PLAN_QUALITY_PROMPT
+    if _PLAN_QUALITY_PROMPT is None:
+        _PLAN_QUALITY_PROMPT = _load_metric_prompt("plan_quality.md")
+    plan = output.get("plan", []) if isinstance(output, dict) else []
+    plan_text = "\n".join(f"{i + 1}. {s}" for i, s in enumerate(plan)) or "（空 plan）"
+    goal = input["input"] if isinstance(input, dict) else str(input)
+    return await _llm_judge("plan_quality", _PLAN_QUALITY_PROMPT, f"Goal: {goal}", plan_text)
+
+
+async def replan_decision_evaluator(*, input, output, metadata, **kwargs) -> Evaluation | None:
+    """Score Replanner decision quality based on past_steps + final_response."""
+    if metadata.get("category") != "plan_execute":
+        return None
+    global _REPLAN_DECISION_PROMPT
+    if _REPLAN_DECISION_PROMPT is None:
+        _REPLAN_DECISION_PROMPT = _load_metric_prompt("replan_decision.md")
+    past = output.get("past_steps", []) if isinstance(output, dict) else []
+    past_text = "\n".join(
+        f"{i + 1}. {step}\n   → {(result or '')[:200]}" for i, (step, result) in enumerate(past)
+    ) or "（尚无已执行步骤）"
+    replan_count = output.get("replan_count", 0) if isinstance(output, dict) else 0
+    final = output.get("final_response", "") if isinstance(output, dict) else ""
+    goal = input["input"] if isinstance(input, dict) else str(input)
+    summary = (
+        f"Goal: {goal}\n"
+        f"Replanner-rewrite count: {replan_count}\n"
+        f"Final response length: {len(final)} chars\n"
+        f"Final response (truncated 400): {final[:400]}"
+    )
+    return await _llm_judge("replan_decision", _REPLAN_DECISION_PROMPT, summary, past_text)
+
+
+def tool_appropriateness_evaluator(*, output, metadata, **kwargs) -> Evaluation | None:
     """Deterministic evaluator: compare actual tool calls against expected.
 
-    Uses Jaccard similarity for partial matches.
+    Returns None for P&E items where tool calls happen inside the sub-graph
+    and aren't surfaced at the runner output level.
     """
+    if metadata.get("category") == "plan_execute":
+        return None
     expected = set(metadata.get("expected_tools", []))
     actual_calls = output.get("tool_calls", []) if isinstance(output, dict) else []
     actual = set(actual_calls)
