@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { MessageBubble } from "./MessageBubble"
 import { ChatInput } from "./ChatInput"
 import { useChat } from "@/hooks/useChat"
@@ -20,6 +20,8 @@ export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boole
     sendMessage,
     startPlanExecute,
     resumePlanExecute,
+    insertPlanExecuteSuggestion,
+    acceptPlanExecuteSuggestion,
   } = useChat({
     sessionToken: currentSessionToken,
     currentSessionId,
@@ -51,6 +53,25 @@ export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boole
     }
   }, [streaming, currentSessionId])
 
+  const handleSaved = useCallback(
+    async (savedCount: number) => {
+      if (savedCount <= 0) return
+      const token = getSessionToken()
+      let latestPending = pendingCount + savedCount
+      if (token) {
+        try {
+          const { applications } = await apiListApplications(token)
+          latestPending = applications.filter((a) => a.status === "pending").length
+          setPendingCount(latestPending)
+        } catch {
+          // fall through with optimistic count
+        }
+      }
+      insertPlanExecuteSuggestion(savedCount, latestPending)
+    },
+    [insertPlanExecuteSuggestion, pendingCount],
+  )
+
   const QUICK_PROMPTS = [
     t('quick_prompt_1'),
     t('quick_prompt_2'),
@@ -76,16 +97,6 @@ export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boole
               <span className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />
               {t('chat_badge')}
             </div>
-            {pendingCount > 0 && (
-              <button
-                onClick={() => startPlanExecute()}
-                disabled={streaming}
-                className="bg-indigo-600 text-white rounded-full px-3 py-1.5 text-xs font-body font-medium
-                           hover:bg-indigo-700 transition-colors disabled:opacity-50 cursor-pointer"
-              >
-                自动处理看板 · {pendingCount} 个
-              </button>
-            )}
             {langfuseUrlBase && currentSessionId && (
               <a
                 href={`${langfuseUrlBase}/sessions/${currentSessionId}`}
@@ -173,6 +184,8 @@ export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boole
                   feedback: args.feedback,
                 })
               }}
+              onSuggestionTrigger={handleSaved}
+              onSuggestionAccept={acceptPlanExecuteSuggestion}
             />
           ))}
 
