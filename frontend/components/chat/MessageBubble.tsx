@@ -12,9 +12,13 @@ import { useLanguage } from "@/contexts/LanguageContext"
 interface Props {
   message: ChatMessage
   isStreaming?: boolean
+  onResume?: (
+    messageId: string,
+    args: { action: "approve" | "revise" | "cancel"; feedback?: string },
+  ) => void
 }
 
-export function MessageBubble({ message, isStreaming }: Props) {
+export function MessageBubble({ message, isStreaming, onResume }: Props) {
   const { locale } = useLanguage()
   const isUser = message.role === "user"
 
@@ -44,7 +48,21 @@ export function MessageBubble({ message, isStreaming }: Props) {
         {/* Plan-and-Execute timeline (assistant only) */}
         {!isUser && message.planExecute && (
           <div className="glass rounded-[18px] rounded-bl-[4px] px-4 py-3 text-sm">
-            <PlanTimelineView view={message.planExecute} />
+            <PlanTimelineView
+              view={message.planExecute!}
+              onApprove={
+                onResume ? () => onResume(message.id, { action: "approve" }) : undefined
+              }
+              onRevise={
+                onResume
+                  ? (feedback) => onResume(message.id, { action: "revise", feedback })
+                  : undefined
+              }
+              onCancel={
+                onResume ? () => onResume(message.id, { action: "cancel" }) : undefined
+              }
+              actionsDisabled={isStreaming}
+            />
           </div>
         )}
 

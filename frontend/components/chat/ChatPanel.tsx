@@ -12,7 +12,15 @@ import { getSessionToken } from "@/lib/auth"
 export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boolean) => void }) {
   const { currentSessionToken, currentSessionId, sessions, renameSession, langfuseUrlBase } = useSession()
   const currentSession = sessions.find((s) => s.session_id === currentSessionId)
-  const { messages, streaming, error, historyLoading, sendMessage, startPlanExecute } = useChat({
+  const {
+    messages,
+    streaming,
+    error,
+    historyLoading,
+    sendMessage,
+    startPlanExecute,
+    resumePlanExecute,
+  } = useChat({
     sessionToken: currentSessionToken,
     currentSessionId,
     currentSessionName: currentSession?.name ?? "",
@@ -156,6 +164,15 @@ export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boole
               key={msg.id}
               message={msg}
               isStreaming={streaming && i === messages.length - 1 && msg.role === "assistant"}
+              onResume={(mid, args) => {
+                const threadId = msg.planExecute?.threadId
+                if (!threadId) return
+                resumePlanExecute(mid, {
+                  threadId,
+                  action: args.action,
+                  feedback: args.feedback,
+                })
+              }}
             />
           ))}
 
