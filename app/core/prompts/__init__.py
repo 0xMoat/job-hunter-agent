@@ -32,6 +32,18 @@ def load_plan_execute_planner_prompt(**kwargs) -> str:
 
 
 def load_plan_execute_replanner_prompt(**kwargs) -> str:
-    """Load the Plan-and-Execute replanner system prompt."""
+    """Load the Plan-and-Execute replanner system prompt.
+
+    If ``user_feedback`` is provided and non-empty, a dedicated section is
+    inserted so the LLM treats it as authoritative guidance. Otherwise the
+    placeholder resolves to an empty string.
+    """
+    user_feedback = kwargs.pop("user_feedback", None)
+    if user_feedback:
+        kwargs["user_feedback_section"] = (
+            "\n\n## 用户反馈（修订意见，请优先据此调整）\n" + user_feedback
+        )
+    else:
+        kwargs["user_feedback_section"] = ""
     with open(os.path.join(os.path.dirname(__file__), "plan_execute_replanner.md"), "r") as f:
         return f.read().format(**kwargs)
