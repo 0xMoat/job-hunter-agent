@@ -343,9 +343,12 @@ class PlanExecuteAgent:
     # ---------- routing ----------
 
     def _should_end(self, state: PlanExecuteState) -> str:
-        """Edge: from replanner → executor (continue) or END (finish)."""
+        """Edge: from replanner → approval_gate (revise) / executor / END."""
         if state.response is not None:
             return END
+        if state.pending_revise:
+            # Revise cycle produced a new plan; loop back for user approval.
+            return "approval_gate"
         if state.iterations >= MAX_ITERATIONS:
             logger.warning("pe_max_iterations_reached", iterations=state.iterations)
             return END
@@ -362,12 +365,22 @@ class PlanExecuteAgent:
 
         builder = StateGraph(PlanExecuteState)
         builder.add_node("planner", self._planner)
+        builder.add_node("approval_gate", self._approval_gate)
         builder.add_node("executor", self._execute_step)
         builder.add_node("replanner", self._replan)
         builder.set_entry_point("planner")
-        builder.add_edge("planner", "executor")
+        builder.add_edge("planner", "approval_gate")
+        builder.add_conditional_edges(
+            "approval_gate",
+            self._route_after_approval,
+            ["executor", "replanner", END],
+        )
         builder.add_edge("executor", "replanner")
-        builder.add_conditional_edges("replanner", self._should_end, ["executor", END])
+        builder.add_conditional_edges(
+            "replanner",
+            self._should_end,
+            ["executor", "approval_gate", END],
+        )
 
         pool = await self._get_connection_pool()
         checkpointer = AsyncPostgresSaver(pool) if pool else None
