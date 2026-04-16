@@ -36,9 +36,13 @@ function loadPlanExecuteCache(sessionId: string): ChatMessage[] {
 
 function savePlanExecuteCache(sessionId: string, messages: ChatMessage[]): void {
   if (typeof window === "undefined") return
-  const toCache = messages.filter(
-    (m) => m.planExecute && !m.planExecute.running,
-  )
+  const toCache = messages.filter((m) => {
+    // Completed / awaiting P&E bubbles
+    if (m.planExecute && !m.planExecute.running) return true
+    // Non-dismissed suggestion bubbles (dismissed ones shouldn't survive refresh)
+    if (m.planExecuteSuggestion && !m.planExecuteSuggestion.dismissed) return true
+    return false
+  })
   try {
     if (toCache.length === 0) {
       localStorage.removeItem(PE_CACHE_PREFIX + sessionId)
@@ -589,6 +593,48 @@ export function useChat({
     [sessionToken],
   )
 
+  const insertPlanExecuteSuggestion = useCallback(
+    (savedCount: number, pendingCount: number) => {
+      if (savedCount <= 0) return
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: makeId(),
+          role: "assistant" as const,
+          textContent: "",
+          toolCalls: [],
+          timestamp: new Date(),
+          planExecuteSuggestion: {
+            savedCount,
+            pendingCount,
+            dismissed: false,
+          },
+        },
+      ])
+    },
+    [],
+  )
+
+  const acceptPlanExecuteSuggestion = useCallback(
+    async (suggestionMsgId: string) => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === suggestionMsgId && m.planExecuteSuggestion
+            ? {
+                ...m,
+                planExecuteSuggestion: {
+                  ...m.planExecuteSuggestion,
+                  dismissed: true,
+                },
+              }
+            : m,
+        ),
+      )
+      await startPlanExecute()
+    },
+    [startPlanExecute],
+  )
+
   const resumePlanExecute = useCallback(
     async (assistantMsgId: string, args: PlanExecuteResumeArgs) => {
       if (!sessionToken) return
@@ -703,6 +749,8 @@ export function useChat({
     sendMessage,
     startPlanExecute,
     resumePlanExecute,
+    insertPlanExecuteSuggestion,
+    acceptPlanExecuteSuggestion,
     clearMessages,
   }
 }
