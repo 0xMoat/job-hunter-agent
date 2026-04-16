@@ -46,6 +46,12 @@ export interface PlanExecuteView {
   finalResponse: string | null
   errorMsg: string | null
   running: boolean
+  // ── HITL ──
+  threadId: string | null
+  awaitingApproval: boolean
+  approvalRound: number
+  revisionReason: string | null
+  cancelled: boolean
 }
 
 export interface ChatMessage {
@@ -107,5 +113,13 @@ export type PlanStreamChunk =
   | { type: "step_started"; id: string; done: false }
   | { type: "step_completed"; id: string; result: string; done: false }
   | { type: "plan_updated"; remaining: PlanStepDescriptor[]; done: false }
+  | {
+      type: "awaiting_approval"
+      thread_id: string
+      plan: PlanStepDescriptor[]
+      round: number
+      done: true
+    }
+  | { type: "plan_revised"; plan: PlanStepDescriptor[]; reason: string; done: false }
   | { type: "final_response"; content: string; done: true }
   | { type: "error"; message: string; done: true }
