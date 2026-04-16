@@ -295,6 +295,7 @@ class PlanExecuteAgent:
             input=state.input,
             original_plan=original_plan_text,
             past_steps=past_steps_text,
+            user_feedback=state.user_feedback,
         )
         replanner_llm = self._structured_llm(Act)
         try:
@@ -307,14 +308,37 @@ class PlanExecuteAgent:
             summary = "## 已完成\n" + "\n".join(
                 f"- {s}\n  {r[:200]}" for s, r in state.past_steps
             )
-            return {"response": summary}
+            return {"response": summary, "pending_revise": False, "user_feedback": None}
+
+        # After consuming user_feedback (if any), clear it so the next round
+        # isn't polluted by stale input.
+        updates: dict = {}
+        if state.user_feedback:
+            updates["user_feedback"] = None
 
         if isinstance(act.action, PlanResponse):
             logger.info("pe_replan_finish", iterations=state.iterations)
-            return {"response": act.action.content}
+            return {"response": act.action.content, "pending_revise": False, **updates}
 
-        logger.info("pe_replan_continue", new_step_count=len(act.action.steps))
-        return {"plan": act.action.steps}
+        logger.info(
+            "pe_replan_continue",
+            new_step_count=len(act.action.steps),
+            revise_scenario=state.pending_revise,
+        )
+        if state.pending_revise:
+            # Revise cycle: the rewritten plan must go BACK to approval_gate
+            # so the user can see the revision before execution.
+            return {
+                "plan": act.action.steps,
+                "pending_revise": True,
+                **updates,
+            }
+        # Normal mid-execution replan: straight to executor.
+        return {
+            "plan": act.action.steps,
+            "pending_revise": False,
+            **updates,
+        }
 
     # ---------- routing ----------
 
