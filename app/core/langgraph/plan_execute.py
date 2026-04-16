@@ -20,7 +20,7 @@ from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
 from langgraph.prebuilt.chat_agent_executor import AgentState
-from langgraph.types import RunnableConfig
+from langgraph.types import Command, RunnableConfig, interrupt  # noqa: F401
 from mem0 import AsyncMemory
 from psycopg_pool import AsyncConnectionPool
 
@@ -232,6 +232,53 @@ class PlanExecuteAgent:
             "plan": state.plan[1:],
             "iterations": state.iterations + 1,
         }
+
+    # ---------- approval gate (HITL) ----------
+
+    async def _approval_gate(self, state: PlanExecuteState, config: RunnableConfig) -> dict:
+        """Pause the graph before executor and wait for user approval.
+
+        The astream layer emits an `awaiting_approval` SSE event with the
+        current plan and bumps approval_round; when the user resumes with
+        Command(resume={action, feedback}) LangGraph injects the payload
+        as interrupt() return value.
+        """
+        next_round = state.approval_round + 1
+        payload = interrupt(
+            {
+                "round": next_round,
+                "plan": list(state.plan),
+            }
+        )
+
+        # Normalize the resume payload — defensive in case callers send strings
+        action = (payload or {}).get("action") if isinstance(payload, dict) else None
+        feedback = (payload or {}).get("feedback") if isinstance(payload, dict) else None
+
+        if action == "cancel":
+            logger.info("pe_approval_cancelled", round=next_round)
+            return {
+                "response": "已取消自动处理。未执行任何步骤。",
+                "approval_round": next_round,
+            }
+        if action == "revise":
+            logger.info("pe_approval_revise", round=next_round, feedback_len=len(feedback or ""))
+            return {
+                "user_feedback": feedback or "",
+                "approval_round": next_round,
+                "pending_revise": True,
+            }
+        # default: user approved
+        logger.info("pe_approval_approved", round=next_round)
+        return {"approval_round": next_round}
+
+    def _route_after_approval(self, state: PlanExecuteState) -> str:
+        """Edge dispatcher after approval_gate."""
+        if state.response is not None:
+            return END
+        if state.pending_revise:
+            return "replanner"
+        return "executor"
 
     # ---------- replanner node ----------
 
