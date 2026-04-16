@@ -332,6 +332,12 @@ export async function apiRunSearch(
 
 // ── Plan-and-Execute ─────────────────────────────────────────────────────
 
+export interface PlanExecuteResumeArgs {
+  threadId: string
+  action: "approve" | "revise" | "cancel"
+  feedback?: string
+}
+
 export async function startPlanExecute(
   token: string,
   goal?: string,
@@ -344,5 +350,26 @@ export async function startPlanExecute(
       Authorization: `Bearer ${token}`,
     },
     body,
+  })
+}
+
+export async function resumePlanExecute(
+  token: string,
+  args: PlanExecuteResumeArgs,
+): Promise<Response> {
+  const body: Record<string, unknown> = {
+    thread_id: args.threadId,
+    resume_action: args.action,
+  }
+  if (args.action === "revise" && args.feedback) {
+    body.feedback = args.feedback
+  }
+  return fetch(`${BASE_URL}/api/v1/chatbot/plan-execute`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(body),
   })
 }
