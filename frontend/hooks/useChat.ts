@@ -1,7 +1,14 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { apiGetMessages, apiStreamChat, apiUpdateSessionName, startPlanExecute as apiStartPlanExecute } from "@/lib/api"
+import {
+  apiGetMessages,
+  apiStreamChat,
+  apiUpdateSessionName,
+  startPlanExecute as apiStartPlanExecute,
+  resumePlanExecute as apiResumePlanExecute,
+  type PlanExecuteResumeArgs,
+} from "@/lib/api"
 import type { ChatMessage, StreamChunk, ToolCallEntry, ThinkingEntry, PlanExecuteView, PlanStep, PlanStreamChunk } from "@/lib/types"
 
 function makeId(): string {
@@ -40,6 +47,173 @@ function savePlanExecuteCache(sessionId: string, messages: ChatMessage[]): void 
     }
   } catch {
     // silent: localStorage quota / JSON cycles etc
+  }
+}
+
+function applyPlanChunkToMessage(
+  setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>,
+  assistantId: string,
+  chunk: PlanStreamChunk,
+): void {
+  if (chunk.type === "plan_created") {
+    const steps: PlanStep[] = chunk.steps.map((s) => ({
+      id: s.id,
+      text: s.text,
+      status: "pending" as const,
+    }))
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === assistantId && m.planExecute
+          ? { ...m, planExecute: { ...m.planExecute, steps } }
+          : m,
+      ),
+    )
+    return
+  }
+  if (chunk.type === "step_started") {
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.id !== assistantId || !m.planExecute) return m
+        return {
+          ...m,
+          planExecute: {
+            ...m.planExecute,
+            steps: m.planExecute.steps.map((s) =>
+              s.id === chunk.id ? { ...s, status: "running" as const } : s,
+            ),
+          },
+        }
+      }),
+    )
+    return
+  }
+  if (chunk.type === "step_completed") {
+    const failed = chunk.result?.startsWith("FAILED")
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.id !== assistantId || !m.planExecute) return m
+        return {
+          ...m,
+          planExecute: {
+            ...m.planExecute,
+            steps: m.planExecute.steps.map((s) =>
+              s.id === chunk.id
+                ? {
+                    ...s,
+                    status: failed ? ("failed" as const) : ("done" as const),
+                    result: chunk.result,
+                  }
+                : s,
+            ),
+          },
+        }
+      }),
+    )
+    return
+  }
+  if (chunk.type === "plan_updated") {
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.id !== assistantId || !m.planExecute) return m
+        const doneOrFailed = m.planExecute.steps.filter(
+          (s) => s.status === "done" || s.status === "failed",
+        )
+        const newRemaining: PlanStep[] = chunk.remaining.map((s, i) => ({
+          id: s.id,
+          text: s.text,
+          status: i === 0 ? ("running" as const) : ("pending" as const),
+        }))
+        return {
+          ...m,
+          planExecute: {
+            ...m.planExecute,
+            steps: [...doneOrFailed, ...newRemaining],
+          },
+        }
+      }),
+    )
+    return
+  }
+  if (chunk.type === "awaiting_approval") {
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.id !== assistantId || !m.planExecute) return m
+        const steps: PlanStep[] = chunk.plan.map((s) => ({
+          id: s.id,
+          text: s.text,
+          status: "pending" as const,
+        }))
+        return {
+          ...m,
+          planExecute: {
+            ...m.planExecute,
+            steps,
+            threadId: chunk.thread_id,
+            awaitingApproval: true,
+            approvalRound: chunk.round,
+            running: false,
+          },
+        }
+      }),
+    )
+    return
+  }
+  if (chunk.type === "plan_revised") {
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.id !== assistantId || !m.planExecute) return m
+        const steps: PlanStep[] = chunk.plan.map((s) => ({
+          id: s.id,
+          text: s.text,
+          status: "pending" as const,
+        }))
+        return {
+          ...m,
+          planExecute: {
+            ...m.planExecute,
+            steps,
+            revisionReason: chunk.reason,
+          },
+        }
+      }),
+    )
+    return
+  }
+  if (chunk.type === "final_response") {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === assistantId && m.planExecute
+          ? {
+              ...m,
+              planExecute: {
+                ...m.planExecute,
+                finalResponse: chunk.content,
+                awaitingApproval: false,
+                running: false,
+                cancelled: chunk.content.startsWith("已取消"),
+              },
+            }
+          : m,
+      ),
+    )
+    return
+  }
+  if (chunk.type === "error") {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === assistantId && m.planExecute
+          ? {
+              ...m,
+              planExecute: {
+                ...m.planExecute,
+                errorMsg: chunk.message,
+                awaitingApproval: false,
+                running: false,
+              },
+            }
+          : m,
+      ),
+    )
   }
 }
 
@@ -316,6 +490,11 @@ export function useChat({
         finalResponse: null,
         errorMsg: null,
         running: true,
+        threadId: null,
+        awaitingApproval: false,
+        approvalRound: 0,
+        revisionReason: null,
+        cancelled: false,
       }
       setMessages((prev) => [
         ...prev,
@@ -377,90 +556,7 @@ export function useChat({
               continue
             }
 
-            if (chunk.type === "plan_created") {
-              const steps: PlanStep[] = chunk.steps.map((s) => ({
-                id: s.id,
-                text: s.text,
-                status: "pending" as const,
-              }))
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === assistantId && m.planExecute
-                    ? { ...m, planExecute: { ...m.planExecute, steps } }
-                    : m,
-                ),
-              )
-            } else if (chunk.type === "step_started") {
-              setMessages((prev) =>
-                prev.map((m) => {
-                  if (m.id !== assistantId || !m.planExecute) return m
-                  return {
-                    ...m,
-                    planExecute: {
-                      ...m.planExecute,
-                      steps: m.planExecute.steps.map((s) =>
-                        s.id === chunk.id ? { ...s, status: "running" as const } : s,
-                      ),
-                    },
-                  }
-                }),
-              )
-            } else if (chunk.type === "step_completed") {
-              const failed = chunk.result?.startsWith("FAILED")
-              setMessages((prev) =>
-                prev.map((m) => {
-                  if (m.id !== assistantId || !m.planExecute) return m
-                  return {
-                    ...m,
-                    planExecute: {
-                      ...m.planExecute,
-                      steps: m.planExecute.steps.map((s) =>
-                        s.id === chunk.id
-                          ? { ...s, status: failed ? ("failed" as const) : ("done" as const), result: chunk.result }
-                          : s,
-                      ),
-                    },
-                  }
-                }),
-              )
-            } else if (chunk.type === "plan_updated") {
-              setMessages((prev) =>
-                prev.map((m) => {
-                  if (m.id !== assistantId || !m.planExecute) return m
-                  const doneOrFailed = m.planExecute.steps.filter(
-                    (s) => s.status === "done" || s.status === "failed",
-                  )
-                  const newRemaining: PlanStep[] = chunk.remaining.map((s) => ({
-                    id: s.id,
-                    text: s.text,
-                    status: "pending" as const,
-                  }))
-                  return {
-                    ...m,
-                    planExecute: {
-                      ...m.planExecute,
-                      steps: [...doneOrFailed, ...newRemaining],
-                    },
-                  }
-                }),
-              )
-            } else if (chunk.type === "final_response") {
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === assistantId && m.planExecute
-                    ? { ...m, planExecute: { ...m.planExecute, finalResponse: chunk.content } }
-                    : m,
-                ),
-              )
-            } else if (chunk.type === "error") {
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === assistantId && m.planExecute
-                    ? { ...m, planExecute: { ...m.planExecute, errorMsg: chunk.message, running: false } }
-                    : m,
-                ),
-              )
-            }
+            applyPlanChunkToMessage(setMessages, assistantId, chunk)
           }
         }
       } catch (err) {
@@ -493,10 +589,120 @@ export function useChat({
     [sessionToken],
   )
 
+  const resumePlanExecute = useCallback(
+    async (assistantMsgId: string, args: PlanExecuteResumeArgs) => {
+      if (!sessionToken) return
+
+      // Flip bubble back to running while the stream is open.
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantMsgId && m.planExecute
+            ? {
+                ...m,
+                planExecute: {
+                  ...m.planExecute,
+                  awaitingApproval: false,
+                  running: true,
+                  revisionReason: null,
+                  errorMsg: null,
+                },
+              }
+            : m,
+        ),
+      )
+      setStreaming(true)
+
+      let response: Response
+      try {
+        response = await apiResumePlanExecute(sessionToken, args)
+      } catch (e) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantMsgId && m.planExecute
+              ? {
+                  ...m,
+                  planExecute: {
+                    ...m.planExecute,
+                    errorMsg: (e as Error).message,
+                    running: false,
+                  },
+                }
+              : m,
+          ),
+        )
+        setStreaming(false)
+        return
+      }
+      if (!response.ok || !response.body) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantMsgId && m.planExecute
+              ? {
+                  ...m,
+                  planExecute: {
+                    ...m.planExecute,
+                    errorMsg: `HTTP ${response.status}`,
+                    running: false,
+                  },
+                }
+              : m,
+          ),
+        )
+        setStreaming(false)
+        return
+      }
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ""
+      try {
+        for (;;) {
+          const { value, done } = await reader.read()
+          if (done) break
+          buffer += decoder.decode(value, { stream: true })
+          const blocks = buffer.split("\n\n")
+          buffer = blocks.pop() ?? ""
+          for (const block of blocks) {
+            const line = block.split("\n").find((l) => l.startsWith("data: "))
+            if (!line) continue
+            const payload = line.slice(6).trim()
+            if (!payload) continue
+            let chunk: PlanStreamChunk
+            try {
+              chunk = JSON.parse(payload) as PlanStreamChunk
+            } catch {
+              continue
+            }
+            applyPlanChunkToMessage(setMessages, assistantMsgId, chunk)
+          }
+        }
+      } finally {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantMsgId && m.planExecute && m.planExecute.running
+              ? { ...m, planExecute: { ...m.planExecute, running: false } }
+              : m,
+          ),
+        )
+        setStreaming(false)
+      }
+    },
+    [sessionToken],
+  )
+
   const clearMessages = useCallback(() => {
     setMessages([])
     setError(null)
   }, [])
 
-  return { messages, streaming, error, historyLoading, sendMessage, startPlanExecute, clearMessages }
+  return {
+    messages,
+    streaming,
+    error,
+    historyLoading,
+    sendMessage,
+    startPlanExecute,
+    resumePlanExecute,
+    clearMessages,
+  }
 }
