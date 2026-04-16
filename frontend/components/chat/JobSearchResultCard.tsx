@@ -13,6 +13,7 @@ interface JobResult {
 
 interface Props {
   entry: ToolCallEntry
+  onSaved?: (savedCount: number) => void
 }
 
 function parseResults(entry: ToolCallEntry): { keywords: string; results: JobResult[] } {
@@ -28,7 +29,7 @@ function parseResults(entry: ToolCallEntry): { keywords: string; results: JobRes
   }
 }
 
-export function JobSearchResultCard({ entry }: Props) {
+export function JobSearchResultCard({ entry, onSaved }: Props) {
   const { keywords, results } = parseResults(entry)
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle")
@@ -70,6 +71,9 @@ export function JobSearchResultCard({ entry }: Props) {
         setFeedback(`已保存 ${res.inserted} 条，${res.skipped} 条已存在`)
       } else {
         setFeedback(`已保存 ${res.inserted} 条到看板`)
+      }
+      if (onSaved && res.inserted > 0) {
+        onSaved(res.inserted)
       }
     } catch {
       setStatus("idle")
