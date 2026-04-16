@@ -39,3 +39,15 @@ class PlanExecuteState(BaseModel):
     long_term_memory: str = Field(default="", description="mem0 检索的用户画像")
     pending_applications: str = Field(default="", description="进入子图前快照")
     iterations: int = Field(default=0, description="循环次数（硬护栏）")
+    # ── HITL ──
+    user_feedback: str | None = Field(
+        default=None,
+        description="revise 动作时用户输入的修改意见，Replanner 读取后置回 None",
+    )
+    approval_round: int = Field(
+        default=0, description="审批轮次，每次 interrupt 前 +1"
+    )
+    pending_revise: bool = Field(
+        default=False,
+        description="路由 hint：True 时 Replanner 产出的新 plan 送回 approval_gate",
+    )
