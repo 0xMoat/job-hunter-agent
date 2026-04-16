@@ -54,6 +54,12 @@ export interface PlanExecuteView {
   cancelled: boolean
 }
 
+export interface PlanExecuteSuggestion {
+  savedCount: number
+  pendingCount: number
+  dismissed: boolean
+}
+
 export interface ChatMessage {
   id: string
   role: MessageRole
@@ -62,6 +68,7 @@ export interface ChatMessage {
   thinking?: ThinkingEntry
   timestamp?: Date
   planExecute?: PlanExecuteView
+  planExecuteSuggestion?: PlanExecuteSuggestion
 }
 
 export interface StreamChunk {
