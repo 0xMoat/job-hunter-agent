@@ -11,7 +11,10 @@ import re
 
 from langchain_community.tools import DuckDuckGoSearchResults
 from langchain_core.tools import tool
+from langchain_deepseek import ChatDeepSeek
+from pydantic import BaseModel, Field
 
+from app.core.config import settings
 from app.core.logging import logger
 
 _search = DuckDuckGoSearchResults(num_results=12, handle_tool_error=True)
@@ -53,6 +56,66 @@ async def _ddg(query: str) -> list[dict]:
     return await asyncio.to_thread(
         _search.api_wrapper.results, query, _search.max_results
     )
+
+
+class _RerankDecision(BaseModel):
+    """LLM rerank output — which search hits are genuine, relevant JDs."""
+
+    relevant_indices: list[int] = Field(
+        description=(
+            "0-based indices of results that are GENUINE job postings AND "
+            "match the user's keywords+location. Exclude login/register pages, "
+            "company wikis, unrelated roles, and postings in wrong locations. "
+            "Return at most 10."
+        )
+    )
+
+
+async def _rerank_by_llm(
+    results: list[dict], keywords: str, location: str
+) -> list[dict]:
+    """Filter search hits down to the ones that genuinely match keywords+location.
+
+    On LLM failure, return the input unchanged so the tool degrades gracefully.
+    """
+    if not results:
+        return results
+    summaries = []
+    for i, r in enumerate(results):
+        title = (r.get("title") or "").strip()
+        snippet = (r.get("snippet") or "").strip()
+        link = _url_of(r)
+        summaries.append(f"[{i}] title={title!r} snippet={snippet[:180]!r} link={link}")
+    prompt = (
+        f"User is searching Boss 直聘 for jobs matching:\n"
+        f"  keywords: {keywords}\n"
+        f"  location: {location}\n\n"
+        f"Raw search hits (some are non-JD pages or unrelated roles):\n"
+        + "\n".join(summaries)
+        + "\n\nReturn the indices of ONLY the hits that are real job postings "
+        "AND semantically match the keywords (e.g. 'Agent Engineer' → LLM agent / "
+        "AI agent developer roles, NOT 'data operations' or 'frontend'). The "
+        "location must also match (same city). Exclude login/register pages and "
+        "company profile pages."
+    )
+    try:
+        llm = ChatDeepSeek(
+            model="deepseek-chat",
+            api_key=settings.DEEPSEEK_API_KEY,
+            temperature=0,
+        ).with_structured_output(_RerankDecision)
+        decision: _RerankDecision = await llm.ainvoke(prompt)
+    except Exception:
+        logger.exception("job_search_rerank_failed", hit_count=len(results))
+        return results
+    kept = [results[i] for i in decision.relevant_indices if 0 <= i < len(results)]
+    logger.info(
+        "job_search_reranked",
+        before=len(results),
+        after=len(kept),
+        kept_indices=decision.relevant_indices,
+    )
+    return kept
 
 
 @tool
@@ -101,6 +164,11 @@ async def job_search_tool(keywords: str, location: str, job_type: str = "fulltim
                 filtered.append(r)
                 seen.add(url)
             strategy = "loose_fallback"
+
+        # LLM rerank: filter out results that are URL-safe (via regex) but
+        # aren't actually relevant to the user's keywords/location — e.g.
+        # "data operations" hits when the user searched for "agent engineer".
+        filtered = await _rerank_by_llm(filtered, keywords, location)
 
         logger.info(
             "job_search_completed",
