@@ -71,6 +71,7 @@ const zh: Dict = {
   col_not_a_match: '不匹配',
   card_source_scheduler: '调度发现',
   card_source_manual: '手动添加',
+  card_source_chat: '对话保存',
   kanban_archived_n: (n: number) => `已归档 ${n} 张超期卡片`,
   kanban_add_card: '＋ 手动添加',
   kanban_loading: '加载中…',
@@ -103,6 +104,25 @@ const zh: Dict = {
   sidebar_today: '今天',
   sidebar_yesterday: '昨天',
   sidebar_unnamed: '新对话',
+  // Plan-and-Execute suggestion bubble
+  pe_suggestion_saved_n: ((saved: number) =>
+    `已保存 ${saved} 个职位到看板`) as unknown as FnValue,
+  pe_suggestion_saved_n_of_total: ((saved: number, pending: number) =>
+    `已保存 ${saved} 个职位到看板，共 ${pending} 条待处理`) as unknown as FnValue,
+  pe_suggestion_prompt: '要我逐一研究这些公司并撰写求职信吗？',
+  pe_suggestion_cta: '✓ 开始处理',
+  // Job search result card
+  job_search_empty: '未找到相关职位',
+  job_search_result_count: ((n: number) => `${n} 条结果`) as unknown as FnValue,
+  job_search_save_cta: ((n: number) =>
+    n > 0 ? `保存到看板 (${n})` : '保存到看板') as unknown as FnValue,
+  job_search_saving: '保存中…',
+  job_search_saved_badge: '已保存 ✓',
+  job_search_save_done: ((inserted: number, skipped: number) =>
+    skipped > 0
+      ? `已保存 ${inserted} 条，${skipped} 条已存在`
+      : `已保存 ${inserted} 条到看板`) as unknown as FnValue,
+  job_search_save_failed: '保存失败，请重试',
   // Landing page — Navbar
   lp_nav_features: '功能',
   lp_nav_open_app: '进入应用',
@@ -240,6 +260,7 @@ const en: Dict = {
   col_not_a_match: 'Not a Match',
   card_source_scheduler: 'Auto-found',
   card_source_manual: 'Added manually',
+  card_source_chat: 'From chat',
   kanban_archived_n: (n: number) => `${n} cards auto-archived`,
   kanban_add_card: '+ Add card',
   kanban_loading: 'Loading…',
@@ -272,6 +293,26 @@ const en: Dict = {
   sidebar_today: 'Today',
   sidebar_yesterday: 'Yesterday',
   sidebar_unnamed: 'New Chat',
+  // Plan-and-Execute suggestion bubble
+  pe_suggestion_saved_n: ((saved: number) =>
+    `Saved ${saved} job${saved === 1 ? '' : 's'} to the kanban`) as unknown as FnValue,
+  pe_suggestion_saved_n_of_total: ((saved: number, pending: number) =>
+    `Saved ${saved} job${saved === 1 ? '' : 's'} to the kanban — ${pending} pending in total`) as unknown as FnValue,
+  pe_suggestion_prompt: 'Shall I research each company and draft a cover letter for them?',
+  pe_suggestion_cta: '✓ Start',
+  // Job search result card
+  job_search_empty: 'No matching jobs found',
+  job_search_result_count: ((n: number) =>
+    `${n} result${n === 1 ? '' : 's'}`) as unknown as FnValue,
+  job_search_save_cta: ((n: number) =>
+    n > 0 ? `Save to Kanban (${n})` : 'Save to Kanban') as unknown as FnValue,
+  job_search_saving: 'Saving…',
+  job_search_saved_badge: 'Saved ✓',
+  job_search_save_done: ((inserted: number, skipped: number) =>
+    skipped > 0
+      ? `Saved ${inserted}, ${skipped} already in kanban`
+      : `Saved ${inserted} to kanban`) as unknown as FnValue,
+  job_search_save_failed: 'Save failed, please retry',
   // Landing page — Navbar
   lp_nav_features: 'Features',
   lp_nav_open_app: 'Open App',

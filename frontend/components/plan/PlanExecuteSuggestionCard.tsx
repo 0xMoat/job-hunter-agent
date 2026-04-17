@@ -1,6 +1,7 @@
 "use client"
 
 import type { PlanExecuteSuggestion } from "@/lib/types"
+import { useLanguage } from "@/contexts/LanguageContext"
 
 interface PlanExecuteSuggestionCardProps {
   suggestion: PlanExecuteSuggestion
@@ -13,19 +14,24 @@ export function PlanExecuteSuggestionCard({
   onAccept,
   disabled = false,
 }: PlanExecuteSuggestionCardProps) {
+  const { t } = useLanguage()
   if (suggestion.dismissed) return null
 
   const { savedCount, pendingCount } = suggestion
   const countSummary =
     pendingCount > savedCount
-      ? `已保存 ${savedCount} 个职位到看板，共 ${pendingCount} 条待处理`
-      : `已保存 ${savedCount} 个职位到看板`
+      ? t("pe_suggestion_saved_n_of_total", savedCount, pendingCount)
+      : t("pe_suggestion_saved_n", savedCount)
 
   return (
     <div className="rounded-lg border border-indigo-300 bg-indigo-50 p-4">
-      <div className="mb-3 flex items-center gap-2 text-sm text-indigo-900">
-        <span className="text-base leading-none">💼</span>
-        <span>{countSummary}，要我现在帮你自动处理吗？</span>
+      <div className="mb-3 flex items-start gap-2 text-sm text-indigo-900">
+        <span className="mt-0.5 shrink-0 text-base leading-none">💼</span>
+        <span>
+          {countSummary}
+          <span className="mx-1">·</span>
+          {t("pe_suggestion_prompt")}
+        </span>
       </div>
       <div className="flex justify-end">
         <button
@@ -34,7 +40,7 @@ export function PlanExecuteSuggestionCard({
           disabled={disabled}
           className="rounded-full bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
         >
-          ✓ 立即处理
+          {t("pe_suggestion_cta")}
         </button>
       </div>
     </div>

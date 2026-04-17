@@ -4,6 +4,7 @@ import { useState } from "react"
 import type { ToolCallEntry } from "@/lib/types"
 import { apiBatchCreateApplications } from "@/lib/api"
 import { getSessionToken } from "@/lib/auth"
+import { useLanguage } from "@/contexts/LanguageContext"
 
 interface JobResult {
   title: string
@@ -30,6 +31,7 @@ function parseResults(entry: ToolCallEntry): { keywords: string; results: JobRes
 }
 
 export function JobSearchResultCard({ entry, onSaved }: Props) {
+  const { t } = useLanguage()
   const { keywords, results } = parseResults(entry)
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle")
@@ -67,17 +69,13 @@ export function JobSearchResultCard({ entry, onSaved }: Props) {
       setSavedUrls(newSaved)
       setSelected(new Set())
       setStatus("saved")
-      if (res.skipped > 0) {
-        setFeedback(`已保存 ${res.inserted} 条，${res.skipped} 条已存在`)
-      } else {
-        setFeedback(`已保存 ${res.inserted} 条到看板`)
-      }
+      setFeedback(t("job_search_save_done", res.inserted, res.skipped))
       if (onSaved && res.inserted > 0) {
         onSaved(res.inserted)
       }
     } catch {
       setStatus("idle")
-      setFeedback("保存失败，请重试")
+      setFeedback(t("job_search_save_failed"))
     }
   }
 
@@ -89,7 +87,7 @@ export function JobSearchResultCard({ entry, onSaved }: Props) {
           <span className="font-body font-semibold">Job Search</span>
           {keywords && <span className="font-mono text-xs text-[var(--text-3)]">{keywords}</span>}
         </div>
-        <p className="mt-2 text-xs font-body text-[var(--text-3)] italic">未找到相关职位</p>
+        <p className="mt-2 text-xs font-body text-[var(--text-3)] italic">{t("job_search_empty")}</p>
       </div>
     )
   }
@@ -103,7 +101,7 @@ export function JobSearchResultCard({ entry, onSaved }: Props) {
         {keywords && (
           <span className="font-mono text-xs text-[var(--text-3)] truncate">{keywords}</span>
         )}
-        <span className="ml-auto font-mono text-xs text-[var(--text-3)]">{results.length} 条结果</span>
+        <span className="ml-auto font-mono text-xs text-[var(--text-3)]">{t("job_search_result_count", results.length)}</span>
       </div>
 
       {/* Result list */}
@@ -178,7 +176,7 @@ export function JobSearchResultCard({ entry, onSaved }: Props) {
         )}
         {!feedback && <span />}
         {status === "saved" ? (
-          <span className="font-body text-xs font-semibold text-green-600">已保存 ✓</span>
+          <span className="font-body text-xs font-semibold text-green-600">{t("job_search_saved_badge")}</span>
         ) : (
           <button
             onClick={handleSave}
@@ -189,9 +187,7 @@ export function JobSearchResultCard({ entry, onSaved }: Props) {
                 : "text-[var(--accent-fg)] bg-[var(--accent)] hover:opacity-90 cursor-pointer"
             }`}
           >
-            {status === "saving"
-              ? "保存中..."
-              : `保存到看板${selected.size > 0 ? ` (${selected.size})` : ""}`}
+            {status === "saving" ? t("job_search_saving") : t("job_search_save_cta", selected.size)}
           </button>
         )}
       </div>

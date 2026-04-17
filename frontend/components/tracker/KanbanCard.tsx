@@ -55,10 +55,16 @@ export function KanbanCard({ app, onDelete }: KanbanCardProps) {
             className={`shrink-0 text-[10px] font-body rounded-full px-2 py-0.5 ${
               app.source === "scheduler"
                 ? "bg-[#ede9ff] text-[#7c6af5]"
-                : "bg-[#f0f9f0] text-[#5a9a5a]"
+                : app.source === "chat"
+                  ? "bg-[#fef3c7] text-[#b45309]"
+                  : "bg-[#f0f9f0] text-[#5a9a5a]"
             }`}
           >
-            {app.source === "scheduler" ? t("card_source_scheduler") : t("card_source_manual")}
+            {app.source === "scheduler"
+              ? t("card_source_scheduler")
+              : app.source === "chat"
+                ? t("card_source_chat")
+                : t("card_source_manual")}
           </span>
         </div>
       </div>
