@@ -1,12 +1,10 @@
 """Shared helpers for analysis tools (match/gap/interview)."""
 
 from pathlib import Path
-from typing import Optional
 
 from langchain_deepseek import ChatDeepSeek
 
 from app.core.config import settings
-from app.core.logging import logger
 from app.models.application import Application
 from app.services.database import database_service
 from app.services.job_service import job_service
