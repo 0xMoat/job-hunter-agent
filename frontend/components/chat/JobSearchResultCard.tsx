@@ -71,8 +71,13 @@ export function JobSearchResultCard({ entry, onSaved }: Props) {
       setSelected(new Set())
       setStatus("saved")
       setFeedback(t("job_search_save_done", res.inserted, res.skipped))
-      if (onSaved && res.inserted > 0) {
-        onSaved(res.inserted)
+      // Trigger the follow-up chips whenever the user clicked save on one or
+      // more rows, regardless of whether they were newly inserted or already
+      // in the kanban — the user's intent to "do something with these jobs"
+      // is what drives the suggestion.
+      const acted = res.inserted + res.skipped
+      if (onSaved && acted > 0) {
+        onSaved(acted)
       }
     } catch {
       setStatus("idle")
