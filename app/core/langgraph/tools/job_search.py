@@ -12,7 +12,6 @@ import re
 from langchain_community.tools import DuckDuckGoSearchResults
 from langchain_core.tools import tool
 from langchain_deepseek import ChatDeepSeek
-from pydantic import BaseModel, Field
 
 from app.core.config import settings
 from app.core.logging import logger
@@ -58,28 +57,24 @@ async def _ddg(query: str) -> list[dict]:
     )
 
 
-class _RerankDecision(BaseModel):
-    """LLM rerank output — which search hits are genuine, relevant JDs."""
-
-    relevant_indices: list[int] = Field(
-        description=(
-            "0-based indices of results that are GENUINE job postings AND "
-            "match the user's keywords+location. Exclude login/register pages, "
-            "company wikis, unrelated roles, and postings in wrong locations. "
-            "Return at most 10."
-        )
-    )
+_JSON_BLOCK_RE = re.compile(r"\{.*\}", re.DOTALL)
 
 
-async def _rerank_by_llm(
+async def _rerank_and_intro(
     results: list[dict], keywords: str, location: str
-) -> list[dict]:
-    """Filter search hits down to the ones that genuinely match keywords+location.
+) -> tuple[list[dict], str]:
+    """LLM rerank + 1-sentence Chinese intro for the filtered hits.
 
-    On LLM failure, return the input unchanged so the tool degrades gracefully.
+    Uses plain text completion (no `with_structured_output`) to avoid leaking
+    a function_calling tool_call event to the chat stream — the previous
+    implementation surfaced a `_RerankDecision` bubble in the UI. We prompt
+    the LLM to return raw JSON, then parse it.
+
+    Returns (kept_results, intro_text). On LLM failure, returns the original
+    list + an empty intro so the tool degrades gracefully.
     """
     if not results:
-        return results
+        return results, ""
     summaries = []
     for i, r in enumerate(results):
         title = (r.get("title") or "").strip()
@@ -92,30 +87,45 @@ async def _rerank_by_llm(
         f"  location: {location}\n\n"
         f"Raw search hits (some are non-JD pages or unrelated roles):\n"
         + "\n".join(summaries)
-        + "\n\nReturn the indices of ONLY the hits that are real job postings "
-        "AND semantically match the keywords (e.g. 'Agent Engineer' → LLM agent / "
-        "AI agent developer roles, NOT 'data operations' or 'frontend'). The "
-        "location must also match (same city). Exclude login/register pages and "
-        "company profile pages."
+        + "\n\nDo TWO things:\n"
+        "1. Pick the indices of hits that are real job postings AND semantically "
+        "match the keywords (e.g. 'Agent Engineer' → LLM agent / AI agent "
+        "developer, NOT 'data operations' or 'frontend'). Location must match "
+        "the same city. Exclude login/register/company-profile pages. "
+        "Keep at most 10.\n"
+        "2. Write a SHORT one-sentence Chinese intro (≤40 字) previewing the "
+        "filtered list for the user, naming at most two standout jobs by index "
+        "with a reason (e.g. 薪资最高 / 福利最全 / 经验要求低). Skip the "
+        "sentence if no hit is worth highlighting.\n\n"
+        "Return ONLY a JSON object, no prose, no markdown fences:\n"
+        '{\"relevant_indices\": [0, 2, 3], \"intro\": \"找到 N 条匹配，#2 元聚薪资最高。\"}'
     )
     try:
         llm = ChatDeepSeek(
             model="deepseek-chat",
             api_key=settings.DEEPSEEK_API_KEY,
             temperature=0,
-        ).with_structured_output(_RerankDecision)
-        decision: _RerankDecision = await llm.ainvoke(prompt)
+        )
+        response = await llm.ainvoke(prompt)
+        content = getattr(response, "content", "") or ""
+        match = _JSON_BLOCK_RE.search(content)
+        if not match:
+            raise ValueError(f"no JSON block in LLM response: {content[:200]!r}")
+        payload = json.loads(match.group(0))
+        indices = payload.get("relevant_indices") or []
+        intro = (payload.get("intro") or "").strip()
     except Exception:
         logger.exception("job_search_rerank_failed", hit_count=len(results))
-        return results
-    kept = [results[i] for i in decision.relevant_indices if 0 <= i < len(results)]
+        return results, ""
+    kept = [results[i] for i in indices if isinstance(i, int) and 0 <= i < len(results)]
     logger.info(
         "job_search_reranked",
         before=len(results),
         after=len(kept),
-        kept_indices=decision.relevant_indices,
+        kept_indices=indices,
+        intro_len=len(intro),
     )
-    return kept
+    return kept, intro
 
 
 @tool
@@ -165,10 +175,11 @@ async def job_search_tool(keywords: str, location: str, job_type: str = "fulltim
                 seen.add(url)
             strategy = "loose_fallback"
 
-        # LLM rerank: filter out results that are URL-safe (via regex) but
-        # aren't actually relevant to the user's keywords/location — e.g.
-        # "data operations" hits when the user searched for "agent engineer".
-        filtered = await _rerank_by_llm(filtered, keywords, location)
+        # LLM rerank + intro: strip URL-safe-but-irrelevant hits (e.g. "data
+        # operations" when the user searched "agent engineer") AND produce a
+        # one-sentence intro that the frontend renders INSIDE the result card
+        # header. The chat agent should NOT repeat this intro in its reply.
+        filtered, intro = await _rerank_and_intro(filtered, keywords, location)
 
         logger.info(
             "job_search_completed",
@@ -183,6 +194,7 @@ async def job_search_tool(keywords: str, location: str, job_type: str = "fulltim
                 "job_type": job_type,
                 "source": "zhipin.com",
                 "strategy": strategy,
+                "intro_text": intro,
                 "results": filtered,
             },
             ensure_ascii=False,

@@ -17,22 +17,23 @@ interface Props {
   onSaved?: (savedCount: number) => void
 }
 
-function parseResults(entry: ToolCallEntry): { keywords: string; results: JobResult[] } {
+function parseResults(entry: ToolCallEntry): { keywords: string; results: JobResult[]; introText: string } {
   try {
     const data = JSON.parse(entry.resultContent ?? "{}")
     const keywords = [data.keywords, data.location].filter(Boolean).join(" · ")
     const results: JobResult[] = (data.results ?? []).filter(
       (r: JobResult) => r.link && r.link.length > 0,
     )
-    return { keywords, results }
+    const introText = typeof data.intro_text === "string" ? data.intro_text.trim() : ""
+    return { keywords, results, introText }
   } catch {
-    return { keywords: "", results: [] }
+    return { keywords: "", results: [], introText: "" }
   }
 }
 
 export function JobSearchResultCard({ entry, onSaved }: Props) {
   const { t } = useLanguage()
-  const { keywords, results } = parseResults(entry)
+  const { keywords, results, introText } = parseResults(entry)
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle")
   const [savedUrls, setSavedUrls] = useState<Set<string>>(new Set())
@@ -103,6 +104,16 @@ export function JobSearchResultCard({ entry, onSaved }: Props) {
         )}
         <span className="ml-auto font-mono text-xs text-[var(--text-3)]">{t("job_search_result_count", results.length)}</span>
       </div>
+
+      {/* AI intro banner — one-sentence summary from the rerank LLM */}
+      {introText && (
+        <div className="flex items-start gap-2 px-4 py-2.5 text-xs leading-relaxed
+                        bg-[var(--accent-soft,#eeebff)] text-[#2c2a7a]
+                        border-b border-[var(--border)]">
+          <span aria-hidden="true">💡</span>
+          <span>{introText}</span>
+        </div>
+      )}
 
       {/* Result list */}
       <div className="divide-y divide-[var(--border)]">

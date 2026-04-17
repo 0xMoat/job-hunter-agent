@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8" />
+<title>Job Search Bubble — Variants A / B / C</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root {
+    --bg: #fafaf7;
+    --text: #1a1a1a;
+    --text-2: #4a4a4a;
+    --text-3: #8a8a8a;
+    --border: #e7e5e0;
+    --accent: #5b4ff0;
+    --accent-soft: #eeebff;
+    --chip: #f5f3ee;
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "PingFang SC", system-ui, sans-serif;
+  }
+  .font-heading { font-family: "Playfair Display", Georgia, serif; font-style: italic; }
+  .glass { background: rgba(255,255,255,0.75); backdrop-filter: blur(10px); }
+  .card { border: 1px solid var(--border); background: white; border-radius: 14px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }
+  .chat-col { max-width: 740px; }
+  .assistant-bubble { background: white; border: 1px solid var(--border); border-radius: 14px; }
+  .muted { color: var(--text-3); }
+  .divider { height: 1px; background: var(--border); }
+  .checkbox { width: 14px; height: 14px; border: 1.5px solid var(--text-3); border-radius: 3px; display: inline-block; }
+  .top-pick { background: linear-gradient(90deg, #fff7cc 0%, transparent 60%); border-left: 3px solid #f5b800; padding-left: 8px; margin-left: -11px; }
+  .star { color: #f5b800; }
+  .jd-row { padding: 10px 14px; border-top: 1px solid var(--border); display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; }
+  .jd-row:first-of-type { border-top: 0; }
+  .row-title { font-weight: 600; font-size: 13px; }
+  .row-meta { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+  .row-reason { font-size: 11px; color: var(--text-2); margin-top: 3px; font-style: italic; }
+  .url { color: var(--accent); font-size: 11px; word-break: break-all; }
+  .save-bar { padding: 10px 14px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; }
+  .save-btn { font-size: 12px; background: var(--chip); color: var(--text-2); padding: 5px 12px; border-radius: 999px; border: 1px solid var(--border); }
+  .save-btn-primary { background: var(--accent); color: white; border-color: var(--accent); }
+  .header { padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
+  .header .title { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .tool-dot { width: 7px; height: 7px; border-radius: 50%; background: #2ec27e; }
+  .tool-label { font-weight: 600; letter-spacing: 0.02em; }
+  .tool-meta { font-weight: 400; color: var(--text-3); }
+  .count-chip { font-size: 11px; color: var(--text-3); background: var(--chip); padding: 2px 10px; border-radius: 999px; }
+  .intro-banner { background: var(--accent-soft); padding: 10px 14px; font-size: 12px; color: #2c2a7a; display: flex; gap: 8px; align-items: flex-start; border-bottom: 1px solid var(--border); }
+  .intro-banner b { color: var(--accent); font-weight: 600; }
+  .variant-label { display: inline-block; padding: 4px 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; border-radius: 999px; text-transform: uppercase; }
+  .label-a { background: #dff2ea; color: #0a6b44; }
+  .label-b { background: var(--accent-soft); color: var(--accent); }
+  .label-c { background: #fef0e3; color: #a1540b; }
+  .meta-tag { font-size: 10px; padding: 1px 7px; border-radius: 999px; background: var(--chip); color: var(--text-2); margin-right: 4px; }
+  .user-query { align-self: flex-end; background: var(--accent); color: white; padding: 8px 14px; border-radius: 18px 18px 4px 18px; font-size: 13px; max-width: 70%; }
+  .avatar { width: 22px; height: 22px; border-radius: 50%; background: linear-gradient(135deg, #5b4ff0, #9b8cff); display: inline-flex; align-items: center; justify-content: center; color: white; font-size: 11px; font-weight: 600; }
+</style>
+</head>
+<body class="min-h-screen">
+
+<div class="max-w-[1800px] mx-auto px-8 py-10">
+  <header class="mb-10">
+    <h1 class="font-heading text-4xl tracking-tight text-[var(--text)]">Job Search 气泡 · 3 个方案对比</h1>
+    <p class="text-sm muted mt-2">场景：用户搜 "Agent Engineer · 上海" → tool 内部 LLM rerank 后返回 8 条精选</p>
+  </header>
+
+  <div class="grid grid-cols-3 gap-8">
+
+    <!-- ========== Variant A: 2 bubbles ========== -->
+    <section>
+      <div class="variant-label label-a mb-3">Variant A · Minimal</div>
+      <div class="text-xs muted mb-4 leading-relaxed">
+        富卡片 + <b>一句</b>极简导读文字。<br>
+        改动量最小：只改 rerank 代码 + prompt 规则。
+      </div>
+
+      <div class="chat-col flex flex-col gap-3">
+        <div class="user-query">帮我找上海的 Agent Engineer 岗位</div>
+
+        <!-- tool card -->
+        <div class="card">
+          <div class="header">
+            <div class="title">
+              <span class="tool-dot"></span>
+              <span class="tool-label">Job Search</span>
+              <span class="tool-meta">Agent Engineer · 上海</span>
+            </div>
+            <span class="count-chip">8 条结果</span>
+          </div>
+          <div class="jd-row">
+            <span class="checkbox"></span>
+            <div>
+              <div class="row-title">「AI Agent Engineer」上海枫端网络科技</div>
+              <div class="row-meta">3-5 年 · 面议 · 本科</div>
+              <div class="url">www.zhipin.com/job_detail/5b86...</div>
+            </div>
+          </div>
+          <div class="jd-row">
+            <span class="checkbox"></span>
+            <div>
+              <div class="row-title">「Agent 工程师」上海元聚</div>
+              <div class="row-meta">3-5 年 · 25-40K · 本科</div>
+              <div class="url">www.zhipin.com/job_detail/965d...</div>
+            </div>
+          </div>
+          <div class="jd-row">
+            <span class="checkbox"></span>
+            <div>
+              <div class="row-title">「Agent 开发工程师」可利邦</div>
+              <div class="row-meta">3-5 年 · 面议 · 本科 · 五险一金 全勤奖</div>
+              <div class="url">www.zhipin.com/job_detail/d9a3...</div>
+            </div>
+          </div>
+          <div class="jd-row">
+            <span class="checkbox"></span>
+            <div>
+              <div class="row-title">「Agent Engineer 智能体工程师」AutoAgents.ai</div>
+              <div class="row-meta">1-3 年 · 面议</div>
+              <div class="url">www.zhipin.com/job_detail/74c8...</div>
+            </div>
+          </div>
+          <div class="jd-row">
+            <span class="checkbox"></span>
+            <div class="row-title muted text-[12px]">...还有 4 条</div>
+          </div>
+          <div class="save-bar">
+            <button class="save-btn">保存到看板 (0)</button>
+          </div>
+        </div>
+
+        <!-- assistant text bubble -->
+        <div class="flex gap-2 items-start mt-1">
+          <div class="avatar">J</div>
+          <div class="assistant-bubble px-3 py-2 text-sm" style="max-width: 90%;">
+            找到 8 条匹配岗位，<b>#2 元聚</b> 薪资最高，先看？
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-4 text-[11px] muted leading-relaxed">
+        <b>优点</b>：最小改动；LLM 保留 concierge 地位；视觉一致。<br>
+        <b>代价</b>：仍有两个气泡，视线小幅分散。
+      </div>
+    </section>
+
+    <!-- ========== Variant B: card with intro banner ========== -->
+    <section>
+      <div class="variant-label label-b mb-3">Variant B · 内嵌导读</div>
+      <div class="text-xs muted mb-4 leading-relaxed">
+        LLM 导读作为卡片内 header banner 嵌入。<br>
+        真正 1 个气泡；导读醒目但不抢戏。
+      </div>
+
+      <div class="chat-col flex flex-col gap-3">
+        <div class="user-query">帮我找上海的 Agent Engineer 岗位</div>
+
+        <div class="card">
+          <div class="header">
+            <div class="title">
+              <span class="tool-dot"></span>
+              <span class="tool-label">Job Search</span>
+              <span class="tool-meta">Agent Engineer · 上海</span>
+            </div>
+            <span class="count-chip">8 条结果</span>
+          </div>
+
+          <!-- intro banner (LLM-generated, comes from tool.intro_text) -->
+          <div class="intro-banner">
+            <span>💡</span>
+            <div>
+              找到 <b>8 条</b> 匹配岗位。推荐先看 <b>#2 元聚</b>（薪资最高 25-40K）和 <b>#3 可利邦</b>（福利最全）。
+            </div>
+          </div>
+
+          <div class="jd-row">
+            <span class="checkbox"></span>
+            <div>
+              <div class="row-title">「AI Agent Engineer」上海枫端网络科技</div>
+              <div class="row-meta">3-5 年 · 面议 · 本科</div>
+              <div class="url">www.zhipin.com/job_detail/5b86...</div>
+            </div>
+          </div>
+          <div class="jd-row">
+            <span class="checkbox"></span>
+            <div>
+              <div class="row-title">「Agent 工程师」上海元聚</div>
+              <div class="row-meta">3-5 年 · 25-40K · 本科</div>
+              <div class="url">www.zhipin.com/job_detail/965d...</div>
+            </div>
+          </div>
+          <div class="jd-row">
+            <span class="checkbox"></span>
+            <div>
+              <div class="row-title">「Agent 开发工程师」可利邦</div>
+              <div class="row-meta">3-5 年 · 面议 · 本科 · 五险一金 全勤奖</div>
+              <div class="url">www.zhipin.com/job_detail/d9a3...</div>
+            </div>
+          </div>
+          <div class="jd-row">
+            <span class="checkbox"></span>
+            <div>
+              <div class="row-title">「Agent Engineer 智能体工程师」AutoAgents.ai</div>
+              <div class="row-meta">1-3 年 · 面议</div>
+              <div class="url">www.zhipin.com/job_detail/74c8...</div>
+            </div>
+          </div>
+          <div class="jd-row">
+            <span class="checkbox"></span>
+            <div class="row-title muted text-[12px]">...还有 4 条</div>
+          </div>
+          <div class="save-bar">
+            <button class="save-btn">保存到看板 (0)</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-4 text-[11px] muted leading-relaxed">
+        <b>优点</b>：1 个气泡；导读位置醒目；视觉统一。<br>
+        <b>代价</b>：协议扩展（tool 返回 intro_text）；前端卡片加 banner 区；system.md 要约束 LLM 产出 JSON 不要文字。
+      </div>
+    </section>
+
+    <!-- ========== Variant C: ⭐ top pick + inline reasons ========== -->
+    <section>
+      <div class="variant-label label-c mb-3">Variant C · 逐条嵌入</div>
+      <div class="text-xs muted mb-4 leading-relaxed">
+        <b>⭐ 标记</b> top pick + 每条 AI reason。<br>
+        完全不需要 assistant 文字气泡。
+      </div>
+
+      <div class="chat-col flex flex-col gap-3">
+        <div class="user-query">帮我找上海的 Agent Engineer 岗位</div>
+
+        <div class="card">
+          <div class="header">
+            <div class="title">
+              <span class="tool-dot"></span>
+              <span class="tool-label">找到 8 条匹配</span>
+              <span class="tool-meta">Agent Engineer · 上海</span>
+            </div>
+            <span class="count-chip">AI 排序</span>
+          </div>
+
+          <div class="jd-row top-pick">
+            <span class="checkbox"></span>
+            <div>
+              <div class="row-title"><span class="star">⭐</span> 「Agent 工程师」上海元聚</div>
+              <div class="row-meta">
+                <span class="meta-tag">25-40K</span><span class="meta-tag">3-5 年</span><span class="meta-tag">本科</span>
+              </div>
+              <div class="row-reason">AI 推荐：薪资区间最高，学历要求符合你的背景</div>
+            </div>
+          </div>
+          <div class="jd-row">
+            <span class="checkbox"></span>
+            <div>
+              <div class="row-title">「Agent 开发工程师」可利邦</div>
+              <div class="row-meta">
+                <span class="meta-tag">3-5 年</span><span class="meta-tag">五险一金</span><span class="meta-tag">全勤奖</span>
+              </div>
+              <div class="row-reason">AI 推荐：福利齐全，岗位匹配度高</div>
+            </div>
+          </div>
+          <div class="jd-row">
+            <span class="checkbox"></span>
+            <div>
+              <div class="row-title">「AI Agent Engineer」上海枫端网络科技</div>
+              <div class="row-meta">
+                <span class="meta-tag">3-5 年</span><span class="meta-tag">本科</span>
+              </div>
+              <div class="row-reason">AI 推荐：初创网络科技，技术栈贴合 LLM Agent 方向</div>
+            </div>
+          </div>
+          <div class="jd-row">
+            <span class="checkbox"></span>
+            <div>
+              <div class="row-title">「Agent Engineer 智能体工程师」AutoAgents.ai</div>
+              <div class="row-meta">
+                <span class="meta-tag">1-3 年</span>
+              </div>
+              <div class="row-reason">AI 推荐：经验要求较低，适合转岗考虑</div>
+            </div>
+          </div>
+          <div class="jd-row">
+            <span class="checkbox"></span>
+            <div class="row-title muted text-[12px]">...还有 4 条（展开查看）</div>
+          </div>
+          <div class="save-bar">
+            <button class="save-btn save-btn-primary">保存到看板 (0)</button>
+          </div>
+        </div>
+
+        <!-- no assistant text bubble in variant C -->
+      </div>
+
+      <div class="mt-4 text-[11px] muted leading-relaxed">
+        <b>优点</b>：0 额外气泡；信息密度最高；⭐ 视觉引导明确。<br>
+        <b>代价</b>：rerank 输出升级（排序 + top pick + 逐条 reason）；前端卡片 UI 改动最多；LLM 成本略增（每条要 reason）。
+      </div>
+    </section>
+
+  </div>
+
+  <footer class="mt-12 pt-6 border-t border-[var(--border)] text-xs muted flex gap-8 justify-center">
+    <div><b>A</b> 气泡数 2 · 改动小 · 视觉冗余低</div>
+    <div><b>B</b> 气泡数 1 · 改动中 · 视觉冗余最低</div>
+    <div><b>C</b> 气泡数 1 · 改动大 · 视觉冗余零</div>
+  </footer>
+</div>
+
+</body>
+</html>
