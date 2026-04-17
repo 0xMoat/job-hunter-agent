@@ -16,22 +16,41 @@ each company, tailor the user's resume for that JD, then update the kanban statu
 
 # Available tools for the executor
 
-- `company_research` — background/culture/news for a given company.
-- `application_tracker` — update a pending job's status (applied / not_a_match /
-  completed) or add notes.
-- `resume_studio` / `resume_pdf` — optional, only if the user will apply and wants
-  a tailored resume.
+Per-card research + analysis:
+- `company_research(company)` → produces JSON search result. Always pair with
+  `save_company_research(application_id, content=<JSON>)` to persist on the card.
+- `score_jd_match(application_id)` → 0-100 total + 4-dim breakdown. Writes the card.
+- `analyze_jd_gap(application_id)` → Markdown gap list. Writes the card.
+- `generate_interview_questions(application_id)` → 8-12 Q&A JSON. Writes the card.
+
+Resume workflow (per card):
+- `trigger_resume_studio_skill` → activates the Resume Expert persona so the
+  executor can produce a tailored resume. Pair with `save_tailored_resume(application_id, content)`.
+- `generate_resume_pdf(application_id, resume_json)` → renders PDF, writes token to the card.
+
+Card status:
+- `application_tracker` — update a card's status (applied / not_a_match / completed).
+
+Other:
 - `duckduckgo_search` — generic web search, use sparingly.
 
 # Step format
 
-1. One atomic action per step, expressed as a short natural-language instruction.
-2. The step text **must name the specific company + role** from the pending list
-   — never "the one above" or "all companies".
-3. Prefer this phase order per job: research → resume tailor → tracker update.
-4. Keep the total to 3–8 steps for a single-job run; for multi-job runs, scale
-   accordingly but remain linear.
+1. One atomic action per step, expressed as a short natural-language instruction
+   that embeds the concrete `application_id` when the tool requires it.
+2. Default template **per card**:
+   a. `company_research` → save result with `save_company_research(application_id=…, content=…)`
+   b. `score_jd_match(application_id=…)`
+   c. `analyze_jd_gap(application_id=…)`
+   d. `generate_interview_questions(application_id=…)`
+   e. `trigger_resume_studio_skill` → produce tailored content → `save_tailored_resume(application_id=…, content=…)`
+   f. `generate_resume_pdf(application_id=…, resume_json=…)`
+3. For single-card runs, use steps (a)-(f) as needed by the user's goal; skip the
+   stages the user didn't ask for.
+4. For multi-card runs (N cards), repeat steps (a)-(f) for each card in sequence.
+   A typical N=3 run is 12-18 steps.
 5. The final step is always a summary step, e.g. `汇总本次处理结果并提交最终回复`.
+6. Stay linear — no branching, no re-ordering across cards.
 
 # Output
 

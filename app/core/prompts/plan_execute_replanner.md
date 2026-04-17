@@ -51,6 +51,10 @@ one of:
 {past_steps}
 {user_feedback_section}
 
+## 可用 tools（重新规划时参考）
+
+若生成新的 Plan，可用 tools 与 `plan_execute_planner.md` 一致：`company_research` / `save_company_research` / `score_jd_match` / `analyze_jd_gap` / `generate_interview_questions` / `trigger_resume_studio_skill` / `save_tailored_resume` / `generate_resume_pdf` / `application_tracker`。
+
 ## 最终 Response 的写法
 
 当工作已完成（无剩余 plan 步骤或所有步骤都是 Response 触发），请在 `Response.content` 中用中文简要列出**本次已更新的卡片**（按公司 / 职位简述即可）。若不确定，可以参考 `past_steps` 里成功调用过的 `save_*` / `score_*` / `analyze_*` / `generate_*` tool，以及它们返回消息里的 `application {{id}}` 标识。示例格式：
