@@ -18,7 +18,7 @@ interface Props {
     args: { action: "approve" | "revise" | "cancel"; feedback?: string },
   ) => void
   onSuggestionTrigger?: (savedCount: number) => void
-  onSuggestionAccept?: (suggestionMsgId: string) => void
+  onSuggestionPickPrompt?: (id: string, prompt: string) => void
 }
 
 export function MessageBubble({
@@ -26,7 +26,7 @@ export function MessageBubble({
   isStreaming,
   onResume,
   onSuggestionTrigger,
-  onSuggestionAccept,
+  onSuggestionPickPrompt,
 }: Props) {
   const { locale } = useLanguage()
   const isUser = message.role === "user"
@@ -63,11 +63,7 @@ export function MessageBubble({
           <div className="mb-2">
             <PlanExecuteSuggestionCard
               suggestion={message.planExecuteSuggestion}
-              onAccept={
-                onSuggestionAccept
-                  ? () => onSuggestionAccept(message.id)
-                  : () => undefined
-              }
+              onPick={(prompt) => onSuggestionPickPrompt?.(message.id, prompt)}
               disabled={isStreaming}
             />
           </div>

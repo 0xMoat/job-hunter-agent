@@ -21,7 +21,7 @@ export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boole
     startPlanExecute,
     resumePlanExecute,
     insertPlanExecuteSuggestion,
-    acceptPlanExecuteSuggestion,
+    pickPlanExecuteSuggestionPrompt,
   } = useChat({
     sessionToken: currentSessionToken,
     currentSessionId,
@@ -185,7 +185,7 @@ export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boole
                 })
               }}
               onSuggestionTrigger={handleSaved}
-              onSuggestionAccept={acceptPlanExecuteSuggestion}
+              onSuggestionPickPrompt={pickPlanExecuteSuggestionPrompt}
             />
           ))}
 

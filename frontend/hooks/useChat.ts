@@ -10,6 +10,7 @@ import {
   type PlanExecuteResumeArgs,
 } from "@/lib/api"
 import type { ChatMessage, StreamChunk, ToolCallEntry, ThinkingEntry, PlanExecuteView, PlanStep, PlanStreamChunk, PlanLiveToolCall } from "@/lib/types"
+import { useLanguage } from "@/contexts/LanguageContext"
 
 function makeId(): string {
   return Math.random().toString(36).slice(2)
@@ -321,6 +322,7 @@ export function useChat({
   currentSessionName,
   renameSession,
 }: UseChatOptions) {
+  const { t } = useLanguage()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [streaming, setStreaming] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -377,6 +379,84 @@ export function useChat({
     if (!hydratedRef.current) return
     savePlanExecuteCache(currentSessionId, messages)
   }, [messages, currentSessionId])
+
+  const runPlanExecuteOnAssistant = useCallback(
+    async (assistantId: string, goal: string) => {
+      if (!sessionToken) return
+      // Convert the current assistant placeholder into a PE view in place.
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantId
+            ? {
+                ...m,
+                textContent: "",
+                toolCalls: [],
+                planExecute: {
+                  steps: [],
+                  finalResponse: null,
+                  errorMsg: null,
+                  running: true,
+                  threadId: null,
+                  awaitingApproval: false,
+                  approvalRound: 0,
+                  revisionReason: null,
+                  cancelled: false,
+                },
+              }
+            : m,
+        ),
+      )
+      const response = await apiStartPlanExecute(sessionToken, goal)
+      if (!response.ok || !response.body) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId && m.planExecute
+              ? {
+                  ...m,
+                  planExecute: {
+                    ...m.planExecute,
+                    errorMsg: `HTTP ${response.status}`,
+                    running: false,
+                  },
+                }
+              : m,
+          ),
+        )
+        return
+      }
+      const r = response.body.getReader()
+      const dec = new TextDecoder()
+      let buf = ""
+      for (;;) {
+        const { value, done } = await r.read()
+        if (done) break
+        buf += dec.decode(value, { stream: true })
+        const blocks = buf.split("\n\n")
+        buf = blocks.pop() ?? ""
+        for (const block of blocks) {
+          const line = block.split("\n").find((l) => l.startsWith("data: "))
+          if (!line) continue
+          const payload = line.slice(6).trim()
+          if (!payload) continue
+          let pc: PlanStreamChunk
+          try {
+            pc = JSON.parse(payload) as PlanStreamChunk
+          } catch {
+            continue
+          }
+          applyPlanChunkToMessage(setMessages, assistantId, pc)
+        }
+      }
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantId && m.planExecute && m.planExecute.running
+            ? { ...m, planExecute: { ...m.planExecute, running: false } }
+            : m,
+        ),
+      )
+    },
+    [sessionToken],
+  )
 
   const sendMessage = useCallback(
     async (userText: string) => {
@@ -482,6 +562,52 @@ export function useChat({
                     : m,
                 ),
               )
+            } else if (
+              chunk.type === "tool_result" &&
+              chunk.tool_name === "start_plan_execute"
+            ) {
+              // Handoff marker from the meta-tool. Parse, then switch this
+              // assistant message into a PE view fed by /plan-execute.
+              let parsed: { __plan_execute_handoff__?: boolean; goal?: string } = {}
+              try {
+                parsed = JSON.parse(chunk.content || "{}")
+              } catch {
+                // Malformed marker — fall through to normal tool_result rendering.
+              }
+              if (parsed.__plan_execute_handoff__ && parsed.goal) {
+                try {
+                  await reader.cancel()
+                } catch {
+                  /* noop */
+                }
+                await runPlanExecuteOnAssistant(assistantId, parsed.goal)
+                return
+              }
+              // Not a real handoff — let the normal tool_result handler run below by
+              // re-entering the chain. Because we're inside an if/else if, just fall
+              // through by doing nothing here; the existing tool_result handler
+              // below will NOT re-match (same chunk). So manually apply the
+              // generic tool_result update here as a fallback:
+              if (chunk.tool_call_id) {
+                setMessages((prev) =>
+                  prev.map((m) => {
+                    if (m.id !== assistantId) return m
+                    return {
+                      ...m,
+                      toolCalls: m.toolCalls.map((tc) =>
+                        tc.toolCallId === chunk.tool_call_id
+                          ? {
+                              ...tc,
+                              resultContent: chunk.content,
+                              callingContent: chunk.calling_args ?? tc.callingContent,
+                              status: "done" as const,
+                            }
+                          : tc,
+                      ),
+                    }
+                  }),
+                )
+              }
             } else if (chunk.type === "tool_result" && chunk.tool_call_id) {
               setMessages((prev) =>
                 prev.map((m) => {
@@ -555,7 +681,7 @@ export function useChat({
         streamingMsgIdRef.current = null
       }
     },
-    [messages, sessionToken, currentSessionId, currentSessionName, renameSession],
+    [messages, sessionToken, currentSessionId, currentSessionName, renameSession, runPlanExecuteOnAssistant],
   )
 
   const startPlanExecute = useCallback(
@@ -695,6 +821,11 @@ export function useChat({
   const insertPlanExecuteSuggestion = useCallback(
     (savedCount: number, pendingCount: number) => {
       if (savedCount <= 0) return
+      const prompts: string[] = [
+        t("pe_chip_research_and_tailor", savedCount),
+        t("pe_chip_analyze_match"),
+        t("pe_chip_prioritize_by_prefs"),
+      ]
       setMessages((prev) => [
         ...prev,
         {
@@ -704,6 +835,7 @@ export function useChat({
           toolCalls: [],
           timestamp: new Date(),
           planExecuteSuggestion: {
+            prompts,
             savedCount,
             pendingCount,
             dismissed: false,
@@ -711,11 +843,11 @@ export function useChat({
         },
       ])
     },
-    [],
+    [t],
   )
 
-  const acceptPlanExecuteSuggestion = useCallback(
-    async (suggestionMsgId: string) => {
+  const pickPlanExecuteSuggestionPrompt = useCallback(
+    (suggestionMsgId: string, promptText: string) => {
       setMessages((prev) =>
         prev.map((m) =>
           m.id === suggestionMsgId && m.planExecuteSuggestion
@@ -729,9 +861,9 @@ export function useChat({
             : m,
         ),
       )
-      await startPlanExecute()
+      void sendMessage(promptText)
     },
-    [startPlanExecute],
+    [sendMessage],
   )
 
   const resumePlanExecute = useCallback(
@@ -849,7 +981,7 @@ export function useChat({
     startPlanExecute,
     resumePlanExecute,
     insertPlanExecuteSuggestion,
-    acceptPlanExecuteSuggestion,
+    pickPlanExecuteSuggestionPrompt,
     clearMessages,
   }
 }
