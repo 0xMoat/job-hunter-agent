@@ -12,6 +12,7 @@ interface KanbanColumnProps {
   cards: Application[]
   archivedCount?: number
   onDelete: (id: number) => void
+  onOpenDetail: (id: number) => void
   onAddCard: (company: string, title: string, url?: string, status?: ApplicationStatus) => Promise<void>
 }
 
@@ -37,6 +38,7 @@ export function KanbanColumn({
   cards,
   archivedCount,
   onDelete,
+  onOpenDetail,
   onAddCard,
 }: KanbanColumnProps) {
   const { t } = useLanguage()
@@ -73,7 +75,7 @@ export function KanbanColumn({
       {/* Cards */}
       <div className="flex flex-col gap-2 flex-1 min-h-[120px]">
         {cards.map((card) => (
-          <KanbanCard key={card.id} app={card} onDelete={onDelete} />
+          <KanbanCard key={card.id} app={card} onDelete={onDelete} onOpenDetail={onOpenDetail} />
         ))}
       </div>
 

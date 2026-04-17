@@ -8,9 +8,17 @@ import type { Application } from "@/lib/types"
 interface KanbanCardProps {
   app: Application
   onDelete: (id: number) => void
+  onOpenDetail: (id: number) => void
 }
 
-export function KanbanCard({ app, onDelete }: KanbanCardProps) {
+function isRecentlyUpdated(iso?: string | null): boolean {
+  if (!iso) return false
+  const ts = Date.parse(iso)
+  if (isNaN(ts)) return false
+  return Date.now() - ts < 5 * 60 * 1000
+}
+
+export function KanbanCard({ app, onDelete, onOpenDetail }: KanbanCardProps) {
   const { t } = useLanguage()
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: app.id,
@@ -49,6 +57,11 @@ export function KanbanCard({ app, onDelete }: KanbanCardProps) {
               ].join(" ")}
             >
               {app.match_score}
+            </span>
+          )}
+          {isRecentlyUpdated(app.artifacts_updated_at) && (
+            <span className="text-[10px] font-body rounded-full px-2 py-0.5 bg-[#fef3c7] text-[#b45309]">
+              🆕 {t("artifact_new_badge")}
             </span>
           )}
           <span
@@ -96,18 +109,27 @@ export function KanbanCard({ app, onDelete }: KanbanCardProps) {
         >
           {t("delete")}
         </button>
-        {app.url && (
-          <a
-            href={app.url}
-            target="_blank"
-            rel="noopener noreferrer"
+        <div className="flex items-center gap-2">
+          <button
             onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => e.stopPropagation()}
-            className="text-[10px] font-body text-[#7c6af5] hover:underline"
+            onClick={(e) => { e.stopPropagation(); onOpenDetail(app.id) }}
+            className="text-[10px] font-body text-[var(--text-3)] hover:text-[#7c6af5] transition-colors"
           >
-            {t("card_view_job")}
-          </a>
-        )}
+            {t("artifact_open_detail")}
+          </button>
+          {app.url && (
+            <a
+              href={app.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              className="text-[10px] font-body text-[#7c6af5] hover:underline"
+            >
+              {t("card_view_job")}
+            </a>
+          )}
+        </div>
       </div>
     </div>
   )

@@ -100,6 +100,26 @@ export interface Application {
   archived_at?: string
   updated_at: string
   match_score?: number | null
+  company_research_json?: string | null
+  tailored_resume_text?: string | null
+  pdf_download_url?: string | null
+  pdf_created_at?: string | null
+  match_breakdown?: string | null
+  gap_analysis_text?: string | null
+  interview_questions_json?: string | null
+  artifacts_updated_at?: string | null
+}
+
+export interface MatchBreakdown {
+  skills: { score: number; reason: string }
+  experience: { score: number; reason: string }
+  domain: { score: number; reason: string }
+  soft: { score: number; reason: string }
+}
+
+export interface InterviewQuestion {
+  question: string
+  focus: string
 }
 
 // ── Plan-and-Execute ───────────────────────────────────────────────────────

@@ -197,6 +197,23 @@ const zh: Dict = {
   // Landing page — Footer
   lp_footer_privacy: '隐私政策',
   lp_footer_feedback: '反馈问题',
+  // Artifacts / detail drawer
+  artifact_research: '公司调研',
+  artifact_match: '匹配度',
+  artifact_gap: '知识缺口',
+  artifact_interview: '面试问题',
+  artifact_tailored: '润色简历',
+  artifact_pdf: '简历 PDF',
+  artifact_empty_hint: '尚未生成',
+  artifact_download_pdf: '下载 PDF',
+  artifact_open_detail: '详情',
+  artifact_close: '关闭',
+  artifact_new_badge: '新',
+  artifact_breakdown_skills: '技能匹配',
+  artifact_breakdown_experience: '经验匹配',
+  artifact_breakdown_domain: '领域契合',
+  artifact_breakdown_soft: '软性要求',
+  artifact_total_score: '总分',
 }
 
 const en: Dict = {
@@ -391,6 +408,23 @@ const en: Dict = {
   // Landing page — Footer
   lp_footer_privacy: 'Privacy Policy',
   lp_footer_feedback: 'Feedback',
+  // Artifacts / detail drawer
+  artifact_research: 'Company research',
+  artifact_match: 'JD match',
+  artifact_gap: 'Skill gap',
+  artifact_interview: 'Interview questions',
+  artifact_tailored: 'Tailored resume',
+  artifact_pdf: 'Resume PDF',
+  artifact_empty_hint: 'Not generated yet',
+  artifact_download_pdf: 'Download PDF',
+  artifact_open_detail: 'Details',
+  artifact_close: 'Close',
+  artifact_new_badge: 'New',
+  artifact_breakdown_skills: 'Skills',
+  artifact_breakdown_experience: 'Experience',
+  artifact_breakdown_domain: 'Domain fit',
+  artifact_breakdown_soft: 'Soft requirements',
+  artifact_total_score: 'Total',
 }
 
 const dicts: Record<Locale, Dict> = { 'zh-CN': zh, en }
