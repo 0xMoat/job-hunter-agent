@@ -55,6 +55,9 @@ export interface PlanExecuteView {
 }
 
 export interface PlanExecuteSuggestion {
+  /** Chip prompts shown in the bubble, in display order. */
+  prompts: string[]
+  /** Inserted-jobs count; still surfaced in the header for context. */
   savedCount: number
   pendingCount: number
   dismissed: boolean
