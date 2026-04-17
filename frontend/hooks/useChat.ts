@@ -284,6 +284,12 @@ function applyPlanChunkToMessage(
                 awaitingApproval: false,
                 running: false,
                 cancelled: chunk.content.startsWith("已取消"),
+                // Any step still showing "running" when the PE loop ended
+                // (e.g. replanner finished early) must drop the spinner so
+                // the UI doesn't look half-done next to the final response.
+                steps: m.planExecute.steps.map((s) =>
+                  s.status === "running" ? { ...s, status: "done" as const } : s,
+                ),
               },
             }
           : m,
