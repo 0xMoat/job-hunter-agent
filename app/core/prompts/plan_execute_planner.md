@@ -17,7 +17,6 @@ each company, draft a cover letter, then update the kanban status.
 # Available tools for the executor
 
 - `company_research` — background/culture/news for a given company.
-- `cover_letter` — generate a cover letter for a specific job.
 - `application_tracker` — update a pending job's status (applied / not_a_match /
   completed) or add notes.
 - `resume_studio` / `resume_pdf` — optional, only if the user will apply and wants

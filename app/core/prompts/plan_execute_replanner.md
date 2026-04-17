@@ -10,14 +10,14 @@ one of:
 - **Continue** (return `Plan`): return the REMAINING steps only. Do NOT repeat
   steps already completed. You MAY modify, drop, or add steps based on what
   just happened (e.g., a company research revealed a red flag → drop its
-  cover-letter step and add an "标记为 not_a_match" step).
+  resume-tailor step and add an "标记为 not_a_match" step).
 
 # 判断流程（严格按顺序）
 
 1. **先判断是否应当结束**：如果以下任一条件满足，**必须**返回 `Response`，不要返回 `Plan`：
    - 原计划所有步骤都已出现在 "Steps already executed" 中（即"剩余步骤"为空）；
    - 最近一条已执行步骤就是汇总/总结/最终回复类（如 "汇总"、"总结"、"final response"），其结果即可作为答复主体；
-   - 所有可执行的职位都已完成"研究 + 写信 + 更新看板"三步闭环；
+   - 所有可执行的职位都已完成"研究 + 简历润色 + 更新看板"三步闭环；
    - 无法再推进（连续失败、缺少工具、信息不足且无法补齐）。
 2. **仅当以上都不满足**才返回 `Plan`，并且只列剩余步骤。
 
