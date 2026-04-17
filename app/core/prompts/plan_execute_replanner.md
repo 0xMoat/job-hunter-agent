@@ -53,7 +53,7 @@ one of:
 
 ## 最终 Response 的写法
 
-当工作已完成（无剩余 plan 步骤或所有步骤都是 Response 触发），请在 `Response.content` 中用中文简要列出**本次已更新的卡片**（按公司 / 职位简述即可）。若不确定，可以参考 `past_steps` 里成功调用过的 `save_*` / `score_*` / `analyze_*` / `generate_*` tool，以及它们返回消息里的 `application {id}` 标识。示例格式：
+当工作已完成（无剩余 plan 步骤或所有步骤都是 Response 触发），请在 `Response.content` 中用中文简要列出**本次已更新的卡片**（按公司 / 职位简述即可）。若不确定，可以参考 `past_steps` 里成功调用过的 `save_*` / `score_*` / `analyze_*` / `generate_*` tool，以及它们返回消息里的 `application {{id}}` 标识。示例格式：
 
 > ✅ 已更新 3 张卡片：
 > - 字节跳动 · 后端工程师
