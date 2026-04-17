@@ -254,6 +254,66 @@ class JobService:
             logger.info("application_updated", application_id=application_id, user_id=user_id)
             return app
 
+    async def update_application_artifacts(
+        self,
+        *,
+        user_id: int,
+        application_id: int,
+        updates: dict[str, object],
+    ) -> bool:
+        """Internal-only helper for LangGraph tools to write artifact fields.
+
+        Allowed fields (whitelisted to prevent tools from touching user-controlled columns):
+          - company_research_json
+          - tailored_resume_text
+          - pdf_token
+          - pdf_created_at
+          - match_score
+          - match_breakdown
+          - gap_analysis_text
+          - interview_questions_json
+
+        Silently bumps `artifacts_updated_at` on every successful update.
+
+        Returns True if the row was found and updated; False if no row matched.
+        """
+        allowed = {
+            "company_research_json",
+            "tailored_resume_text",
+            "pdf_token",
+            "pdf_created_at",
+            "match_score",
+            "match_breakdown",
+            "gap_analysis_text",
+            "interview_questions_json",
+        }
+        unknown = set(updates) - allowed
+        if unknown:
+            raise ValueError(f"Disallowed artifact fields: {sorted(unknown)}")
+
+        with Session(self._engine) as session:
+            app = session.exec(
+                select(Application).where(
+                    Application.id == application_id,
+                    Application.user_id == user_id,
+                )
+            ).first()
+            if not app:
+                return False
+            for k, v in updates.items():
+                setattr(app, k, v)
+            app.artifacts_updated_at = datetime.now(UTC)
+            app.updated_at = datetime.now(UTC)
+            session.add(app)
+            session.commit()
+            logger.info(
+                "application_artifacts_updated",
+                application_id=application_id,
+                user_id=user_id,
+                fields=sorted(updates.keys()),
+            )
+            return True
+
     async def list_applications(self, user_id: int) -> List[Application]:
         """List all active (non-archived) applications for a user, newest first."""
         with Session(self._engine) as session:

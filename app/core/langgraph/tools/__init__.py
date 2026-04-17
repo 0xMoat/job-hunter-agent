@@ -9,6 +9,8 @@ from .job_preferences import job_preferences_tool
 from .job_search import job_search_tool
 from .resume_pdf import generate_resume_pdf
 from .resume_studio import trigger_resume_studio_skill
+from .save_company_research import save_company_research
+from .save_tailored_resume import save_tailored_resume
 from .start_plan_execute import start_plan_execute
 
 tools: list[BaseTool] = [
@@ -19,5 +21,7 @@ tools: list[BaseTool] = [
     duckduckgo_search_tool,
     trigger_resume_studio_skill,
     generate_resume_pdf,
+    save_company_research,
+    save_tailored_resume,
     start_plan_execute,
 ]
