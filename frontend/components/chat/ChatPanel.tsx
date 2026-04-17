@@ -18,7 +18,6 @@ export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boole
     error,
     historyLoading,
     sendMessage,
-    startPlanExecute,
     resumePlanExecute,
     insertPlanExecuteSuggestion,
     pickPlanExecuteSuggestionPrompt,
@@ -156,16 +155,22 @@ export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boole
                     <span className="text-[var(--text-3)] flex-shrink-0 ml-2" aria-hidden="true">↗</span>
                   </button>
                 ))}
-                {pendingCount > 0 && (
-                  <button
-                    onClick={() => startPlanExecute()}
-                    disabled={streaming}
-                    className="bg-indigo-600 text-white rounded-full px-3 py-1.5 text-xs font-body font-medium
-                               hover:bg-indigo-700 transition-colors disabled:opacity-50 cursor-pointer self-start"
-                  >
-                    自动处理看板 · {pendingCount} 个
-                  </button>
-                )}
+                {pendingCount > 0 && (() => {
+                  const prompt = (t('chat_auto_process_prompt') as unknown as (n: number) => string)(pendingCount)
+                  return (
+                    <button
+                      onClick={() => sendMessage(prompt)}
+                      disabled={streaming}
+                      className="glass rounded-full flex items-center justify-between
+                                 px-4 py-2.5 text-sm font-body font-normal
+                                 text-[var(--text-2)] hover:bg-white/80 transition-colors text-left
+                                 disabled:opacity-50"
+                    >
+                      <span>{prompt}</span>
+                      <span className="text-[var(--text-3)] flex-shrink-0 ml-2" aria-hidden="true">↗</span>
+                    </button>
+                  )
+                })()}
               </div>
             </div>
           )}

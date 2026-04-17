@@ -113,6 +113,8 @@ const zh: Dict = {
     `帮我研究这 ${n} 家公司，并为每家针对性润色简历`) as unknown as FnValue,
   pe_chip_analyze_match: '分析这些 JD 和我的简历匹配度，按优先级排序',
   pe_chip_prioritize_by_prefs: '按我的偏好筛一遍这些 JD，哪些值得优先投递',
+  chat_auto_process_prompt: ((n: number) =>
+    `帮我处理看板里这 ${n} 张待投递职位`) as unknown as FnValue,
   pe_suggestion_header: ((saved: number) =>
     `已保存 ${saved} 个职位到看板 · 想做什么？`) as unknown as FnValue,
   // Job search result card
@@ -323,6 +325,8 @@ const en: Dict = {
     `Research these ${n} companies and tailor my resume for each`) as unknown as FnValue,
   pe_chip_analyze_match: 'Analyze JD-to-resume fit and rank by priority',
   pe_chip_prioritize_by_prefs: 'Filter these JDs by my preferences — which to apply first?',
+  chat_auto_process_prompt: ((n: number) =>
+    `Help me process the ${n} pending jobs on my kanban`) as unknown as FnValue,
   pe_suggestion_header: ((saved: number) =>
     `Saved ${saved} job${saved === 1 ? '' : 's'} to the kanban · what's next?`) as unknown as FnValue,
   // Job search result card
