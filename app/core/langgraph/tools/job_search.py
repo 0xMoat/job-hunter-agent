@@ -9,9 +9,9 @@ import asyncio
 import json
 import re
 
+import httpx
 from langchain_community.tools import DuckDuckGoSearchResults
 from langchain_core.tools import tool
-from langchain_deepseek import ChatDeepSeek
 
 from app.core.config import settings
 from app.core.logging import logger
@@ -100,17 +100,30 @@ async def _rerank_and_intro(
         "Return ONLY a JSON object, no prose, no markdown fences:\n"
         '{\"relevant_indices\": [0, 2, 3], \"intro\": \"找到 N 条匹配，#2 元聚薪资最高。\"}'
     )
+    # Call DeepSeek HTTP API directly. We deliberately bypass LangChain here
+    # because a `ChatDeepSeek.ainvoke` inside a LangGraph tool silently
+    # inherits the parent callback context (Langfuse + SSE stream handlers),
+    # which would leak the rerank LLM's raw JSON content into the chat
+    # assistant's outgoing stream. A plain httpx POST has no such coupling.
     try:
-        llm = ChatDeepSeek(
-            model="deepseek-chat",
-            api_key=settings.DEEPSEEK_API_KEY,
-            temperature=0,
-        )
-        response = await llm.ainvoke(prompt)
-        content = getattr(response, "content", "") or ""
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(
+                "https://api.deepseek.com/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {settings.DEEPSEEK_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "deepseek-chat",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0,
+                },
+            )
+            resp.raise_for_status()
+            content = resp.json()["choices"][0]["message"]["content"] or ""
         match = _JSON_BLOCK_RE.search(content)
         if not match:
-            raise ValueError(f"no JSON block in LLM response: {content[:200]!r}")
+            raise ValueError(f"no JSON block in rerank response: {content[:200]!r}")
         payload = json.loads(match.group(0))
         indices = payload.get("relevant_indices") or []
         intro = (payload.get("intro") or "").strip()
