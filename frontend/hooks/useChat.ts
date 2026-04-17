@@ -406,8 +406,7 @@ export function useChat({
             : m,
         ),
       )
-      const response = await apiStartPlanExecute(sessionToken, goal)
-      if (!response.ok || !response.body) {
+      const setPlanError = (errorMsg: string) =>
         setMessages((prev) =>
           prev.map((m) =>
             m.id === assistantId && m.planExecute
@@ -415,37 +414,51 @@ export function useChat({
                   ...m,
                   planExecute: {
                     ...m.planExecute,
-                    errorMsg: `HTTP ${response.status}`,
+                    errorMsg,
                     running: false,
                   },
                 }
               : m,
           ),
         )
-        return
-      }
-      const r = response.body.getReader()
-      const dec = new TextDecoder()
-      let buf = ""
-      for (;;) {
-        const { value, done } = await r.read()
-        if (done) break
-        buf += dec.decode(value, { stream: true })
-        const blocks = buf.split("\n\n")
-        buf = blocks.pop() ?? ""
-        for (const block of blocks) {
-          const line = block.split("\n").find((l) => l.startsWith("data: "))
-          if (!line) continue
-          const payload = line.slice(6).trim()
-          if (!payload) continue
-          let pc: PlanStreamChunk
-          try {
-            pc = JSON.parse(payload) as PlanStreamChunk
-          } catch {
-            continue
-          }
-          applyPlanChunkToMessage(setMessages, assistantId, pc)
+      try {
+        const response = await apiStartPlanExecute(sessionToken, goal)
+        if (!response.ok) {
+          setPlanError(`HTTP ${response.status}`)
+          return
         }
+        if (!response.body) {
+          setPlanError("No response body")
+          return
+        }
+        const reader = response.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ""
+        for (;;) {
+          const { value, done } = await reader.read()
+          if (done) break
+          buffer += decoder.decode(value, { stream: true })
+          const blocks = buffer.split("\n\n")
+          buffer = blocks.pop() ?? ""
+          for (const block of blocks) {
+            const line = block.split("\n").find((l) => l.startsWith("data: "))
+            if (!line) continue
+            const payload = line.slice(6).trim()
+            if (!payload) continue
+            let pc: PlanStreamChunk
+            try {
+              pc = JSON.parse(payload) as PlanStreamChunk
+            } catch {
+              continue
+            }
+            applyPlanChunkToMessage(setMessages, assistantId, pc)
+          }
+        }
+      } catch (err) {
+        // Trap errors here so they don't propagate to sendMessage's catch,
+        // which would delete the already-converted PE bubble.
+        setPlanError(err instanceof Error ? err.message : "Stream failed")
+        return
       }
       setMessages((prev) =>
         prev.map((m) =>
