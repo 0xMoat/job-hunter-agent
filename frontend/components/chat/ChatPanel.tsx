@@ -156,7 +156,7 @@ export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boole
                   </button>
                 ))}
                 {pendingCount > 0 && (() => {
-                  const prompt = (t('chat_auto_process_prompt') as unknown as (n: number) => string)(pendingCount)
+                  const prompt = t('chat_auto_process_prompt', pendingCount)
                   return (
                     <button
                       onClick={() => sendMessage(prompt)}
