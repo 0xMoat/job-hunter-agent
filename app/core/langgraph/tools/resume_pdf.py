@@ -1,15 +1,26 @@
 """LangGraph tool for generating tailored resume PDFs."""
 
 import json
+from datetime import UTC, datetime
+from pathlib import Path
 
 from langchain_core.runnables.config import RunnableConfig
 from langchain_core.tools import tool
 
 from app.core.logging import logger
 from app.schemas.resume import ResumeData
+from app.services.job_service import job_service
 from app.services.resume_pdf_service import ResumePDFService
 
 _pdf_service = ResumePDFService()
+
+
+def _cleanup_pdf_file(pdf_token: str) -> None:
+    """Remove an orphan PDF when the card write fails (best-effort)."""
+    try:
+        Path(f"/tmp/{pdf_token}.pdf").unlink(missing_ok=True)
+    except Exception:
+        logger.warning("resume_pdf_cleanup_failed", pdf_token=pdf_token)
 
 
 def _normalize_resume_data(data: dict) -> dict:
@@ -63,14 +74,17 @@ def _normalize_resume_data(data: dict) -> dict:
 
 
 @tool
-async def generate_resume_pdf(resume_json: str | dict, config: RunnableConfig) -> str:
+async def generate_resume_pdf(
+    application_id: int, resume_json: str | dict, config: RunnableConfig
+) -> str:
     """Generate a tailored resume PDF from structured JSON data.
 
-    Call this tool ONLY after you have produced the complete structured JSON resume
-    following the schema specified in the Resume Studio skill instructions.
-    Pass the JSON as resume_json.
+    Call this tool ONLY after the resume_studio skill has produced the complete
+    structured JSON resume and the user has agreed to the tailored version.
+    Pass the target JD card's id so the PDF is linked to that card.
 
     Args:
+        application_id: ID of the target JD kanban card to link the PDF to.
         resume_json: Resume data as a JSON string or dict.
         config: LangGraph runnable config (injected automatically).
 
@@ -90,12 +104,39 @@ async def generate_resume_pdf(resume_json: str | dict, config: RunnableConfig) -
 
     try:
         logger.info("resume_pdf_rendering_started")
-        download_url = _pdf_service.generate(data)
+        pdf_token, download_url = _pdf_service.generate(data)
     except Exception as e:
         logger.exception("resume_pdf_generation_failed")
         return f"Error: Failed to generate PDF. Details: {e}"
 
     user_id = config.get("configurable", {}).get("user_id")
-    logger.info("resume_pdf_tool_success", user_id=user_id)
+    if not user_id:
+        logger.warning("resume_pdf_missing_user_id")
+        return "Error: user_id not found in execution config."
 
+    # Persist the token + created_at onto the target card
+    try:
+        ok = await job_service.update_application_artifacts(
+            user_id=user_id,
+            application_id=application_id,
+            updates={
+                "pdf_token": pdf_token,
+                "pdf_created_at": datetime.now(UTC),
+            },
+        )
+    except ValueError as e:
+        logger.exception("resume_pdf_artifact_write_failed", error=str(e))
+        _cleanup_pdf_file(pdf_token)
+        return f"Error: {e}"
+
+    if not ok:
+        _cleanup_pdf_file(pdf_token)
+        return f"Error: application {application_id} not found or not owned by current user."
+
+    logger.info(
+        "resume_pdf_tool_success",
+        user_id=user_id,
+        application_id=application_id,
+        pdf_token=pdf_token,
+    )
     return f"Resume PDF generated successfully! {download_url}"

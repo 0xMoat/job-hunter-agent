@@ -60,14 +60,16 @@ class ResumePDFService:
         )
         self._env.filters["bold_code"] = _bold_code_filter
 
-    def generate(self, data: ResumeData) -> str:
-        """Generate a PDF and return a signed download URL.
+    def generate(self, data: ResumeData) -> tuple[str, str]:
+        """Generate a PDF and return (pdf_token, signed_download_url).
 
         Args:
             data: Validated resume data.
 
         Returns:
-            Download URL path (e.g. /api/v1/resume/download/{token}).
+            A 2-tuple of (pdf_token, download_url) where pdf_token is the
+            file-stem (e.g. ``resume_abcdef123456``) and download_url is a
+            signed path (e.g. /api/v1/resume/download/{jwt}).
         """
         template = self._env.get_template("resume.html.j2")
         html = template.render(
@@ -108,7 +110,7 @@ class ResumePDFService:
             size_bytes=pdf_size,
         )
 
-        return _sign_download_url(pdf_path)
+        return filename, _sign_download_url(pdf_path)
 
 
 def sign_pdf_download_url(pdf_token: str) -> Optional[str]:
