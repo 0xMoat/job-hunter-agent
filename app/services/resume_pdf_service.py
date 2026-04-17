@@ -5,6 +5,7 @@ import subprocess
 import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Optional
 
 from jinja2 import Environment, FileSystemLoader
 from jose import jwt
@@ -102,3 +103,20 @@ class ResumePDFService:
         )
 
         return f"/api/v1/resume/download/{token}"
+
+
+def sign_pdf_download_url(pdf_token: str) -> Optional[str]:
+    """Sign a fresh 24h JWT download URL for a stored PDF token.
+
+    Returns None if the underlying file no longer exists on disk (e.g.,
+    cleaned up after the 30-day retention cutoff).
+    """
+    pdf_path = Path("/tmp") / f"{pdf_token}.pdf"
+    if not pdf_path.exists():
+        return None
+    token_payload = {
+        "file": str(pdf_path),
+        "exp": datetime.now(UTC) + timedelta(hours=24),
+    }
+    token = jwt.encode(token_payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+    return f"/api/v1/resume/download/{token}"

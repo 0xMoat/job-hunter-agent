@@ -8,8 +8,10 @@ from pydantic import BaseModel, Field
 from app.api.v1.auth import get_current_session
 from app.core.limiter import limiter
 from app.core.logging import logger
+from app.models.application import Application
 from app.models.session import Session
 from app.services.job_service import job_service
+from app.services.resume_pdf_service import sign_pdf_download_url
 
 router = APIRouter()
 
@@ -48,13 +50,27 @@ class BatchCreate(BaseModel):
     listings: list[BatchListingItem]
 
 
+def _serialize_application(app: Application) -> dict:
+    """Serialize an Application row for API response.
+
+    Injects `pdf_download_url` (freshly signed 24h JWT) when the card has
+    a stored `pdf_token` and the file still exists. Removes `pdf_token`
+    from the output so clients never see the internal file stem.
+    """
+    data = app.model_dump(mode="json")
+    pdf_token = data.pop("pdf_token", None)
+    data["pdf_download_url"] = sign_pdf_download_url(pdf_token) if pdf_token else None
+    return data
+
+
 @router.get("/applications")
 @limiter.limit("60/minute")
 async def list_applications(request: Request, session: Session = Depends(get_current_session)):
     """List all job applications for the current user."""
     apps = await job_service.list_applications(session.user_id)
+    serialized = [_serialize_application(a) for a in apps]
     archived_count = await job_service.count_archived_pending(session.user_id)
-    return {"applications": apps, "count": len(apps), "archived_count": archived_count}
+    return {"applications": serialized, "count": len(serialized), "archived_count": archived_count}
 
 
 @router.post("/applications", status_code=201)
@@ -69,7 +85,7 @@ async def add_application(
         session.user_id, body.company, body.title, body.url, body.notes, body.status or "pending"
     )
     logger.info("application_added_via_api", user_id=session.user_id, company=body.company)
-    return app
+    return _serialize_application(app)
 
 
 @router.post("/applications/batch", status_code=201)
@@ -105,7 +121,7 @@ async def update_application(
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Application not found")
-    return updated
+    return _serialize_application(updated)
 
 
 @router.delete("/applications/{application_id}")
