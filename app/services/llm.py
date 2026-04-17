@@ -48,7 +48,6 @@ class LLMRegistry:
                 model="deepseek-chat",
                 api_key=settings.DEEPSEEK_API_KEY,
                 temperature=settings.DEFAULT_LLM_TEMPERATURE,
-                extra_body={"thinking": {"type": "enabled", "budget_tokens": 1024}},
             ),
         },
         {

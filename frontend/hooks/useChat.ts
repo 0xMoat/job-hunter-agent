@@ -9,7 +9,7 @@ import {
   resumePlanExecute as apiResumePlanExecute,
   type PlanExecuteResumeArgs,
 } from "@/lib/api"
-import type { ChatMessage, StreamChunk, ToolCallEntry, ThinkingEntry, PlanExecuteView, PlanStep, PlanStreamChunk } from "@/lib/types"
+import type { ChatMessage, StreamChunk, ToolCallEntry, ThinkingEntry, PlanExecuteView, PlanStep, PlanStreamChunk, PlanLiveToolCall } from "@/lib/types"
 
 function makeId(): string {
   return Math.random().toString(36).slice(2)
@@ -83,8 +83,95 @@ function applyPlanChunkToMessage(
           planExecute: {
             ...m.planExecute,
             steps: m.planExecute.steps.map((s) =>
-              s.id === chunk.id ? { ...s, status: "running" as const } : s,
+              s.id === chunk.id
+                ? {
+                    ...s,
+                    status: "running" as const,
+                    liveText: "",
+                    toolCalls: [],
+                  }
+                : s,
             ),
+          },
+        }
+      }),
+    )
+    return
+  }
+  if (chunk.type === "step_text_delta") {
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.id !== assistantId || !m.planExecute) return m
+        return {
+          ...m,
+          planExecute: {
+            ...m.planExecute,
+            steps: m.planExecute.steps.map((s) =>
+              s.id === chunk.step_id
+                ? { ...s, liveText: (s.liveText ?? "") + chunk.delta }
+                : s,
+            ),
+          },
+        }
+      }),
+    )
+    return
+  }
+  if (chunk.type === "step_tool_call") {
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.id !== assistantId || !m.planExecute) return m
+        return {
+          ...m,
+          planExecute: {
+            ...m.planExecute,
+            steps: m.planExecute.steps.map((s) => {
+              if (s.id !== chunk.step_id) return s
+              const existing = s.toolCalls ?? []
+              const idx = existing.findIndex((tc) => tc.id === chunk.tool_call_id)
+              if (idx === -1) {
+                // First fragment for this tool call — only emit an entry
+                // once we know the tool name (server guarantees the first
+                // chunk carries it). Otherwise create a placeholder so
+                // args deltas aren't dropped.
+                const next: PlanLiveToolCall = {
+                  id: chunk.tool_call_id,
+                  name: chunk.tool_name ?? "",
+                  args: chunk.args_delta ?? "",
+                }
+                return { ...s, toolCalls: [...existing, next] }
+              }
+              const next = [...existing]
+              next[idx] = {
+                ...next[idx],
+                name: next[idx].name || chunk.tool_name || "",
+                args: next[idx].args + (chunk.args_delta ?? ""),
+              }
+              return { ...s, toolCalls: next }
+            }),
+          },
+        }
+      }),
+    )
+    return
+  }
+  if (chunk.type === "step_tool_result") {
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.id !== assistantId || !m.planExecute) return m
+        return {
+          ...m,
+          planExecute: {
+            ...m.planExecute,
+            steps: m.planExecute.steps.map((s) => {
+              if (s.id !== chunk.step_id) return s
+              const existing = s.toolCalls ?? []
+              const idx = existing.findIndex((tc) => tc.id === chunk.tool_call_id)
+              if (idx === -1) return s
+              const next = [...existing]
+              next[idx] = { ...next[idx], result: chunk.content }
+              return { ...s, toolCalls: next }
+            }),
           },
         }
       }),

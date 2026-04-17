@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Any, AsyncGenerator, Optional
 from urllib.parse import quote_plus
 
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import AIMessageChunk, HumanMessage, SystemMessage, ToolMessage
 from langchain_deepseek import ChatDeepSeek
 from langfuse.langchain import CallbackHandler
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
@@ -34,7 +34,6 @@ from app.core.prompts import (
 )
 from app.schemas import Act, Plan, PlanExecuteState, PlanResponse
 from app.services.job_service import job_service
-from app.services.llm import llm_service
 
 MAX_ITERATIONS = 10
 
@@ -149,11 +148,10 @@ class PlanExecuteAgent:
     def _structured_llm(self, schema):
         """Build an LLM instance suitable for structured output.
 
-        DeepSeek's `thinking` mode rejects requests with `tool_choice`, which is
-        what `with_structured_output` emits under the hood. The global
-        `llm_service.get_llm()` returns a tools-bound RunnableBinding whose
-        underlying ChatDeepSeek still has `extra_body.thinking` set — cloning
-        the binding does not touch it. Construct a fresh non-thinking instance.
+        The global `llm_service.get_llm()` is bind_tools'd by the main chat
+        agent at startup, and `with_structured_output` would then layer its
+        own `tool_choice` on top — which breaks things. Construct a fresh,
+        untouched ChatDeepSeek instance here so structured output works.
         """
         fresh = ChatDeepSeek(
             model="deepseek-chat",
@@ -184,12 +182,21 @@ class PlanExecuteAgent:
     # ---------- executor node ----------
 
     def _get_executor(self):
-        """Build (lazily) the ReAct sub-agent used to execute a single step."""
+        """Build (lazily) the ReAct sub-agent used to execute a single step.
+
+        Uses a dedicated non-thinking DeepSeek instance: ReAct steps are mostly
+        tool dispatch where thinking tokens add latency without much quality
+        gain. We deliberately avoid `llm_service.get_llm()` + `bind_tools` to
+        sidestep the global side-effect of mutating the shared chat agent LLM.
+        """
         if self._executor is None:
-            # Bind tools at the LLMService level to reuse retry/fallback
-            llm_service.bind_tools(tools)
+            executor_llm = ChatDeepSeek(
+                model="deepseek-chat",
+                api_key=settings.DEEPSEEK_API_KEY,
+                temperature=settings.DEFAULT_LLM_TEMPERATURE,
+            )
             self._executor = create_react_agent(
-                llm_service.get_llm(),
+                executor_llm,
                 tools=tools,
                 state_schema=_ExecutorState,
             )
@@ -255,6 +262,15 @@ class PlanExecuteAgent:
         action = (payload or {}).get("action") if isinstance(payload, dict) else None
         feedback = (payload or {}).get("feedback") if isinstance(payload, dict) else None
 
+        logger.debug(
+            "pe_approval_gate_resumed",
+            round=next_round,
+            payload_type=type(payload).__name__,
+            action=action,
+            state_pending_revise=state.pending_revise,
+            state_plan_len=len(state.plan),
+            state_past_steps_len=len(state.past_steps),
+        )
         if action == "cancel":
             logger.info("pe_approval_cancelled", round=next_round)
             return {
@@ -270,15 +286,26 @@ class PlanExecuteAgent:
             }
         # default: user approved
         logger.info("pe_approval_approved", round=next_round)
-        return {"approval_round": next_round}
+        return {"approval_round": next_round, "pending_revise": False}
 
     def _route_after_approval(self, state: PlanExecuteState) -> str:
         """Edge dispatcher after approval_gate."""
         if state.response is not None:
-            return END
-        if state.pending_revise:
-            return "replanner"
-        return "executor"
+            decision = END
+        elif state.pending_revise:
+            decision = "replanner"
+        else:
+            decision = "executor"
+        logger.debug(
+            "pe_route_after_approval",
+            decision=decision,
+            pending_revise=state.pending_revise,
+            has_response=state.response is not None,
+            plan_len=len(state.plan),
+            past_steps_len=len(state.past_steps),
+            approval_round=state.approval_round,
+        )
+        return decision
 
     # ---------- replanner node ----------
 
@@ -296,6 +323,14 @@ class PlanExecuteAgent:
             original_plan=original_plan_text,
             past_steps=past_steps_text,
             user_feedback=state.user_feedback,
+        )
+        logger.debug(
+            "pe_replan_entered",
+            pending_revise=state.pending_revise,
+            has_user_feedback=bool(state.user_feedback),
+            plan_len=len(state.plan),
+            past_steps_len=len(state.past_steps),
+            iterations=state.iterations,
         )
         replanner_llm = self._structured_llm(Act)
         try:
@@ -316,6 +351,11 @@ class PlanExecuteAgent:
         if state.user_feedback:
             updates["user_feedback"] = None
 
+        logger.debug(
+            "pe_replan_act_decided",
+            action_type=type(act.action).__name__,
+            state_pending_revise=state.pending_revise,
+        )
         if isinstance(act.action, PlanResponse):
             logger.info("pe_replan_finish", iterations=state.iterations)
             return {"response": act.action.content, "pending_revise": False, **updates}
@@ -345,16 +385,27 @@ class PlanExecuteAgent:
     def _should_end(self, state: PlanExecuteState) -> str:
         """Edge: from replanner → approval_gate (revise) / executor / END."""
         if state.response is not None:
-            return END
-        if state.pending_revise:
-            # Revise cycle produced a new plan; loop back for user approval.
-            return "approval_gate"
-        if state.iterations >= MAX_ITERATIONS:
+            decision = END
+        elif state.pending_revise:
+            decision = "approval_gate"
+        elif state.iterations >= MAX_ITERATIONS:
             logger.warning("pe_max_iterations_reached", iterations=state.iterations)
-            return END
-        if not state.plan:
-            return END
-        return "executor"
+            decision = END
+        elif not state.plan:
+            decision = END
+        else:
+            decision = "executor"
+        logger.debug(
+            "pe_should_end",
+            decision=decision,
+            pending_revise=state.pending_revise,
+            has_response=state.response is not None,
+            plan_len=len(state.plan),
+            past_steps_len=len(state.past_steps),
+            iterations=state.iterations,
+            approval_round=state.approval_round,
+        )
+        return decision
 
     # ---------- graph construction ----------
 
@@ -441,6 +492,12 @@ class PlanExecuteAgent:
         else:
             pe_thread_id = resume_thread_id
             graph_input = Command(resume=resume_payload or {})
+            logger.info(
+                "pe_astream_resume_entry",
+                pe_thread_id=pe_thread_id,
+                action=(resume_payload or {}).get("action"),
+                has_feedback=bool((resume_payload or {}).get("feedback")),
+            )
 
         langfuse_handler = CallbackHandler()
         config: RunnableConfig = {
@@ -467,80 +524,199 @@ class PlanExecuteAgent:
         pending_ids: list[str] = []
         current_step_index = -1
         last_pending_revise_state = False
+        # Track the step id whose executor is currently running so we can
+        # attach sub-graph LLM / tool messages to the right card.
+        active_step_id: str | None = None
+        # Accumulate tool call args per id across streaming AIMessageChunk
+        # fragments. Mirrors the pattern in graph.py::get_stream_response.
+        tool_call_args: dict[str, str] = {}
         event: dict = {}
 
+        def _emit_step_event(
+            values_event: dict,
+        ) -> list[str]:
+            """Produce SSE payloads from a top-level `values` state snapshot.
+
+            Nonlocal: mutates emitted_plan / pending_ids / past_step_ids /
+            current_step_index / last_pending_revise_state / active_step_id.
+            Returning a list keeps the async-generator yield in one place.
+            """
+            nonlocal emitted_plan, pending_ids, past_step_ids
+            nonlocal current_step_index, last_pending_revise_state
+            nonlocal active_step_id
+            out: list[str] = []
+
+            new_plan = values_event.get("plan", []) or []
+            past_steps = values_event.get("past_steps", []) or []
+            pending_revise_local = values_event.get("pending_revise", False)
+
+            if not emitted_plan and new_plan:
+                emitted_plan = True
+                pending_ids = [_new_id() for _ in new_plan]
+                out.append(_json.dumps({
+                    "type": "plan_created",
+                    "steps": [
+                        {"id": sid, "text": t}
+                        for sid, t in zip(pending_ids, new_plan, strict=True)
+                    ],
+                    "done": False,
+                }))
+
+            # Revise-cycle transition: was pending_revise, no longer; this
+            # values event carries the rewritten plan from Replanner.
+            if (
+                last_pending_revise_state
+                and not pending_revise_local
+                and emitted_plan
+                and new_plan
+            ):
+                pending_ids = [_new_id() for _ in new_plan]
+                active_step_id = None
+                out.append(_json.dumps({
+                    "type": "plan_revised",
+                    "plan": [
+                        {"id": sid, "text": t}
+                        for sid, t in zip(pending_ids, new_plan, strict=True)
+                    ],
+                    "reason": "user_feedback",
+                    "done": False,
+                }))
+            last_pending_revise_state = pending_revise_local
+
+            if len(past_steps) > current_step_index + 1:
+                for i in range(current_step_index + 1, len(past_steps)):
+                    if not pending_ids:
+                        break
+                    sid = pending_ids.pop(0)
+                    past_step_ids.append(sid)
+                    _, result_text = past_steps[i]
+                    out.append(_json.dumps({
+                        "type": "step_completed",
+                        "id": sid,
+                        "result": result_text,
+                        "done": False,
+                    }))
+                    # The step we were streaming tokens into just finished.
+                    if active_step_id == sid:
+                        active_step_id = None
+                current_step_index = len(past_steps) - 1
+                if pending_ids:
+                    active_step_id = pending_ids[0]
+                    out.append(_json.dumps({
+                        "type": "step_started",
+                        "id": active_step_id,
+                        "done": False,
+                    }))
+
+            return out
+
         try:
-            async for event in self._graph.astream(
+            event_counter = 0
+            async for stream_event in self._graph.astream(
                 graph_input,
                 config,
-                stream_mode="values",
+                stream_mode=["values", "messages"],
+                subgraphs=True,
             ):
-                new_plan = event.get("plan", []) or []
-                past_steps = event.get("past_steps", []) or []
-                response = event.get("response")
-                pending_revise = event.get("pending_revise", False)
+                # With subgraphs=True + multi-mode, every event is a
+                # (namespace, mode, payload) triple. Top-level graph has ns=();
+                # the ReAct executor sub-graph has ns=("executor:<uid>",).
+                ns, event_mode, payload = stream_event
 
-                if not emitted_plan and new_plan:
-                    emitted_plan = True
-                    pending_ids = [_new_id() for _ in new_plan]
-                    yield _json.dumps({
-                        "type": "plan_created",
-                        "steps": [
-                            {"id": sid, "text": t}
-                            for sid, t in zip(pending_ids, new_plan, strict=True)
-                        ],
-                        "done": False,
-                    })
+                if event_mode == "values":
+                    # Only the outer graph publishes values we care about.
+                    if ns:
+                        continue
+                    event = payload
+                    event_counter += 1
+                    logger.debug(
+                        "pe_astream_event",
+                        idx=event_counter,
+                        pe_thread_id=pe_thread_id,
+                        plan_len=len(event.get("plan", []) or []),
+                        past_steps_len=len(event.get("past_steps", []) or []),
+                        pending_revise=event.get("pending_revise", False),
+                        has_response=event.get("response") is not None,
+                        approval_round=event.get("approval_round", 0),
+                        iterations=event.get("iterations", 0),
+                    )
 
-                # Detect revise-cycle transition: was pending_revise, no longer;
-                # this values event carries the rewritten plan from Replanner.
-                if (
-                    last_pending_revise_state
-                    and not pending_revise
-                    and emitted_plan
-                    and new_plan
-                ):
-                    pending_ids = [_new_id() for _ in new_plan]
-                    yield _json.dumps({
-                        "type": "plan_revised",
-                        "plan": [
-                            {"id": sid, "text": t}
-                            for sid, t in zip(pending_ids, new_plan, strict=True)
-                        ],
-                        "reason": "user_feedback",
-                        "done": False,
-                    })
-                last_pending_revise_state = pending_revise
+                    for out_chunk in _emit_step_event(event):
+                        yield out_chunk
 
-                if len(past_steps) > current_step_index + 1:
-                    for i in range(current_step_index + 1, len(past_steps)):
-                        if not pending_ids:
-                            break
-                        sid = pending_ids.pop(0)
-                        past_step_ids.append(sid)
-                        _, result_text = past_steps[i]
+                    response = event.get("response")
+                    if response:
                         yield _json.dumps({
-                            "type": "step_completed",
-                            "id": sid,
-                            "result": result_text,
+                            "type": "final_response",
+                            "content": response,
+                            "done": True,
+                        })
+                        emitted_final = True
+                        return
+                    continue
+
+                if event_mode == "messages":
+                    # We only want messages originating from the ReAct
+                    # executor sub-graph — that's the LLM work user is
+                    # waiting on. Top-level planner / replanner use
+                    # structured output which doesn't stream tokens.
+                    if not ns:
+                        continue
+                    if active_step_id is None:
+                        continue
+
+                    token, metadata = payload
+
+                    if isinstance(token, AIMessageChunk):
+                        # Tool call chunks — DeepSeek emits the `name` on the
+                        # first chunk and streams `args` JSON fragments after.
+                        if token.tool_call_chunks:
+                            for tc in token.tool_call_chunks:
+                                tc_id = tc.get("id") or ""
+                                if tc.get("name"):
+                                    tool_call_args[tc_id] = tc.get("args", "") or ""
+                                    yield _json.dumps({
+                                        "type": "step_tool_call",
+                                        "step_id": active_step_id,
+                                        "tool_call_id": tc_id,
+                                        "tool_name": tc["name"],
+                                        "args_delta": tc.get("args", "") or "",
+                                        "done": False,
+                                    })
+                                elif tc_id in tool_call_args:
+                                    tool_call_args[tc_id] += tc.get("args", "") or ""
+                                    # Forward deltas so the UI can show args
+                                    # streaming in; harmless if UI ignores.
+                                    yield _json.dumps({
+                                        "type": "step_tool_call",
+                                        "step_id": active_step_id,
+                                        "tool_call_id": tc_id,
+                                        "args_delta": tc.get("args", "") or "",
+                                        "done": False,
+                                    })
+                        elif token.content:
+                            # Plain text delta — the ReAct agent's final
+                            # answer for this step, streamed character by
+                            # character.
+                            content = token.content
+                            if not isinstance(content, str):
+                                content = str(content)
+                            yield _json.dumps({
+                                "type": "step_text_delta",
+                                "step_id": active_step_id,
+                                "delta": content,
+                                "done": False,
+                            })
+                    elif isinstance(token, ToolMessage):
+                        yield _json.dumps({
+                            "type": "step_tool_result",
+                            "step_id": active_step_id,
+                            "tool_call_id": token.tool_call_id,
+                            "tool_name": token.name,
+                            "content": str(token.content),
                             "done": False,
                         })
-                    current_step_index = len(past_steps) - 1
-                    if pending_ids:
-                        yield _json.dumps({
-                            "type": "step_started",
-                            "id": pending_ids[0],
-                            "done": False,
-                        })
-
-                if response:
-                    yield _json.dumps({
-                        "type": "final_response",
-                        "content": response,
-                        "done": True,
-                    })
-                    emitted_final = True
-                    return
+                    continue
 
             # Stream loop ended — inspect the graph state to detect an interrupt.
             state_snapshot = await self._graph.aget_state(config)

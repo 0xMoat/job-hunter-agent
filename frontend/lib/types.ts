@@ -103,11 +103,24 @@ export interface Application {
 
 export type PlanStepStatus = "pending" | "running" | "done" | "failed"
 
+export interface PlanLiveToolCall {
+  id: string
+  name: string
+  /** Accumulated JSON args (may be partial mid-stream). */
+  args: string
+  /** Populated once the corresponding ToolMessage arrives. */
+  result?: string
+}
+
 export interface PlanStep {
   id: string
   text: string
   status: PlanStepStatus
   result?: string
+  /** Live LLM text fragments for the step's ReAct final answer. */
+  liveText?: string
+  /** Live tool invocations + their eventual results. */
+  toolCalls?: PlanLiveToolCall[]
 }
 
 export interface PlanStepDescriptor {
@@ -130,3 +143,22 @@ export type PlanStreamChunk =
   | { type: "plan_revised"; plan: PlanStepDescriptor[]; reason: string; done: false }
   | { type: "final_response"; content: string; done: true }
   | { type: "error"; message: string; done: true }
+  // ── live executor events ──
+  | { type: "step_text_delta"; step_id: string; delta: string; done: false }
+  | {
+      type: "step_tool_call"
+      step_id: string
+      tool_call_id: string
+      /** Present on the first chunk for a given tool call. */
+      tool_name?: string
+      args_delta: string
+      done: false
+    }
+  | {
+      type: "step_tool_result"
+      step_id: string
+      tool_call_id: string
+      tool_name?: string
+      content: string
+      done: false
+    }
