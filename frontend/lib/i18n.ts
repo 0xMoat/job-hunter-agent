@@ -111,6 +111,12 @@ const zh: Dict = {
     `已保存 ${saved} 个职位到看板，共 ${pending} 条待处理`) as unknown as FnValue,
   pe_suggestion_prompt: '要我逐一研究这些公司并撰写求职信吗？',
   pe_suggestion_cta: '✓ 开始处理',
+  pe_chip_research_and_tailor: ((n: number) =>
+    `帮我研究这 ${n} 家公司，并为每家针对性润色简历`) as unknown as FnValue,
+  pe_chip_analyze_match: '分析这些 JD 和我的简历匹配度，按优先级排序',
+  pe_chip_prioritize_by_prefs: '按我的偏好筛一遍这些 JD，哪些值得优先投递',
+  pe_suggestion_header: ((saved: number) =>
+    `已保存 ${saved} 个职位到看板 · 想做什么？`) as unknown as FnValue,
   // Job search result card
   job_search_empty: '未找到相关职位',
   job_search_result_count: ((n: number) => `${n} 条结果`) as unknown as FnValue,
@@ -300,6 +306,12 @@ const en: Dict = {
     `Saved ${saved} job${saved === 1 ? '' : 's'} to the kanban — ${pending} pending in total`) as unknown as FnValue,
   pe_suggestion_prompt: 'Shall I research each company and draft a cover letter for them?',
   pe_suggestion_cta: '✓ Start',
+  pe_chip_research_and_tailor: ((n: number) =>
+    `Research these ${n} companies and tailor my resume for each`) as unknown as FnValue,
+  pe_chip_analyze_match: 'Analyze JD-to-resume fit and rank by priority',
+  pe_chip_prioritize_by_prefs: 'Filter these JDs by my preferences — which to apply first?',
+  pe_suggestion_header: ((saved: number) =>
+    `Saved ${saved} job${saved === 1 ? '' : 's'} to the kanban · what's next?`) as unknown as FnValue,
   // Job search result card
   job_search_empty: 'No matching jobs found',
   job_search_result_count: ((n: number) =>
