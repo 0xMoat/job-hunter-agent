@@ -20,6 +20,18 @@ from app.schemas.resume import ResumeData
 # and resolve() would follow it, losing the venv site-packages.
 _VENV_PYTHON = str(Path(__file__).resolve().parent.parent.parent / ".venv" / "bin" / "python")
 
+_PDF_TOKEN_RE = re.compile(r"^resume_[a-f0-9]{12}$")
+
+
+def _sign_download_url(pdf_path: Path) -> str:
+    """Sign a 24h JWT for a PDF file path and return the download URL."""
+    token_payload = {
+        "file": str(pdf_path),
+        "exp": datetime.now(UTC) + timedelta(hours=24),
+    }
+    token = jwt.encode(token_payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+    return f"/api/v1/resume/download/{token}"
+
 
 def _bold_code_filter(text: str) -> Markup:
     """Convert **bold** and `code` markdown to HTML tags.
@@ -90,33 +102,24 @@ class ResumePDFService:
 
         pdf_size = pdf_path.stat().st_size
 
-        token_payload = {
-            "file": str(pdf_path),
-            "exp": datetime.now(UTC) + timedelta(hours=24),
-        }
-        token = jwt.encode(token_payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
-
         logger.info(
             "resume_pdf_generated",
             filepath=str(pdf_path),
             size_bytes=pdf_size,
         )
 
-        return f"/api/v1/resume/download/{token}"
+        return _sign_download_url(pdf_path)
 
 
 def sign_pdf_download_url(pdf_token: str) -> Optional[str]:
     """Sign a fresh 24h JWT download URL for a stored PDF token.
 
-    Returns None if the underlying file no longer exists on disk (e.g.,
-    cleaned up after the 30-day retention cutoff).
+    Returns None if the token is malformed or the underlying file no longer
+    exists on disk (e.g., cleaned up after the 30-day retention cutoff).
     """
+    if not _PDF_TOKEN_RE.match(pdf_token):
+        return None
     pdf_path = Path("/tmp") / f"{pdf_token}.pdf"
     if not pdf_path.exists():
         return None
-    token_payload = {
-        "file": str(pdf_path),
-        "exp": datetime.now(UTC) + timedelta(hours=24),
-    }
-    token = jwt.encode(token_payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
-    return f"/api/v1/resume/download/{token}"
+    return _sign_download_url(pdf_path)
