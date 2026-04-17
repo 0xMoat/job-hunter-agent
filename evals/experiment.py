@@ -18,7 +18,7 @@ DATASET_NAME = "job-hunter-golden"
 DATASET_DESCRIPTION = (
     "Golden dataset for Job Hunter Agent regression testing. "
     "30 test cases across 8 categories: chitchat, job_search, company_research, "
-    "cover_letter, application_tracking, resume, strategy, preferences."
+    "resume_tailor, application_tracking, resume, strategy, preferences."
 )
 
 

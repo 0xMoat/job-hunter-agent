@@ -8,7 +8,6 @@ import { highlightJson } from "@/lib/highlightJson"
 const TOOL_LABELS: Record<string, string> = {
   job_search_tool: "Job Search",
   company_research_tool: "Company Research",
-  cover_letter_tool: "Cover Letter",
   application_tracker_tool: "Application Tracker",
   job_preferences_tool: "Preferences",
   duckduckgo_search: "Web Search",

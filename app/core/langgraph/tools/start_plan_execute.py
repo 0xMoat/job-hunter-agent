@@ -32,8 +32,8 @@ async def start_plan_execute(goal: str, reason: str) -> str:
         goal: A self-contained one-sentence restatement of the user's
             intent, in the user's language. The PE planner will use this
             as its top-level objective.
-        reason: Short Chinese justification for why PE is needed (logged
-            only; not shown to user).
+        reason: Short justification for why PE is needed, in the
+            conversation's language (logged only; not shown to user).
 
     Returns:
         JSON string carrying a handoff marker + goal; the frontend

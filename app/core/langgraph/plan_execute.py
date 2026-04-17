@@ -42,7 +42,8 @@ class _ExecutorState(AgentState):
     """Extended state for the executor sub-agent.
 
     Adds `long_term_memory` and `pending_applications` so tools using
-    `InjectedState(...)` (e.g. cover_letter) can read them from graph state.
+    `InjectedState(...)` (e.g. trigger_resume_studio_skill) can read them
+    from graph state.
     """
 
     long_term_memory: str

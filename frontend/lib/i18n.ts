@@ -109,8 +109,6 @@ const zh: Dict = {
     `已保存 ${saved} 个职位到看板`) as unknown as FnValue,
   pe_suggestion_saved_n_of_total: ((saved: number, pending: number) =>
     `已保存 ${saved} 个职位到看板，共 ${pending} 条待处理`) as unknown as FnValue,
-  pe_suggestion_prompt: '要我逐一研究这些公司并撰写求职信吗？',
-  pe_suggestion_cta: '✓ 开始处理',
   pe_chip_research_and_tailor: ((n: number) =>
     `帮我研究这 ${n} 家公司，并为每家针对性润色简历`) as unknown as FnValue,
   pe_chip_analyze_match: '分析这些 JD 和我的简历匹配度，按优先级排序',
@@ -304,8 +302,6 @@ const en: Dict = {
     `Saved ${saved} job${saved === 1 ? '' : 's'} to the kanban`) as unknown as FnValue,
   pe_suggestion_saved_n_of_total: ((saved: number, pending: number) =>
     `Saved ${saved} job${saved === 1 ? '' : 's'} to the kanban — ${pending} pending in total`) as unknown as FnValue,
-  pe_suggestion_prompt: 'Shall I research each company and draft a cover letter for them?',
-  pe_suggestion_cta: '✓ Start',
   pe_chip_research_and_tailor: ((n: number) =>
     `Research these ${n} companies and tailor my resume for each`) as unknown as FnValue,
   pe_chip_analyze_match: 'Analyze JD-to-resume fit and rank by priority',

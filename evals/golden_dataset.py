@@ -68,26 +68,26 @@ GOLDEN_DATASET = [
         "expected_output": "调用company_research_tool调研腾讯云部门",
         "metadata": {"category": "company_research", "expected_tools": ["company_research_tool"]},
     },
-    # ── D. 求职信撰写（4 cases）──────────────────────────────────
+    # ── D. 简历润色（4 cases）──────────────────────────────────
     {
-        "input": "帮我写一封投递Google SWE岗位的求职信",
-        "expected_output": "调用cover_letter_tool生成针对Google SWE的个性化求职信",
-        "metadata": {"category": "cover_letter", "expected_tools": ["cover_letter_tool"]},
+        "input": "帮我针对 Google SWE 岗位润色一下我的简历",
+        "expected_output": "调用trigger_resume_studio_skill，针对 Google SWE 定制简历",
+        "metadata": {"category": "resume_tailor", "expected_tools": ["trigger_resume_studio_skill"]},
     },
     {
-        "input": "我要投递字节跳动的后端开发岗，帮我写封求职信",
-        "expected_output": "调用cover_letter_tool生成针对字节跳动后端的求职信",
-        "metadata": {"category": "cover_letter", "expected_tools": ["cover_letter_tool"]},
+        "input": "我要投递字节跳动的后端开发岗，帮我对照 JD 优化简历",
+        "expected_output": "调用trigger_resume_studio_skill，针对字节后端 JD 润色简历",
+        "metadata": {"category": "resume_tailor", "expected_tools": ["trigger_resume_studio_skill"]},
     },
     {
-        "input": "帮我写一封英文的cold email给Stripe的招聘经理",
-        "expected_output": "调用cover_letter_tool生成英文冷邮件",
-        "metadata": {"category": "cover_letter", "expected_tools": ["cover_letter_tool"]},
+        "input": "帮我针对 Stripe SWE 岗位重新润色一份英文简历",
+        "expected_output": "调用trigger_resume_studio_skill，输出针对 Stripe SWE 的英文简历",
+        "metadata": {"category": "resume_tailor", "expected_tools": ["trigger_resume_studio_skill"]},
     },
     {
-        "input": "写一封投递美团算法工程师的求职信，突出我的机器学习经验",
-        "expected_output": "调用cover_letter_tool生成突出ML经验的求职信",
-        "metadata": {"category": "cover_letter", "expected_tools": ["cover_letter_tool"]},
+        "input": "针对美团算法工程师的 JD 调整简历，突出我的机器学习经验",
+        "expected_output": "调用trigger_resume_studio_skill，突出机器学习经验",
+        "metadata": {"category": "resume_tailor", "expected_tools": ["trigger_resume_studio_skill"]},
     },
     # ── E. 申请跟踪（4 cases）────────────────────────────────────
     {
