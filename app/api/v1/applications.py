@@ -1,5 +1,6 @@
 """Job application tracking endpoints."""
 
+from datetime import datetime
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -29,6 +30,16 @@ class ApplicationUpdate(BaseModel):
 
     status: Optional[Literal["pending", "applied", "interviewing", "completed", "not_a_match"]] = None
     notes: Optional[str] = None
+    # Artifact fields (all optional, updated by internal tools)
+    company_research_json: Optional[str] = None
+    tailored_resume_text: Optional[str] = None
+    pdf_token: Optional[str] = None
+    pdf_created_at: Optional[datetime] = None
+    match_score: Optional[int] = Field(default=None, ge=0, le=100)
+    match_breakdown: Optional[str] = None
+    gap_analysis_text: Optional[str] = None
+    interview_questions_json: Optional[str] = None
+    artifacts_updated_at: Optional[datetime] = None
 
 
 class BatchListingItem(BaseModel):

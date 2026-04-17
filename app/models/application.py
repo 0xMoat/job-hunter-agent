@@ -27,6 +27,14 @@ class Application(BaseModel, table=True):
         source: "scheduler" or "manual"
         archived_at: Set when card is auto-archived; null = active
         updated_at: Last update timestamp
+        company_research_json: JSON string from company_research_tool output
+        tailored_resume_text: Polished resume full text (Markdown)
+        pdf_token: PDF tracking token (max 64 chars; URL signed on read)
+        pdf_created_at: Timestamp PDF was created (for retention tracking)
+        match_breakdown: JSON breakdown of match score (skills/experience/domain/soft)
+        gap_analysis_text: Gap analysis (Markdown)
+        interview_questions_json: JSON array of {question, focus} objects
+        artifacts_updated_at: Timestamp of last artifact write (distinct from updated_at)
     """
 
     __tablename__ = "applications"
@@ -45,3 +53,12 @@ class Application(BaseModel, table=True):
     source: str = Field(default="manual")
     archived_at: Optional[datetime] = Field(default=None)
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    # Artifact fields — written by Plan-Execute agent tools
+    company_research_json: Optional[str] = Field(default=None)
+    tailored_resume_text: Optional[str] = Field(default=None)
+    pdf_token: Optional[str] = Field(default=None, max_length=64)
+    pdf_created_at: Optional[datetime] = Field(default=None)
+    match_breakdown: Optional[str] = Field(default=None)
+    gap_analysis_text: Optional[str] = Field(default=None)
+    interview_questions_json: Optional[str] = Field(default=None)
+    artifacts_updated_at: Optional[datetime] = Field(default=None)

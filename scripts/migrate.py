@@ -56,6 +56,14 @@ def run():
                 ("source",       "TEXT NOT NULL DEFAULT 'manual'"),
                 ("archived_at",  "TIMESTAMP WITH TIME ZONE"),
                 ("match_score",  "INTEGER"),
+                ("company_research_json",    "TEXT"),
+                ("tailored_resume_text",     "TEXT"),
+                ("pdf_token",               "VARCHAR(64)"),
+                ("pdf_created_at",          "TIMESTAMP WITH TIME ZONE"),
+                ("match_breakdown",         "TEXT"),
+                ("gap_analysis_text",       "TEXT"),
+                ("interview_questions_json", "TEXT"),
+                ("artifacts_updated_at",    "TIMESTAMP WITH TIME ZONE"),
             ]
             for col, col_type in new_columns:
                 if not column_exists(cur, "applications", col):
