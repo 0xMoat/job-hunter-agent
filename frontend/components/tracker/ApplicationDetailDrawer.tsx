@@ -59,6 +59,23 @@ function TextSection({ text }: { text: string | null | undefined }) {
   )
 }
 
+function JsonOrTextSection({ text }: { text: string | null | undefined }) {
+  if (!text || !text.trim()) return <EmptyHint />
+  let display = text
+  try {
+    const parsed = JSON.parse(text)
+    display = JSON.stringify(parsed, null, 2)
+  } catch {
+    // not JSON — display raw
+  }
+  return (
+    <pre className="font-body text-[12px] text-[var(--text-2)] whitespace-pre-wrap
+                    leading-relaxed bg-black/[0.03] rounded-lg p-3 max-h-80 overflow-auto">
+      {display}
+    </pre>
+  )
+}
+
 function QuestionsSection({ raw }: { raw: string | null | undefined }) {
   const qs = parseQuestions(raw)
   if (qs.length === 0) return <EmptyHint />
@@ -94,7 +111,7 @@ function MatchSection({ app }: { app: Application }) {
           {(["skills", "experience", "domain", "soft"] as const).map((k) => {
             const dim = breakdown[k]
             const label = t(`artifact_breakdown_${k}`)
-            const pct = Math.round((dim.score / 10) * 100)
+            const pct = Math.round((Math.min(10, Math.max(0, dim.score)) / 10) * 100)
             return (
               <div key={k} className="space-y-0.5">
                 <div className="flex items-center justify-between text-[11px] font-body">
@@ -165,7 +182,7 @@ export function ApplicationDetailDrawer({ app, onClose }: ApplicationDetailDrawe
         </header>
         <div className="p-4 space-y-5">
           <Section title={t("artifact_match")}><MatchSection app={app} /></Section>
-          <Section title={t("artifact_research")}><TextSection text={app.company_research_json} /></Section>
+          <Section title={t("artifact_research")}><JsonOrTextSection text={app.company_research_json} /></Section>
           <Section title={t("artifact_gap")}><TextSection text={app.gap_analysis_text} /></Section>
           <Section title={t("artifact_interview")}><QuestionsSection raw={app.interview_questions_json} /></Section>
           <Section title={t("artifact_tailored")}><TextSection text={app.tailored_resume_text} /></Section>
