@@ -38,6 +38,10 @@ class PlanExecuteState(BaseModel):
     response: str | None = Field(default=None, description="最终答复，由 Replanner 设置")
     long_term_memory: str = Field(default="", description="mem0 检索的用户画像")
     pending_applications: str = Field(default="", description="进入子图前快照")
+    target_application_ids: list[int] = Field(
+        default_factory=list,
+        description="PE 启动时快照的目标卡片 id 列表。Analysis/save tools 会按此 list 循环。",
+    )
     iterations: int = Field(default=0, description="循环次数（硬护栏）")
     # ── HITL ──
     user_feedback: str | None = Field(

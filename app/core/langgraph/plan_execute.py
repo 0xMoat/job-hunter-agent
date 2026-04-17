@@ -144,6 +144,15 @@ class PlanExecuteAgent:
             logger.exception("pe_pending_apps_failed", user_id=user_id)
             return ""
 
+    async def _get_pending_application_ids(self, user_id: str) -> list[int]:
+        """Snapshot pending application ids at PE start. Used as target card list."""
+        try:
+            apps = await job_service.list_applications(int(user_id))
+            return [a.id for a in apps if a.status == "pending" and a.id is not None]
+        except Exception:
+            logger.exception("pe_pending_ids_failed", user_id=user_id)
+            return []
+
     # ---------- planner node ----------
 
     def _structured_llm(self, schema):
@@ -163,10 +172,16 @@ class PlanExecuteAgent:
 
     async def _planner(self, state: PlanExecuteState, config: RunnableConfig) -> dict:
         """Generate the initial plan using structured output."""
+        target_ids_str = (
+            ", ".join(str(i) for i in state.target_application_ids)
+            if state.target_application_ids
+            else "（无）"
+        )
         system_prompt = load_plan_execute_planner_prompt(
             input=state.input,
             long_term_memory=state.long_term_memory or "（无）",
             pending_applications=state.pending_applications or "（无）",
+            target_application_ids=target_ids_str,
         )
         planner_llm = self._structured_llm(Plan)
         result: Plan = await planner_llm.ainvoke(
@@ -473,9 +488,10 @@ class PlanExecuteAgent:
             await self.create_graph()
 
         if resume_thread_id is None:
-            long_term_memory, pending = await asyncio.gather(
+            long_term_memory, pending, target_ids = await asyncio.gather(
                 self._get_relevant_memory(user_id, goal),
                 self._get_pending_applications(user_id),
+                self._get_pending_application_ids(user_id),
             )
             if not pending:
                 yield _json.dumps({
@@ -489,6 +505,7 @@ class PlanExecuteAgent:
                 "input": goal,
                 "long_term_memory": long_term_memory or "",
                 "pending_applications": pending,
+                "target_application_ids": target_ids,
             }
         else:
             pe_thread_id = resume_thread_id

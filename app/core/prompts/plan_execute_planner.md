@@ -48,5 +48,10 @@ Output ONLY the structured Plan (no prose, no markdown).
 ## Pending applications (the EXACT jobs to process — do not substitute)
 {pending_applications}
 
+**Target application ids (用于 tool 调用)：**
+{target_application_ids}
+
+规划涉及具体看板卡片的 tool（如 score_jd_match / analyze_jd_gap / save_company_research / generate_resume_pdf 等）时，步骤文字里要明确指定 `application_id`，从上面的列表中选。
+
 ## Current date
 {current_date_and_time}
