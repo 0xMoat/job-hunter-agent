@@ -314,6 +314,18 @@ class JobService:
             )
             return True
 
+    async def get_application_for_user(
+        self, user_id: int, application_id: int
+    ) -> Optional[Application]:
+        """Fetch a single application scoped to the user (None if not found)."""
+        with Session(self._engine) as session:
+            return session.exec(
+                select(Application).where(
+                    Application.id == application_id,
+                    Application.user_id == user_id,
+                )
+            ).first()
+
     async def list_applications(self, user_id: int) -> List[Application]:
         """List all active (non-archived) applications for a user, newest first."""
         with Session(self._engine) as session:
