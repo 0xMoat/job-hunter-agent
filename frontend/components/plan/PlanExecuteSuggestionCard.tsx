@@ -32,7 +32,7 @@ export function PlanExecuteSuggestionCard({
             type="button"
             onClick={() => onPick(prompt)}
             disabled={disabled}
-            className="group flex items-center justify-between gap-3 rounded-full border border-[var(--border-1)] bg-white px-4 py-2 text-left text-sm text-[var(--text-1)] shadow-sm transition hover:border-[var(--accent)] hover:bg-[var(--accent-soft,#f5f6ff)] disabled:opacity-50 disabled:hover:border-[var(--border-1)] disabled:hover:bg-white"
+            className="group flex items-center justify-between gap-3 rounded-full border border-[var(--border)] bg-white px-4 py-2 text-left text-sm text-[var(--text)] shadow-sm transition hover:border-[var(--accent)] hover:bg-[var(--accent-soft,#f5f6ff)] disabled:opacity-50 disabled:hover:border-[var(--border)] disabled:hover:bg-white"
           >
             <span className="truncate">{prompt}</span>
             <span className="shrink-0 text-[var(--text-3)] transition group-hover:text-[var(--accent)]">
