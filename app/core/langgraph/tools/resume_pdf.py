@@ -102,17 +102,17 @@ async def generate_resume_pdf(
         logger.warning("resume_pdf_invalid_json", error=str(e))
         return f"Error: Invalid resume JSON. Please check the schema and try again. Details: {e}"
 
+    user_id = config.get("configurable", {}).get("user_id")
+    if not user_id:
+        logger.warning("resume_pdf_missing_user_id")
+        return "Error: user_id not found in execution config."
+
     try:
         logger.info("resume_pdf_rendering_started")
         pdf_token, download_url = _pdf_service.generate(data)
     except Exception as e:
         logger.exception("resume_pdf_generation_failed")
         return f"Error: Failed to generate PDF. Details: {e}"
-
-    user_id = config.get("configurable", {}).get("user_id")
-    if not user_id:
-        logger.warning("resume_pdf_missing_user_id")
-        return "Error: user_id not found in execution config."
 
     # Persist the token + created_at onto the target card
     try:
