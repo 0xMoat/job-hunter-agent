@@ -9,6 +9,7 @@ from apscheduler.triggers.cron import CronTrigger
 from langchain_community.utilities import DuckDuckGoSearchAPIWrapper
 
 from app.core.logging import logger
+from app.core.pdf_cleanup import cleanup_expired_pdfs
 from app.models.job_preference import JobPreference
 from app.models.search_config import SearchConfig
 from app.services.database import database_service
@@ -133,4 +134,15 @@ async def setup_scheduler() -> AsyncIOScheduler:
             user_id=config.user_id,
             cron=config.schedule_cron,
         )
+
+    scheduler.add_job(
+        cleanup_expired_pdfs,
+        CronTrigger(hour=3, minute=0, timezone="UTC"),
+        id="pdf_cleanup_daily",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+    logger.info("scheduler_pdf_cleanup_registered")
+
     return scheduler

@@ -326,6 +326,28 @@ class JobService:
                 )
             ).first()
 
+    async def clear_expired_pdf_tokens(self, cutoff: datetime) -> int:
+        """Clear pdf_token/pdf_created_at on applications with pdf_created_at < cutoff.
+
+        Returns the number of rows affected. Safe to run on an empty/no-match set.
+        """
+        with Session(self._engine) as session:
+            stmt = select(Application).where(
+                Application.pdf_token.is_not(None),
+                Application.pdf_created_at.is_not(None),
+                Application.pdf_created_at < cutoff,
+            )
+            expired = list(session.exec(stmt).all())
+            for app in expired:
+                app.pdf_token = None
+                app.pdf_created_at = None
+                # Do NOT bump updated_at — this is a housekeeping op, not a user/PE action
+                session.add(app)
+            if expired:
+                session.commit()
+                logger.info("pdf_tokens_cleared", count=len(expired))
+            return len(expired)
+
     async def list_applications(self, user_id: int) -> List[Application]:
         """List all active (non-archived) applications for a user, newest first."""
         with Session(self._engine) as session:
