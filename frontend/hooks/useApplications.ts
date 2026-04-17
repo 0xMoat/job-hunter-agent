@@ -8,6 +8,7 @@ import {
   apiMoveCard,
 } from "@/lib/api"
 import { getSessionToken } from "@/lib/auth"
+import { onApplicationsInvalidated } from "@/lib/app-events"
 import type { Application, ApplicationStatus } from "@/lib/types"
 
 export function useApplications() {
@@ -32,6 +33,7 @@ export function useApplications() {
   }, [])
 
   useEffect(() => { load() }, [load])
+  useEffect(() => onApplicationsInvalidated(() => { load() }), [load])
 
   const addApplication = useCallback(
     async (company: string, title: string, url?: string, status: ApplicationStatus = "pending"): Promise<Application | undefined> => {

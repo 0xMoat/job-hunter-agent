@@ -11,6 +11,7 @@ import {
 } from "@/lib/api"
 import type { ChatMessage, StreamChunk, ToolCallEntry, ThinkingEntry, PlanExecuteView, PlanStep, PlanStreamChunk, PlanLiveToolCall } from "@/lib/types"
 import { useLanguage } from "@/contexts/LanguageContext"
+import { emitApplicationsInvalidated } from "@/lib/app-events"
 
 function makeId(): string {
   return Math.random().toString(36).slice(2)
@@ -288,6 +289,7 @@ function applyPlanChunkToMessage(
           : m,
       ),
     )
+    emitApplicationsInvalidated()
     return
   }
   if (chunk.type === "error") {
@@ -640,6 +642,12 @@ export function useChat({
                   }
                 }),
               )
+              if (
+                chunk.tool_name &&
+                /^(save_|score_|analyze_|generate_)/.test(chunk.tool_name)
+              ) {
+                emitApplicationsInvalidated()
+              }
             } else if (chunk.type === "node_enter" && chunk.node_name) {
               setMessages((prev) =>
                 prev.map((m) => {
