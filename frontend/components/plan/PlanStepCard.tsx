@@ -25,6 +25,14 @@ const TOOL_LABELS: Record<string, string> = {
   duckduckgo_search: "Web Search",
 }
 
+/** Transform machine-format `application_id=22` / `application_id: 22` into
+ * human-readable `卡片 #22` for plan step text shown in approval/timeline UI.
+ * Leaves the underlying `step.text` untouched so the executor still gets the
+ * unmodified instruction. */
+export function humanizePlanStepText(text: string): string {
+  return text.replace(/application_id\s*[:=]\s*(\d+)/g, "卡片 #$1")
+}
+
 function previewArgs(args: string): string {
   if (!args) return ""
   const trimmed = args.length > 120 ? args.slice(0, 120) + "…" : args
@@ -80,7 +88,7 @@ export function PlanStepCard({ step, position }: { step: PlanStep; position: num
               </button>
             )}
           </div>
-          <div className="mt-1 text-sm opacity-90">{step.text}</div>
+          <div className="mt-1 text-sm opacity-90">{humanizePlanStepText(step.text)}</div>
 
           {expanded && (
             <div className="mt-2 flex flex-col gap-2">

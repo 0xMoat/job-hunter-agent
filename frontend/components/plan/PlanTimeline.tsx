@@ -1,7 +1,7 @@
 "use client"
 
 import type { PlanExecuteView } from "@/lib/types"
-import { PlanStepCard } from "./PlanStepCard"
+import { PlanStepCard, humanizePlanStepText } from "./PlanStepCard"
 import { PlanApprovalCard } from "./PlanApprovalCard"
 
 interface PlanTimelineViewProps {
@@ -90,7 +90,7 @@ export function PlanTimelineView({
       {view.running && runningStep && (
         <div className="rounded-lg border border-indigo-300 bg-indigo-50 px-4 py-2 text-sm text-indigo-900">
           <span className="mr-2 inline-block h-2 w-2 animate-pulse rounded-full bg-indigo-500" />
-          正在执行 Step {runningIndex + 1}：{runningStep.text}
+          正在执行 Step {runningIndex + 1}：{humanizePlanStepText(runningStep.text)}
         </div>
       )}
 
