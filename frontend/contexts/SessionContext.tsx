@@ -83,9 +83,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const createSession = useCallback(async () => {
     const accessToken = getAccessToken()
     if (!accessToken) return
-    // Don't create a new session if the current one is already empty (never named)
-    const currentSession = sessions.find((s) => s.session_id === currentSessionId)
-    if (currentSession && currentSession.name === "") return
+    // No silent-return guard: if the user clicked, respect it. Button is
+    // already `disabled={loading || streaming}` which prevents double-clicks.
+    // Empty shells can be cleaned up by the user or a backend sweep later.
     setLoading(true)
     try {
       const session = await apiCreateSession(accessToken)
@@ -102,7 +102,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLoading(false)
     }
-  }, [sessions, currentSessionId])
+  }, [])
 
   const renameSession = useCallback((id: string, name: string) => {
     setSessions((prev) =>

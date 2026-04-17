@@ -564,6 +564,18 @@ export function useChat({
 
       setError(null)
 
+      // Auto-name: same rule as sendMessage — first usage of an unnamed
+      // session gets named, so the "new chat" guard in SessionContext
+      // doesn't block future creations.
+      const isFirstMessage = messages.length === 0
+      if (isFirstMessage && currentSessionId && currentSessionName === "") {
+        const name = "一键处理看板"
+        apiUpdateSessionName(sessionToken, currentSessionId, name).catch(() => {
+          // silently ignore
+        })
+        renameSession(currentSessionId, name)
+      }
+
       // Push user message
       const userMsg: ChatMessage = {
         id: makeId(),
@@ -677,7 +689,7 @@ export function useChat({
         setStreaming(false)
       }
     },
-    [sessionToken],
+    [messages, sessionToken, currentSessionId, currentSessionName, renameSession],
   )
 
   const insertPlanExecuteSuggestion = useCallback(
