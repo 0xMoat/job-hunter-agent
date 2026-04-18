@@ -48,6 +48,7 @@ class SessionResponse(BaseModel):
     name: str = Field(default="", description="Name of the session", max_length=100)
     token: Token = Field(..., description="The authentication token for the session")
     created_at: Optional[datetime] = Field(default=None, description="When the session was created")
+    is_tutorial: bool = Field(default=False, description="Whether this is the auto-seeded tutorial session")
 
     @field_validator("name")
     @classmethod

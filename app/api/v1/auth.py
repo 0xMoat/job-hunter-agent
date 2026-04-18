@@ -8,6 +8,7 @@ from fastapi import (
     APIRouter,
     Depends,
     Form,
+    Header,
     HTTPException,
     Request,
 )
@@ -39,6 +40,11 @@ from app.utils.auth import (
     verify_token,
 )
 from app.utils.sanitization import sanitize_string
+from app.core.tutorial.content import (
+    get_default_resume,
+    get_tutorial_session_name,
+    normalize_locale,
+)
 
 router = APIRouter()
 security = HTTPBearer()
@@ -234,16 +240,30 @@ async def delete_session(session_id: str, current_session: Session = Depends(get
 
 
 @router.get("/sessions", response_model=List[SessionResponse])
-async def get_user_sessions(user: User = Depends(get_current_user)):
-    """Get all session IDs for the authenticated user."""
+async def get_user_sessions(
+    user: User = Depends(get_current_user),
+    accept_language: str | None = Header(default=None),
+):
+    """Get all session IDs for the authenticated user, auto-seeding the tutorial on first login."""
     try:
         sessions = await db_service.get_user_sessions(user.id)
+        if not sessions:
+            locale = normalize_locale(accept_language)
+            await db_service.seed_tutorial_for_user(
+                user_id=user.id,
+                locale=locale,
+                session_id=str(uuid.uuid4()),
+                session_name=get_tutorial_session_name(locale),
+                default_resume=get_default_resume(locale),
+            )
+            sessions = await db_service.get_user_sessions(user.id)
         return [
             SessionResponse(
                 session_id=sanitize_string(session.id),
                 name=sanitize_string(session.name),
                 token=create_access_token(session.id),
                 created_at=session.created_at,
+                is_tutorial=session.is_tutorial,
             )
             for session in sessions
         ]
