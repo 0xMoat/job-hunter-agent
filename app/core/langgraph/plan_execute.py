@@ -35,7 +35,7 @@ from app.core.prompts import (
 from app.schemas import Act, Plan, PlanExecuteState, PlanResponse
 from app.services.job_service import job_service
 
-MAX_ITERATIONS = 10
+MAX_ITERATIONS = 50
 
 
 class _ExecutorState(AgentState):
@@ -780,15 +780,28 @@ class PlanExecuteAgent:
                 return
 
             if not emitted_final:
-                summary = (
-                    "## 执行结束\n"
-                    + "\n".join(
-                        f"- {s}\n  {(r or '')[:200]}"
-                        for s, r in (event.get("past_steps") or [])
+                # Fallback summary — only reached when the graph ends WITHOUT the
+                # replanner having set state.response (e.g. recursion_limit hit
+                # or MAX_ITERATIONS guardrail fired mid-plan). Label the state
+                # clearly so the user doesn't mistake a forced-END for a
+                # graceful completion.
+                final_state = event if isinstance(event, dict) else {}
+                past = final_state.get("past_steps") or []
+                remaining_plan = final_state.get("plan") or []
+                if past and remaining_plan:
+                    summary = (
+                        f"⚠ 已执行 {len(past)} 步，但还有 {len(remaining_plan)} 步未完成就被硬护栏终止"
+                        "（可能触及最大迭代次数）。已完成部分的结果已写回对应卡片。\n\n## 已完成\n"
+                        + "\n".join(f"- {s}" for s, _ in past)
+                        + "\n\n## 未完成\n"
+                        + "\n".join(f"- {s}" for s in remaining_plan)
                     )
-                    if event.get("past_steps")
-                    else "执行结束，无可汇报的步骤。"
-                )
+                elif past:
+                    summary = "## 执行结束\n" + "\n".join(
+                        f"- {s}\n  {(r or '')[:200]}" for s, r in past
+                    )
+                else:
+                    summary = "执行结束，无可汇报的步骤。"
                 yield _json.dumps({
                     "type": "final_response",
                     "content": summary,
