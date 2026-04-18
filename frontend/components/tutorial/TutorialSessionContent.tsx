@@ -116,8 +116,10 @@ export function TutorialSessionContent({ onJumpToTopCard }: Props) {
   const planView = buildPlanView(t)
 
   const m1u = buildMsg("tut-u-1", "user", t("tut_user_1"))
-  const m1a = buildMsg("tut-a-1", "assistant", t("tut_assistant_1"), [jobSearch])
-  const m2a = buildMsg("tut-a-2", "assistant", t("tut_assistant_2"), [jobSearch])
+  // Single assistant turn with the search tool call + text; follow-up chips
+  // render on this same bubble because savedUrlsInKanban intersects the
+  // tool-call's result URLs.
+  const m1a = buildMsg("tut-a-1", "assistant", t("tut_assistant_2"), [jobSearch])
   const m2u = buildMsg("tut-u-2", "user", t("tut_user_2"))
   const m3a = buildMsg("tut-a-3", "assistant", "", [peToolCall], planView)
 
@@ -126,9 +128,8 @@ export function TutorialSessionContent({ onJumpToTopCard }: Props) {
   return (
     <div className="flex flex-col gap-4 px-5 py-4">
       <MessageBubble message={m1u} />
-      <MessageBubble message={m1a} />
       <MessageBubble
-        message={m2a}
+        message={m1a}
         savedUrlsInKanban={new Set(JOB_URLS)}
         onPickFollowupPrompt={noop}
       />
