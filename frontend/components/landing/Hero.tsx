@@ -1,8 +1,7 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
-import { CardContainer, CardBody, CardItem } from "@/components/ui/3d-card"
 import { useLanguage } from "@/contexts/LanguageContext"
 
 /* ── Inject keyframes via useEffect (Next.js strips inline <style> on hydration) ── */
@@ -27,46 +26,99 @@ function useHeroCss() {
   }, [])
 }
 
-/* ── Rich product demo mockup — full loop in one column:
-       JobSearchResultCard → Plan-and-Execute timeline → KanbanCard
-       with all artifacts produced. Mirrors the real shipped components. ── */
+/* ── Rich product demo mockup — phases auto-advance so the viewer watches
+       the agent discover → plan → execute → complete the whole loop:
+         1 user1
+         2 search card frame + intro banner
+         3 search rows slotted (both already checked)
+         4 saved footer + user2
+         5..9 PE timeline: step N becomes running, N-1 becomes done
+        10 plan all-done (pill flips emerald)
+        11 completed kanban card reveal
+       Phase ticks are tuned so the whole animation finishes in ~8s. ── */
 function MockChat() {
   const { locale } = useLanguage()
   const isZh = locale === "zh-CN"
+  const [phase, setPhase] = useState(0)
+
+  useEffect(() => {
+    const schedule = [
+      400,  // 1: user1
+      500,  // 2: search card + intro
+      700,  // 3: rows
+      600,  // 4: saved + user2
+      600,  // 5: plan timeline mounts, step 1 running
+      700,  // 6: step 1 done, step 2 running
+      700,  // 7: step 2 done, step 3 running
+      700,  // 8: step 3 done, step 4 running
+      900,  // 9: step 4 done, step 5 running
+      700,  // 10: all done
+      500,  // 11: kanban card
+    ]
+    const timers: ReturnType<typeof setTimeout>[] = []
+    let cum = 0
+    schedule.forEach((d, i) => {
+      cum += d
+      timers.push(setTimeout(() => setPhase(i + 1), cum))
+    })
+    return () => {
+      timers.forEach(clearTimeout)
+    }
+  }, [])
 
   const jobRows = isZh
     ? [
-        { company: "字节跳动", title: "AI 产品经理", state: "checked" },
-        { company: "阿里巴巴", title: "高级产品经理 - AI", state: "checked" },
+        { company: "字节跳动", title: "AI 产品经理" },
+        { company: "阿里巴巴", title: "高级产品经理 - AI" },
       ]
     : [
-        { company: "ByteDance", title: "AI Product Manager", state: "checked" },
-        { company: "Alibaba", title: "Senior PM - AI", state: "checked" },
+        { company: "ByteDance", title: "AI Product Manager" },
+        { company: "Alibaba", title: "Senior PM - AI" },
       ]
 
   const planSteps = isZh
     ? [
-        { s: "done", t: "调研字节跳动" },
-        { s: "done", t: "评估匹配度（90 / 100）" },
-        { s: "done", t: "生成缺口分析 + 面试问题" },
-        { s: "running", t: "为卡片 #12 润色简历" },
-        { s: "pending", t: "生成带签名链接的 PDF" },
+        { t: "调研字节跳动", tool: "Company Research" },
+        { t: "评估匹配度（90 / 100）", tool: "Score JD Match" },
+        { t: "生成缺口分析 + 面试问题", tool: "Analyze Gap" },
+        { t: "为卡片 #12 润色简历", tool: "Resume Studio" },
+        { t: "生成带签名链接的 PDF", tool: "Generate PDF" },
       ]
     : [
-        { s: "done", t: "Research ByteDance" },
-        { s: "done", t: "Score JD match (90 / 100)" },
-        { s: "done", t: "Generate skill gap + interview prep" },
-        { s: "running", t: "Tailor resume for card #12" },
-        { s: "pending", t: "Produce signed-URL PDF" },
+        { t: "Research ByteDance", tool: "Company Research" },
+        { t: "Score JD match (90 / 100)", tool: "Score JD Match" },
+        { t: "Generate skill gap + interview prep", tool: "Analyze Gap" },
+        { t: "Tailor resume for card #12", tool: "Resume Studio" },
+        { t: "Produce signed-URL PDF", tool: "Generate PDF" },
       ]
 
   const artifactBadges = isZh
     ? ["公司调研", "知识缺口", "面试问题", "润色简历", "简历 PDF"]
     : ["Research", "Skill gap", "Interview Q", "Tailored resume", "Resume PDF"]
 
+  const stepStatus = (i: number): "done" | "running" | "pending" => {
+    if (phase < 5) return "pending"
+    const active = phase - 5
+    if (active >= 5) return "done"
+    if (i < active) return "done"
+    if (i === active) return "running"
+    return "pending"
+  }
+
+  const planCompleted = Math.min(
+    5,
+    Math.max(0, phase - 5) + (phase >= 10 ? 1 : 0),
+  )
+  const allDone = phase >= 10
+  const runningIdx = phase >= 5 && phase < 10 ? phase - 5 : -1
+  const runningTool =
+    runningIdx >= 0 && runningIdx < planSteps.length
+      ? planSteps[runningIdx].tool
+      : null
+
   return (
     <div className="flex flex-col gap-3 p-5 text-[var(--text)]">
-      {/* Header */}
+      {/* Header — always visible */}
       <div className="flex items-center gap-2 pb-3 border-b border-[var(--border)]">
         <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]" />
         <span className="font-body text-xs font-medium text-[var(--text-2)] tracking-wide">
@@ -78,195 +130,236 @@ function MockChat() {
       </div>
 
       {/* User message 1 */}
-      <div className="flex justify-end">
-        <div className="bg-[var(--accent)] text-[var(--accent-fg)] rounded-2xl rounded-br-sm px-4 py-2.5 text-sm font-body font-light max-w-[80%]">
-          {isZh
-            ? "找上海的 AI 产品经理，调研公司并润色简历"
-            : "Find AI PM in Shanghai — research + tailor resume"}
-        </div>
-      </div>
-
-      {/* Job Search result card — mirror real JobSearchResultCard */}
-      <div
-        className="bg-white rounded-xl border border-[var(--border)] overflow-hidden"
-        style={{ animation: "fade-rise 0.6s ease-out 0.3s both" }}
-      >
-        <div className="flex items-center gap-2 px-3.5 py-2 border-b border-[var(--border)]">
-          <span className="w-[7px] h-[7px] rounded-full bg-emerald-500 flex-shrink-0" />
-          <span className="font-body font-semibold text-xs text-[var(--text-2)]">Job Search</span>
-          <span className="font-mono text-[10px] text-[var(--text-3)] truncate">
-            {isZh ? "AI 产品经理 · 上海" : "AI PM · Shanghai"}
-          </span>
-          <span className="ml-auto font-mono text-[10px] text-[var(--text-3)]">
-            {isZh ? "2 条结果" : "2 results"}
-          </span>
-        </div>
-        <div className="flex items-start gap-2 px-3.5 py-2 text-[11px] leading-relaxed
-                        bg-[#eeebff] text-[#2c2a7a] border-b border-[var(--border)]">
-          <span aria-hidden="true">💡</span>
-          <span>
+      {phase >= 1 && (
+        <div
+          key="u1"
+          className="flex justify-end"
+          style={{ animation: "fade-rise 0.45s ease-out both" }}
+        >
+          <div className="bg-[var(--accent)] text-[var(--accent-fg)] rounded-2xl rounded-br-sm px-4 py-2.5 text-sm font-body font-light max-w-[80%]">
             {isZh
-              ? "2 条强匹配按你的偏好重排，第 1 条对齐度最高。"
-              : "2 strong matches reranked for your profile — row 1 aligns best."}
-          </span>
+              ? "找上海的 AI 产品经理，调研公司并润色简历"
+              : "Find AI PM in Shanghai — research + tailor resume"}
+          </div>
         </div>
-        <div className="divide-y divide-[var(--border)]">
-          {jobRows.map((r, i) => {
-            const checked = r.state === "checked"
-            return (
-              <div
-                key={i}
-                className={`flex gap-2.5 px-3.5 py-2 ${
-                  checked ? "bg-[var(--accent)]/[0.04]" : ""
-                }`}
-              >
-                <div className="pt-0.5 flex-shrink-0">
-                  <span
-                    className={`flex items-center justify-center w-3.5 h-3.5 rounded border ${
-                      checked
-                        ? "bg-[var(--accent)] border-[var(--accent)] text-[var(--accent-fg)] text-[9px]"
-                        : "border-[var(--border-strong)]"
-                    }`}
-                  >
-                    {checked && "✓"}
-                  </span>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="font-body font-semibold text-xs text-[var(--text)] leading-snug line-clamp-1">
-                    {r.title}
-                  </p>
-                  <p className="font-body text-[10px] text-[var(--text-3)] leading-relaxed">
-                    {r.company}
-                  </p>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-        <div className="flex items-center justify-between px-3.5 py-2 border-t border-[var(--border)] bg-black/[0.01]">
-          <span className="font-body text-[10px] text-[var(--text-3)]">
-            {isZh ? "已保存 2 条" : "2 saved"}
-          </span>
-          <span className="font-body text-[10px] font-semibold text-emerald-600">
-            {isZh ? "已入库 ✓" : "Saved ✓"}
-          </span>
-        </div>
-      </div>
+      )}
 
-      {/* Plan-and-Execute timeline — mirror real PlanTimeline + PlanStepRow */}
-      <div
-        className="bg-white rounded-xl border border-[var(--border)] p-3.5"
-        style={{ animation: "fade-rise 0.6s ease-out 0.9s both" }}
-      >
-        {/* PE header pill */}
-        <div className="flex items-center justify-between gap-2 border-b border-[var(--border)] pb-2 mb-2">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium bg-indigo-100 text-indigo-700">
-              <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-500" />
-              {isZh ? "执行中" : "Running"}
+      {/* Job Search result card */}
+      {phase >= 2 && (
+        <div
+          key="search"
+          className="bg-white rounded-xl border border-[var(--border)] overflow-hidden"
+          style={{ animation: "fade-rise 0.5s ease-out both" }}
+        >
+          <div className="flex items-center gap-2 px-3.5 py-2 border-b border-[var(--border)]">
+            <span className="w-[7px] h-[7px] rounded-full bg-emerald-500 flex-shrink-0" />
+            <span className="font-body font-semibold text-xs text-[var(--text-2)]">Job Search</span>
+            <span className="font-mono text-[10px] text-[var(--text-3)] truncate">
+              {isZh ? "AI 产品经理 · 上海" : "AI PM · Shanghai"}
             </span>
-            <span className="truncate font-body text-[10px] text-zinc-600">
-              <span className="font-mono text-zinc-500">trigger_resume_studio_skill</span>
-              {" · "}Step 4
+            <span className="ml-auto font-mono text-[10px] text-[var(--text-3)]">
+              {isZh ? "2 条结果" : "2 results"}
             </span>
           </div>
-          <div className="flex shrink-0 items-center gap-1 font-mono text-[10px] text-zinc-500">
-            <span>4 / 5</span>
-            <span>·</span>
-            <span>01:42</span>
+          <div className="flex items-start gap-2 px-3.5 py-2 text-[11px] leading-relaxed
+                          bg-[#eeebff] text-[#2c2a7a] border-b border-[var(--border)]">
+            <span aria-hidden="true">💡</span>
+            <span>
+              {isZh
+                ? "2 条强匹配按你的偏好重排，第 1 条对齐度最高。"
+                : "2 strong matches reranked for your profile — row 1 aligns best."}
+            </span>
           </div>
-        </div>
-        {/* Steps */}
-        <div className="relative">
-          <div className="pointer-events-none absolute bottom-2 left-[4px] top-2 w-px bg-zinc-200" />
-          {planSteps.map((s, i) => {
-            const isDone = s.s === "done"
-            const isRunning = s.s === "running"
-            const isPending = s.s === "pending"
-            return (
-              <div key={i} className="relative flex gap-2.5 py-[3px]">
-                <div className="relative z-10 mt-[6px] shrink-0">
-                  {isDone && (
-                    <span className="block h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white" />
-                  )}
-                  {isRunning && (
-                    <span className="block h-2 w-2 rounded-full bg-indigo-500 ring-2 ring-white shadow-[0_0_0_4px_rgba(99,102,241,0.18)] animate-pulse" />
-                  )}
-                  {isPending && (
-                    <span className="block h-2 w-2 rounded-full border-[1.5px] border-zinc-300 bg-white" />
-                  )}
-                </div>
-                <div className="min-w-0 flex-1 flex items-baseline gap-2">
-                  <span className="w-4 shrink-0 font-mono text-[9px] text-zinc-400">
-                    {String(i + 1).padStart(2, "0")}
-                  </span>
-                  <span
-                    className={`flex-1 text-[11px] leading-snug ${
-                      isDone
-                        ? "text-zinc-500"
-                        : isPending
-                          ? "text-zinc-400"
-                          : "font-medium text-zinc-800"
-                    }`}
-                  >
-                    {s.t}
-                  </span>
-                  {isRunning && (
-                    <span className="shrink-0 font-mono text-[9px] text-indigo-600">
-                      01:08 running…
+          {phase >= 3 && (
+            <div className="divide-y divide-[var(--border)]">
+              {jobRows.map((r, i) => (
+                <div
+                  key={i}
+                  className="flex gap-2.5 px-3.5 py-2 bg-[var(--accent)]/[0.04]"
+                  style={{ animation: `fade-rise 0.4s ease-out ${i * 120}ms both` }}
+                >
+                  <div className="pt-0.5 flex-shrink-0">
+                    <span className="flex items-center justify-center w-3.5 h-3.5 rounded bg-[var(--accent)] border border-[var(--accent)] text-[var(--accent-fg)] text-[9px]">
+                      ✓
                     </span>
-                  )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-body font-semibold text-xs text-[var(--text)] leading-snug line-clamp-1">
+                      {r.title}
+                    </p>
+                    <p className="font-body text-[10px] text-[var(--text-3)] leading-relaxed">
+                      {r.company}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            )
-          })}
+              ))}
+            </div>
+          )}
+          {phase >= 4 && (
+            <div
+              className="flex items-center justify-between px-3.5 py-2 border-t border-[var(--border)] bg-black/[0.01]"
+              style={{ animation: "fade-rise 0.3s ease-out both" }}
+            >
+              <span className="font-body text-[10px] text-[var(--text-3)]">
+                {isZh ? "已保存 2 条" : "2 saved"}
+              </span>
+              <span className="font-body text-[10px] font-semibold text-emerald-600">
+                {isZh ? "已入库 ✓" : "Saved ✓"}
+              </span>
+            </div>
+          )}
         </div>
-      </div>
+      )}
 
-      {/* Completed kanban card — artifact badges, mirror real KanbanCard */}
-      <div
-        className="bg-white rounded-xl p-3 border border-[var(--border)] shadow-sm"
-        style={{ animation: "fade-rise 0.6s ease-out 1.4s both" }}
-      >
-        <div className="flex items-start justify-between gap-2 mb-0.5">
-          <span className="font-body font-semibold text-sm text-[var(--text)] leading-tight">
-            {isZh ? "字节跳动" : "ByteDance"}
-          </span>
-          <div className="flex items-center gap-1 shrink-0">
-            <span className="text-[10px] font-body rounded-full px-2 py-0.5 font-semibold tabular-nums bg-[#dcfce7] text-[#16a34a]">
-              {isZh ? "匹配度" : "Match"} 92
+      {/* User message 2 */}
+      {phase >= 4 && (
+        <div
+          key="u2"
+          className="flex justify-end"
+          style={{ animation: "fade-rise 0.4s ease-out 0.2s both" }}
+        >
+          <div className="bg-[var(--accent)] text-[var(--accent-fg)] rounded-2xl rounded-br-sm px-4 py-2.5 text-sm font-body font-light max-w-[80%]">
+            {isZh ? "好的，开始跑 Plan-and-Execute" : "Kick off Plan-and-Execute"}
+          </div>
+        </div>
+      )}
+
+      {/* Plan-and-Execute timeline */}
+      {phase >= 5 && (
+        <div
+          key="plan"
+          className="bg-white rounded-xl border border-[var(--border)] p-3.5"
+          style={{ animation: "fade-rise 0.5s ease-out both" }}
+        >
+          <div className="flex items-center justify-between gap-2 border-b border-[var(--border)] pb-2 mb-2">
+            <div className="flex min-w-0 items-center gap-2">
+              {allDone ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium bg-emerald-100 text-emerald-700">
+                  {isZh ? "已完成" : "Done"}
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium bg-indigo-100 text-indigo-700">
+                  <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-500" />
+                  {isZh ? "执行中" : "Running"}
+                </span>
+              )}
+              {runningTool && (
+                <span className="truncate font-body text-[10px] text-zinc-600">
+                  <span className="font-mono text-zinc-500">{runningTool}</span>
+                  {" · "}Step {runningIdx + 1}
+                </span>
+              )}
+            </div>
+            <div className="flex shrink-0 items-center gap-1 font-mono text-[10px] text-zinc-500">
+              <span>{planCompleted} / 5</span>
+            </div>
+          </div>
+
+          <div className="relative">
+            <div className="pointer-events-none absolute bottom-2 left-[4px] top-2 w-px bg-zinc-200" />
+            {planSteps.map((s, i) => {
+              const status = stepStatus(i)
+              const isDone = status === "done"
+              const isRunning = status === "running"
+              const isPending = status === "pending"
+              return (
+                <div key={i} className="relative flex gap-2.5 py-[3px]">
+                  <div className="relative z-10 mt-[6px] shrink-0">
+                    {isDone && (
+                      <span className="block h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white" />
+                    )}
+                    {isRunning && (
+                      <span className="block h-2 w-2 rounded-full bg-indigo-500 ring-2 ring-white shadow-[0_0_0_4px_rgba(99,102,241,0.18)] animate-pulse" />
+                    )}
+                    {isPending && (
+                      <span className="block h-2 w-2 rounded-full border-[1.5px] border-zinc-300 bg-white" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline gap-2">
+                      <span className="w-4 shrink-0 font-mono text-[9px] text-zinc-400">
+                        {String(i + 1).padStart(2, "0")}
+                      </span>
+                      <span
+                        className={`flex-1 text-[11px] leading-snug transition-colors duration-300 ${
+                          isDone
+                            ? "text-zinc-500"
+                            : isPending
+                              ? "text-zinc-400"
+                              : "font-medium text-zinc-800"
+                        }`}
+                      >
+                        {s.t}
+                      </span>
+                      {isRunning && (
+                        <span className="shrink-0 font-mono text-[9px] text-indigo-600 animate-pulse">
+                          {isZh ? "运行中…" : "running…"}
+                        </span>
+                      )}
+                    </div>
+                    {isRunning && (
+                      <div
+                        className="mt-1 ml-6 rounded-md border-l-2 border-indigo-400 bg-zinc-50/80 px-2 py-1 font-mono text-[10px] leading-relaxed text-zinc-600"
+                        style={{ animation: "fade-rise 0.3s ease-out both" }}
+                      >
+                        <span className="text-indigo-600">→ {s.tool}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Completed kanban card */}
+      {phase >= 11 && (
+        <div
+          key="kanban"
+          className="bg-white rounded-xl p-3 border border-[var(--border)] shadow-sm"
+          style={{ animation: "fade-rise 0.5s ease-out both" }}
+        >
+          <div className="flex items-start justify-between gap-2 mb-0.5">
+            <span className="font-body font-semibold text-sm text-[var(--text)] leading-tight">
+              {isZh ? "字节跳动" : "ByteDance"}
             </span>
-            <span className="text-[10px] font-body rounded-full px-2 py-0.5 bg-[#fef3c7] text-[#b45309]">
-              {isZh ? "对话保存" : "From chat"}
+            <div className="flex items-center gap-1 shrink-0">
+              <span className="text-[10px] font-body rounded-full px-2 py-0.5 font-semibold tabular-nums bg-[#dcfce7] text-[#16a34a]">
+                {isZh ? "匹配度" : "Match"} 92
+              </span>
+              <span className="text-[10px] font-body rounded-full px-2 py-0.5 bg-[#fef3c7] text-[#b45309]">
+                {isZh ? "对话保存" : "From chat"}
+              </span>
+            </div>
+          </div>
+          <p className="font-body text-xs text-[var(--text-2)] mb-2">
+            {isZh ? "AI 产品经理" : "AI Product Manager"}
+          </p>
+          <div className="flex flex-wrap gap-1">
+            {artifactBadges.map((b, bi) => (
+              <span
+                key={bi}
+                className="inline-flex items-center gap-0.5 text-[10px] font-body
+                           rounded-full px-2 py-0.5 bg-emerald-50 text-emerald-700
+                           border border-emerald-100"
+              >
+                <span aria-hidden="true">✓</span>
+                {b}
+              </span>
+            ))}
+          </div>
+          <div className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--border)]">
+            <span className="font-mono text-[9px] text-[var(--text-3)]">
+              {isZh ? "签名链接 · 24h" : "Signed URL · 24h"}
+            </span>
+            <span className="inline-flex items-center gap-1 text-[10px] font-body
+                             bg-[#7c6af5] text-white rounded-full px-2.5 py-1">
+              📄 {isZh ? "下载 PDF" : "Download PDF"}
             </span>
           </div>
         </div>
-        <p className="font-body text-xs text-[var(--text-2)] mb-2">
-          {isZh ? "AI 产品经理" : "AI Product Manager"}
-        </p>
-        <div className="flex flex-wrap gap-1">
-          {artifactBadges.map((b, bi) => (
-            <span
-              key={bi}
-              className="inline-flex items-center gap-0.5 text-[10px] font-body
-                         rounded-full px-2 py-0.5 bg-emerald-50 text-emerald-700
-                         border border-emerald-100"
-            >
-              <span aria-hidden="true">✓</span>
-              {b}
-            </span>
-          ))}
-        </div>
-        <div className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--border)]">
-          <span className="font-mono text-[9px] text-[var(--text-3)]">
-            {isZh ? "签名链接 · 24h" : "Signed URL · 24h"}
-          </span>
-          <span className="inline-flex items-center gap-1 text-[10px] font-body
-                           bg-[#7c6af5] text-white rounded-full px-2.5 py-1">
-            📄 {isZh ? "下载 PDF" : "Download PDF"}
-          </span>
-        </div>
-      </div>
+      )}
     </div>
   )
 }
@@ -341,17 +434,11 @@ export default function Hero() {
             </div>
           </div>
 
-          {/* ── Right: 3D Product mockup ── */}
+          {/* ── Right: animated product loop mockup ── */}
           <div className="animate-fade-rise-d4 relative">
-            <CardContainer className="w-full" containerClassName="w-full">
-              <CardBody className="relative w-full">
-                <CardItem translateZ={60} className="w-full">
-                  <div className="w-full rounded-2xl bg-[var(--card)] border border-[var(--border)] shadow-[0_8px_40px_rgba(0,0,0,0.06),0_1px_3px_rgba(0,0,0,0.03)]">
-                    <MockChat />
-                  </div>
-                </CardItem>
-              </CardBody>
-            </CardContainer>
+            <div className="w-full rounded-2xl bg-[var(--card)] border border-[var(--border)] shadow-[0_8px_40px_rgba(0,0,0,0.06),0_1px_3px_rgba(0,0,0,0.03)]">
+              <MockChat />
+            </div>
 
             <div
               className="absolute -z-10 inset-0 -m-6 rounded-3xl"
