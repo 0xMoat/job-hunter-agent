@@ -1,5 +1,6 @@
 """User model for the application."""
 
+from datetime import datetime
 from typing import (
     TYPE_CHECKING,
     List,
@@ -38,6 +39,8 @@ class User(BaseModel, table=True):
     avatar_url: str = Field(default="")
     system_prompt: Optional[str] = Field(default=None)
     resume_text: Optional[str] = Field(default=None)
+    resume_is_default: bool = Field(default=False)
+    tutorial_completed_at: Optional[datetime] = Field(default=None)
     sessions: List["Session"] = Relationship(back_populates="user")
 
 
