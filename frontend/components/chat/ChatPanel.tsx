@@ -19,7 +19,6 @@ export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boole
     historyLoading,
     sendMessage,
     resumePlanExecute,
-    insertPlanExecuteSuggestion,
     pickPlanExecuteSuggestionPrompt,
   } = useChat({
     sessionToken: currentSessionToken,
@@ -30,45 +29,42 @@ export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boole
   const { t } = useLanguage()
   const bottomRef = useRef<HTMLDivElement>(null)
   const [pendingCount, setPendingCount] = useState(0)
+  const [kanbanUrls, setKanbanUrls] = useState<Set<string>>(new Set())
+
+  const refreshKanban = useCallback(async () => {
+    const token = getSessionToken()
+    if (!token) return
+    try {
+      const { applications } = await apiListApplications(token)
+      setPendingCount(applications.filter((a) => a.status === "pending").length)
+      setKanbanUrls(
+        new Set(
+          applications
+            .map((a) => a.url)
+            .filter((u): u is string => typeof u === "string" && u.length > 0),
+        ),
+      )
+    } catch {
+      // silent
+    }
+  }, [])
 
   useEffect(() => {
-    let cancelled = false
-    async function refresh() {
-      const token = getSessionToken()
-      if (!token) return
-      try {
-        const { applications } = await apiListApplications(token)
-        if (cancelled) return
-        setPendingCount(applications.filter((a) => a.status === "pending").length)
-      } catch {
-        // silent
-      }
-    }
-    refresh()
+    refreshKanban()
     // refetch after any streaming session ends (plan-execute may have mutated the board)
-    if (!streaming) refresh()
-    return () => {
-      cancelled = true
-    }
-  }, [streaming, currentSessionId])
+    if (!streaming) refreshKanban()
+  }, [streaming, currentSessionId, refreshKanban])
 
   const handleSaved = useCallback(
     async (savedCount: number) => {
       if (savedCount <= 0) return
-      const token = getSessionToken()
-      let latestPending = pendingCount + savedCount
-      if (token) {
-        try {
-          const { applications } = await apiListApplications(token)
-          latestPending = applications.filter((a) => a.status === "pending").length
-          setPendingCount(latestPending)
-        } catch {
-          // fall through with optimistic count
-        }
-      }
-      insertPlanExecuteSuggestion(savedCount, latestPending)
+      // Refresh kanban state so the just-saved URLs surface in kanbanUrls and
+      // the follow-up chip row inside JobSearchResultCard picks them up after
+      // a page reload. No longer inserts a separate suggestion bubble — the
+      // chips are rendered inline inside the result card.
+      await refreshKanban()
     },
-    [insertPlanExecuteSuggestion, pendingCount],
+    [refreshKanban],
   )
 
   const QUICK_PROMPTS = [
@@ -191,6 +187,8 @@ export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boole
               }}
               onSuggestionTrigger={handleSaved}
               onSuggestionPickPrompt={pickPlanExecuteSuggestionPrompt}
+              savedUrlsInKanban={kanbanUrls}
+              onPickFollowupPrompt={sendMessage}
             />
           ))}
 

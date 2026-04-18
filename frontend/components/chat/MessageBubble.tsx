@@ -19,6 +19,8 @@ interface Props {
   ) => void
   onSuggestionTrigger?: (savedCount: number) => void
   onSuggestionPickPrompt?: (id: string, prompt: string) => void
+  savedUrlsInKanban?: Set<string>
+  onPickFollowupPrompt?: (prompt: string) => void
 }
 
 export function MessageBubble({
@@ -27,6 +29,8 @@ export function MessageBubble({
   onResume,
   onSuggestionTrigger,
   onSuggestionPickPrompt,
+  savedUrlsInKanban,
+  onPickFollowupPrompt,
 }: Props) {
   const { locale } = useLanguage()
   const isUser = message.role === "user"
@@ -48,6 +52,8 @@ export function MessageBubble({
                   key={tc.toolCallId}
                   entry={tc}
                   onSaved={onSuggestionTrigger}
+                  savedUrlsInKanban={savedUrlsInKanban}
+                  onPickPrompt={onPickFollowupPrompt}
                 />
               ) : tc.toolName === "generate_resume_pdf" && tc.status === "done" ? (
                 <ResumeDownloadCard key={tc.toolCallId} entry={tc} />
