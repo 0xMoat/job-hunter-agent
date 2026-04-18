@@ -38,6 +38,14 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
     finish()
   }, [finish])
 
+  // Always point `startRef` at the latest `start` so the mount-only
+  // auto-start effect can invoke it with current i18n/locale without
+  // re-subscribing (which would cancel the pending 600 ms timer).
+  const startRef = useRef(start)
+  useEffect(() => {
+    startRef.current = start
+  })
+
   useEffect(() => {
     if (hasAutoStartedRef.current) return
     hasAutoStartedRef.current = true
@@ -55,7 +63,7 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
         }
         setTimeout(() => {
           if (cancelled) return
-          start()
+          startRef.current()
           setHasAutoStarted(true)
         }, 600)
       })
@@ -63,7 +71,8 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, [start])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <TourContext.Provider value={{ start, stop, hasAutoStarted }}>
