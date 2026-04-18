@@ -42,6 +42,7 @@ from app.utils.auth import (
 from app.utils.sanitization import sanitize_string
 from app.core.tutorial.content import (
     get_default_resume,
+    get_mock_application_payload,
     get_tutorial_session_name,
     normalize_locale,
 )
@@ -255,6 +256,7 @@ async def get_user_sessions(
                 session_id=str(uuid.uuid4()),
                 session_name=get_tutorial_session_name(locale),
                 default_resume=get_default_resume(locale),
+                mock_application=get_mock_application_payload(locale),
             )
             sessions = await db_service.get_user_sessions(user.id)
         return [

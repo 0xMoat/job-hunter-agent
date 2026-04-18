@@ -25,7 +25,7 @@ from app.models.session import Session as ChatSession
 from app.models.user import User
 
 # Import new models so SQLModel registers them before create_all
-from app.models.application import Application  # noqa: F401
+from app.models.application import Application
 from app.models.job_listing import JobListing  # noqa: F401
 from app.models.job_preference import JobPreference  # noqa: F401
 from app.models.search_config import SearchConfig  # noqa: F401
@@ -281,12 +281,15 @@ class DatabaseService:
         session_id: str,
         session_name: str,
         default_resume: str,
+        mock_application: Optional[dict] = None,
     ) -> ChatSession:
-        """Create the tutorial Session row + write the default resume.
+        """Create the tutorial Session row + write the default resume + mock app.
 
         Idempotent: if a tutorial session already exists, return it unchanged.
         The default resume is written only when the user has no resume yet, or
-        the stored resume is already flagged as default.
+        the stored resume is already flagged as default. A mock Application
+        (source='tutorial') is upserted so the 'jump to top-scored card' CTA
+        has something to open.
         """
         with Session(self.engine) as s:
             existing = s.exec(
@@ -311,6 +314,20 @@ class DatabaseService:
             if not user.resume_text or user.resume_is_default:
                 user.resume_text = default_resume
                 user.resume_is_default = True
+
+            if mock_application is not None:
+                existing_app = s.exec(
+                    select(Application).where(
+                        Application.user_id == user_id,
+                        Application.source == mock_application.get("source", "tutorial"),
+                    )
+                ).first()
+                if existing_app is None:
+                    s.add(Application(user_id=user_id, **mock_application))
+                else:
+                    for key, value in mock_application.items():
+                        setattr(existing_app, key, value)
+
             s.commit()
             s.refresh(tutorial)
             return tutorial

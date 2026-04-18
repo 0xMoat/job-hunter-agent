@@ -4,35 +4,55 @@ import { useLanguage } from "@/contexts/LanguageContext"
 import { MessageBubble } from "@/components/chat/MessageBubble"
 import type { ChatMessage, PlanExecuteView, ToolCallEntry } from "@/lib/types"
 
+// Unmistakably fake URLs — use example.com so no one mistakes these for
+// real listings during demos.
 const JOB_URLS = [
-  "https://example.com/job/001",
-  "https://example.com/job/002",
-  "https://example.com/job/003",
+  "https://example.com/demo/job/001",
+  "https://example.com/demo/job/002",
+  "https://example.com/demo/job/003",
 ]
 
 function buildJobSearchEntry(locale: string): ToolCallEntry {
   const resultsZh = [
-    { title: "AI Engineer · 星云智能 · 上海", link: JOB_URLS[0],
-      snippet: "5 年 LangGraph 经验，负责 Agent 产品研发，25-50k/月。" },
-    { title: "Agentic Platform Lead · 洞见科技 · 上海", link: JOB_URLS[1],
-      snippet: "主导 Agent 平台 0-1 搭建，技术栈 Python/LangChain，35-60k/月。" },
-    { title: "LLM 应用工程师 · 智源研究院 · 上海", link: JOB_URLS[2],
-      snippet: "RAG + 工具调用方向，熟悉 OpenAI / Anthropic API，30-55k/月。" },
+    {
+      title: "【演示】AI 工程师 · 示例科技 · 上海",
+      link: JOB_URLS[0],
+      snippet: "【教学样例】这是为引导教学提供的演示职位，非真实岗位。负责 LLM Agent 研发。",
+    },
+    {
+      title: "【演示】Agent 平台主管 · 样本网络 · 上海",
+      link: JOB_URLS[1],
+      snippet: "【教学样例】用于展示 JD 卡片交互的演示数据。Python/LangChain 技术栈。",
+    },
+    {
+      title: "【演示】LLM 应用工程师 · 演示智能 · 上海",
+      link: JOB_URLS[2],
+      snippet: "【教学样例】示例职位描述，实际投递请使用真实简历。RAG + 工具调用方向。",
+    },
   ]
   const resultsEn = [
-    { title: "AI Engineer · Nebula Intelligence · San Francisco", link: JOB_URLS[0],
-      snippet: "5+ yrs LangGraph; own agent product roadmap. $180-240k." },
-    { title: "Agentic Platform Lead · Insight Tech · San Francisco", link: JOB_URLS[1],
-      snippet: "0-1 agent platform; Python/LangChain stack. $200-260k." },
-    { title: "LLM Applications Engineer · Beacon AI · San Francisco", link: JOB_URLS[2],
-      snippet: "RAG + tool calling; OpenAI/Anthropic API expertise. $190-250k." },
+    {
+      title: "[DEMO] AI Engineer · Demo Corp · San Francisco",
+      link: JOB_URLS[0],
+      snippet: "[Sample] Tutorial-only listing — not a real job. LLM agent R&D focus.",
+    },
+    {
+      title: "[DEMO] Agent Platform Lead · Sample Labs · San Francisco",
+      link: JOB_URLS[1],
+      snippet: "[Sample] Shown for tutorial purposes. Python/LangChain stack.",
+    },
+    {
+      title: "[DEMO] LLM Applications Engineer · Example AI · San Francisco",
+      link: JOB_URLS[2],
+      snippet: "[Sample] Demonstration listing. RAG + tool calling.",
+    },
   ]
   const payload = {
     keywords: "Agent Engineer",
     location: locale === "zh-CN" ? "上海" : "San Francisco",
     intro_text: locale === "zh-CN"
-      ? "这是我为你找到的 3 个职位，勾选你感兴趣的即可保存到看板。"
-      : "Here are 3 matching roles — tick the ones you'd like and I'll save them to your kanban.",
+      ? "这里展示了 3 个**演示职位**（仅用于教学）。勾选任意几个即可模拟保存到看板。"
+      : "Showing 3 **demo listings** (tutorial-only). Tick any to simulate saving to the kanban.",
     results: locale === "zh-CN" ? resultsZh : resultsEn,
   }
   return {
@@ -85,23 +105,22 @@ function buildMsg(
   return { id, role, textContent: text, toolCalls: tools, planExecute }
 }
 
-export function TutorialSessionContent() {
+interface Props {
+  onJumpToTopCard?: () => void | Promise<void>
+}
+
+export function TutorialSessionContent({ onJumpToTopCard }: Props) {
   const { t, locale } = useLanguage()
   const jobSearch = buildJobSearchEntry(locale)
   const peToolCall = buildPlanExecuteToolCall(t)
   const planView = buildPlanView(t)
 
   const m1u = buildMsg("tut-u-1", "user", t("tut_user_1"))
-  // Assistant's first turn: intro text + job_search_tool result card.
   const m1a = buildMsg("tut-a-1", "assistant", t("tut_assistant_1"), [jobSearch])
-  // Assistant's second turn: short follow-up text; chips will render below it
-  // because we pass savedUrlsInKanban matching the job-search result URLs.
   const m2a = buildMsg("tut-a-2", "assistant", t("tut_assistant_2"), [jobSearch])
   const m2u = buildMsg("tut-u-2", "user", t("tut_user_2"))
-  // Assistant's final turn: start_plan_execute tool call + plan timeline view.
   const m3a = buildMsg("tut-a-3", "assistant", "", [peToolCall], planView)
 
-  // Stub callback: the tutorial session is read-only, so chip clicks do nothing.
   const noop = () => {}
 
   return (
@@ -114,7 +133,7 @@ export function TutorialSessionContent() {
         onPickFollowupPrompt={noop}
       />
       <MessageBubble message={m2u} />
-      <MessageBubble message={m3a} />
+      <MessageBubble message={m3a} onJumpToTopCard={onJumpToTopCard} />
     </div>
   )
 }

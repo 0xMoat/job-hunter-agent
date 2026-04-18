@@ -12,6 +12,7 @@ from app.core.logging import logger
 from app.core.tutorial.content import (
     Locale,
     get_default_resume,
+    get_mock_application_payload,
     get_tutorial_session_name,
     normalize_locale,
 )
@@ -68,6 +69,7 @@ async def seed_tutorial(
         session_id=str(uuid.uuid4()),
         session_name=get_tutorial_session_name(locale),
         default_resume=get_default_resume(locale),
+        mock_application=get_mock_application_payload(locale),
     )
     logger.info("tutorial_seeded", user_id=user.id, session_id=tutorial.id, locale=locale)
     return TutorialSeedResponse(session_id=tutorial.id, name=tutorial.name)
@@ -89,6 +91,7 @@ async def replay_tutorial(
         session_id=str(uuid.uuid4()),
         session_name=get_tutorial_session_name(locale),
         default_resume=get_default_resume(locale),
+        mock_application=get_mock_application_payload(locale),
     )
     logger.info("tutorial_replay", user_id=user.id, session_id=tutorial.id, locale=locale)
     return TutorialSeedResponse(session_id=tutorial.id, name=tutorial.name)
