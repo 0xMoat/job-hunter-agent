@@ -137,9 +137,17 @@ function MatchSection({ app }: { app: Application }) {
 function PdfSection({ app }: { app: Application }) {
   const { t } = useLanguage()
   if (!app.pdf_download_url) return <EmptyHint />
+  // Backend returns a relative path like /api/v1/resume/download/<jwt>.
+  // The frontend (localhost:3000) doesn't proxy /api/v1/*, so the <a> href
+  // must be prefixed with the backend base URL or the browser resolves it
+  // against :3000 and gets a Next.js 404.
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
+  const href = app.pdf_download_url.startsWith("http")
+    ? app.pdf_download_url
+    : `${baseUrl}${app.pdf_download_url}`
   return (
     <a
-      href={app.pdf_download_url}
+      href={href}
       target="_blank"
       rel="noopener noreferrer"
       className="inline-flex items-center gap-1 text-xs font-body
