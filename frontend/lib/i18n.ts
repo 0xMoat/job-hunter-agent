@@ -228,10 +228,24 @@ const zh: Dict = {
   tut_user_1: '帮我找上海的 Agent Engineer 岗位，3-5 年经验',
   tut_assistant_1: '好的，我为你搜索"Agent Engineer · 上海"相关职位。',
   tut_assistant_2: '我找到 3 个匹配结果。选择你感兴趣的，我会保存到你的追踪看板。',
-  tut_user_2: '帮我处理看板里这 2 张待投递职位',
+  tut_user_2: '帮我研究选中的所有公司，并为每家针对性润色简历',
+  tut_pe_goal: '帮我研究选中的所有公司，并为每家针对性润色简历',
   tut_pe_plan_1: '为每家公司做深度研究（规模/融资/文化）',
   tut_pe_plan_2: '根据 JD 打分并排序优先级',
-  tut_pe_plan_3: '为前 2 家定制简历并生成 PDF',
+  tut_pe_plan_3: '分析 JD 技能差距',
+  tut_pe_plan_4: '生成面试问题',
+  tut_pe_plan_5: '定制并保存简历、生成 PDF',
+  tut_pe_plan_6: '汇总本次处理结果',
+  tut_pe_final_md: `✅ **已为所选公司完成全流程处理：**
+
+1. ✅ 公司调研 — 已完成可利邦的深度调研并保存
+2. ✅ JD 匹配度评分 — 94/100（优秀匹配）
+3. ✅ 技能差距分析 — 识别 4 个关键提升方向
+4. ✅ 面试问题 — 12 个定制化面试问题
+5. ✅ 简历定制与 PDF 生成 — 针对 Agent 开发岗位优化简历
+6. ✅ 结果汇总 — 完成所有处理结果汇总
+
+所有材料（公司调研报告、匹配度分析、技能差距分析、面试问题、定制简历）均已保存到看板卡片中，你可以随时查看。这是一个高度匹配的优质机会，建议积极跟进！`,
   tut_assistant_done: '已为 2 家公司完成研究、匹配分析和简历定制，可在「追踪看板」卡片中查看每项产物。',
   // Tutorial — tour steps
   tour_welcome_title: '欢迎使用 Job Hunter ✦',
@@ -481,10 +495,24 @@ const en: Dict = {
   tut_user_1: 'Find Agent Engineer roles in San Francisco, 3-5 yrs',
   tut_assistant_1: "Got it — searching for 'Agent Engineer · San Francisco'.",
   tut_assistant_2: 'I found 3 matches. Pick the ones you like and I will save them to your kanban.',
-  tut_user_2: 'Process these 2 pending jobs on my kanban',
+  tut_user_2: 'Research the selected companies and tailor my resume for each',
+  tut_pe_goal: 'Research the selected companies and tailor my resume for each',
   tut_pe_plan_1: 'Deep research on each company (size / funding / culture)',
   tut_pe_plan_2: 'Score JD match and rank priorities',
-  tut_pe_plan_3: 'Tailor a resume + generate a PDF for the top 2',
+  tut_pe_plan_3: 'Analyze JD skill gaps',
+  tut_pe_plan_4: 'Generate interview questions',
+  tut_pe_plan_5: 'Tailor resume + export PDF',
+  tut_pe_plan_6: 'Summarize all processed results',
+  tut_pe_final_md: `✅ **Full pipeline complete for the selected companies:**
+
+1. ✅ Company research — deep-dive profiles saved
+2. ✅ JD match score — 94/100 (strong match)
+3. ✅ Skill gap analysis — 4 key improvement areas identified
+4. ✅ Interview prep — 12 tailored questions
+5. ✅ Resume + PDF — tailored for Agent Engineering roles
+6. ✅ Summary — all artifacts persisted to the kanban
+
+Company research, match analysis, skill gaps, interview questions, and the tailored resume are all attached to each kanban card. This is a high-match opportunity — worth pursuing actively.`,
   tut_assistant_done: 'Done — research, match scoring, and tailored resumes are ready. Open any kanban card to view artifacts.',
   // Tutorial — tour steps
   tour_welcome_title: 'Welcome to Job Hunter ✦',
