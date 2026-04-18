@@ -60,7 +60,7 @@ function renderPreview(template: string): ReactNode[] {
 }
 
 export function SettingsModal({ onClose, accessToken, onSearchComplete }: SettingsModalProps) {
-  const { t } = useLanguage()
+  const { t, locale: currentLocale } = useLanguage()
   const [tab, setTab] = useState<Tab>("prompt")
 
   // System prompt tab state
@@ -285,6 +285,21 @@ export function SettingsModal({ onClose, accessToken, onSearchComplete }: Settin
                 >
                   {resumeSaving ? t("settings_resume_saving") : resumeSaved ? t("settings_resume_saved") : t("settings_resume_save")}
                 </button>
+                <div className="mt-4 pt-4 border-t border-black/5 flex flex-col gap-2">
+                  <button
+                    onClick={async () => {
+                      const confirmMsg = t("tutorial_replay_confirm") as string
+                      if (!confirm(confirmMsg)) return
+                      const { apiTutorialReplay } = await import("@/lib/api-tutorial")
+                      await apiTutorialReplay(accessToken, currentLocale)
+                      localStorage.removeItem("jh_tour_done")
+                      window.location.reload()
+                    }}
+                    className="self-start rounded-xl border border-black/10 text-sm font-body px-4 py-2 hover:bg-black/5"
+                  >
+                    {t("tutorial_replay")}
+                  </button>
+                </div>
               </div>
             )}
 

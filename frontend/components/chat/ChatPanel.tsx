@@ -7,10 +7,12 @@ import { useChat } from "@/hooks/useChat"
 import { useLanguage } from "@/contexts/LanguageContext"
 import { useSession } from "@/contexts/SessionContext"
 import { apiListApplications } from "@/lib/api"
-import { getSessionToken } from "@/lib/auth"
+import { getSessionToken, getAccessToken } from "@/lib/auth"
 import { TutorialSessionContent } from "@/components/tutorial/TutorialSessionContent"
+import { DefaultResumeBanner } from "@/components/tutorial/DefaultResumeBanner"
+import { apiTutorialStatus } from "@/lib/api-tutorial"
 
-export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boolean) => void }) {
+export function ChatPanel({ onStreamingChange, onRequestOpenSettings }: { onStreamingChange?: (s: boolean) => void; onRequestOpenSettings?: () => void }) {
   const { currentSessionToken, currentSessionId, sessions, renameSession, langfuseUrlBase } = useSession()
   const currentSession = sessions.find((s) => s.session_id === currentSessionId)
   const isTutorial = currentSession?.is_tutorial === true
@@ -32,6 +34,15 @@ export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boole
   const bottomRef = useRef<HTMLDivElement>(null)
   const [pendingCount, setPendingCount] = useState(0)
   const [kanbanUrls, setKanbanUrls] = useState<Set<string>>(new Set())
+  const [resumeIsDefault, setResumeIsDefault] = useState(false)
+
+  useEffect(() => {
+    const token = getAccessToken()
+    if (!token) return
+    apiTutorialStatus(token)
+      .then((s) => setResumeIsDefault(s.resume_is_default))
+      .catch(() => {})
+  }, [])
 
   const refreshKanban = useCallback(async () => {
     const token = getSessionToken()
@@ -119,6 +130,11 @@ export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boole
             {t('chat_subtitle')}
           </p>
         </div>
+
+        {/* Default-resume banner */}
+        {!isTutorial && resumeIsDefault && (
+          <DefaultResumeBanner onOpenSettings={() => onRequestOpenSettings?.()} />
+        )}
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-5 py-4">

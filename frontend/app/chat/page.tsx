@@ -154,7 +154,10 @@ function ChatPageInner() {
         <div className={`h-full ${tab === "chat" ? "flex gap-3" : "hidden"}`}>
           <SessionSidebar streaming={streaming} />
           <div className="flex-1 min-w-0 overflow-hidden">
-            <ChatPanel onStreamingChange={setStreaming} />
+            <ChatPanel
+              onStreamingChange={setStreaming}
+              onRequestOpenSettings={() => setShowSettings(true)}
+            />
           </div>
         </div>
         <div className={`h-full ${tab === "tracker" ? "" : "hidden"}`}>

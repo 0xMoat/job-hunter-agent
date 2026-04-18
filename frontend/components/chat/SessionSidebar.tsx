@@ -91,8 +91,13 @@ export function SessionSidebar({ streaming }: { streaming: boolean }) {
                     onClick={() => switchSession(session.session_id)}
                     className="flex-1 text-left px-3 py-2 min-w-0"
                   >
-                    <span className="block text-xs font-body font-medium truncate">
-                      {displayName}
+                    <span className="flex items-center gap-1 text-xs font-body font-medium truncate">
+                      <span className="truncate">{displayName}</span>
+                      {session.is_tutorial && (
+                        <span className="flex-shrink-0 inline-flex items-center rounded-full bg-indigo-100 text-indigo-700 px-1.5 py-0.5 text-[9px] font-medium">
+                          {t('tutorial_badge')}
+                        </span>
+                      )}
                     </span>
                     {dateLabel && (
                       <span className={`block text-[10px] font-body mt-0.5 ${
