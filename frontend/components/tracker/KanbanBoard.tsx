@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core"
 import { KanbanColumn } from "./KanbanColumn"
 import { ApplicationDetailDrawer } from "./ApplicationDetailDrawer"
@@ -9,11 +9,27 @@ import { useLanguage } from "@/contexts/LanguageContext"
 import { KANBAN_COLUMNS, toColumnStatus } from "@/lib/types"
 import type { ApplicationStatus } from "@/lib/types"
 
-export function KanbanBoard() {
+interface KanbanBoardProps {
+  /** External signal asking the board to open the detail drawer on a specific
+   * card (e.g. from the PE "jump to top card" CTA). */
+  focusAppId?: number | null
+  /** Called once the focus has been applied so the parent can clear the
+   * request and avoid re-opening the drawer on future re-renders. */
+  onFocusConsumed?: () => void
+}
+
+export function KanbanBoard({ focusAppId, onFocusConsumed }: KanbanBoardProps = {}) {
   const { applications, archivedCount, loading, addApplication, moveCard, deleteApplication } = useApplications()
   const { t } = useLanguage()
   const [detailAppId, setDetailAppId] = useState<number | null>(null)
   const detailApp = detailAppId != null ? applications.find((a) => a.id === detailAppId) ?? null : null
+
+  // External focus request — fire once per new id so consumer can reset.
+  useEffect(() => {
+    if (focusAppId == null) return
+    setDetailAppId(focusAppId)
+    onFocusConsumed?.()
+  }, [focusAppId, onFocusConsumed])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })

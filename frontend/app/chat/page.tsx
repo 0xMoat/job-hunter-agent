@@ -27,6 +27,7 @@ function ChatPageInner() {
   const [showSettings, setShowSettings] = useState(false)
   const [kanbanRefreshKey, setKanbanRefreshKey] = useState(0)
   const [showUserMenu, setShowUserMenu] = useState(false)
+  const [focusAppId, setFocusAppId] = useState<number | null>(null)
   const userMenuRef = useRef<HTMLDivElement>(null)
   const user = getUser()
 
@@ -51,6 +52,11 @@ function ChatPageInner() {
   function handleTabChange(key: Tab) {
     setTab(key)
     router.replace(`?tab=${key}`, { scroll: false })
+  }
+
+  function handleJumpToCard(id: number) {
+    setFocusAppId(id)
+    handleTabChange("tracker")
   }
 
   function handleLogout() {
@@ -157,11 +163,16 @@ function ChatPageInner() {
             <ChatPanel
               onStreamingChange={setStreaming}
               onRequestOpenSettings={() => setShowSettings(true)}
+              onJumpToCard={handleJumpToCard}
             />
           </div>
         </div>
         <div className={`h-full ${tab === "tracker" ? "" : "hidden"}`}>
-          <KanbanBoard key={kanbanRefreshKey} />
+          <KanbanBoard
+            key={kanbanRefreshKey}
+            focusAppId={focusAppId}
+            onFocusConsumed={() => setFocusAppId(null)}
+          />
         </div>
       </div>
     </div>

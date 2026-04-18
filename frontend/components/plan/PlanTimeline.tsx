@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import type { PlanExecuteView } from "@/lib/types"
 import { PlanStepRow } from "./PlanStepCard"
 import { PlanApprovalCard } from "./PlanApprovalCard"
+import { useLanguage } from "@/contexts/LanguageContext"
 
 interface PlanTimelineViewProps {
   view: PlanExecuteView
@@ -11,6 +12,9 @@ interface PlanTimelineViewProps {
   onRevise?: (feedback: string) => void
   onCancel?: () => void
   actionsDisabled?: boolean
+  /** Fired from the final-response CTA. The parent is expected to locate the
+   * top-scored pending card, switch to the kanban tab, and open its drawer. */
+  onJumpToTopCard?: () => void | Promise<void>
 }
 
 function fmtDuration(seconds: number): string {
@@ -25,7 +29,10 @@ export function PlanTimelineView({
   onRevise,
   onCancel,
   actionsDisabled,
+  onJumpToTopCard,
 }: PlanTimelineViewProps) {
+  const { t } = useLanguage()
+  const [jumping, setJumping] = useState(false)
   const completed = view.steps.filter(
     (s) => s.status === "done" || s.status === "failed",
   ).length
@@ -153,6 +160,27 @@ export function PlanTimelineView({
           <div className="whitespace-pre-wrap text-xs text-emerald-900">
             {view.finalResponse}
           </div>
+          {onJumpToTopCard && (
+            <button
+              type="button"
+              onClick={async () => {
+                setJumping(true)
+                try {
+                  await onJumpToTopCard()
+                } finally {
+                  setJumping(false)
+                }
+              }}
+              disabled={jumping}
+              className="mt-2 inline-flex items-center gap-1 rounded-full
+                         border border-emerald-300 bg-white px-3 py-1
+                         text-[11px] font-medium text-emerald-800
+                         hover:bg-emerald-50 disabled:opacity-50
+                         disabled:cursor-not-allowed transition-colors cursor-pointer"
+            >
+              {jumping ? t("pe_jump_top_card_loading") : t("pe_jump_top_card")}
+            </button>
+          )}
         </div>
       )}
     </div>

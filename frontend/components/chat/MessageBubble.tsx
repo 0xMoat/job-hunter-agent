@@ -32,6 +32,7 @@ interface Props {
   onSuggestionPickPrompt?: (id: string, prompt: string) => void
   savedUrlsInKanban?: Set<string>
   onPickFollowupPrompt?: (prompt: string) => void
+  onJumpToTopCard?: () => void | Promise<void>
 }
 
 export function MessageBubble({
@@ -42,6 +43,7 @@ export function MessageBubble({
   onSuggestionPickPrompt,
   savedUrlsInKanban,
   onPickFollowupPrompt,
+  onJumpToTopCard,
 }: Props) {
   const { locale, t } = useLanguage()
   const isUser = message.role === "user"
@@ -113,6 +115,7 @@ export function MessageBubble({
                 onResume ? () => onResume(message.id, { action: "cancel" }) : undefined
               }
               actionsDisabled={isStreaming}
+              onJumpToTopCard={onJumpToTopCard}
             />
           </div>
         )}
