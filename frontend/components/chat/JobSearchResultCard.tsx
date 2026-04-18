@@ -4,6 +4,7 @@ import { useState } from "react"
 import type { ToolCallEntry } from "@/lib/types"
 import { apiBatchCreateApplications } from "@/lib/api"
 import { getSessionToken } from "@/lib/auth"
+import { emitApplicationsInvalidated } from "@/lib/app-events"
 import { useLanguage } from "@/contexts/LanguageContext"
 
 interface JobResult {
@@ -71,6 +72,11 @@ export function JobSearchResultCard({ entry, onSaved }: Props) {
       setSelected(new Set())
       setStatus("saved")
       setFeedback(t("job_search_save_done", res.inserted, res.skipped))
+      // Tell the kanban tab (useApplications) to re-fetch — otherwise newly
+      // inserted cards only appear after a manual page reload.
+      if (res.inserted > 0) {
+        emitApplicationsInvalidated()
+      }
       // Trigger the follow-up chips whenever the user clicked save on one or
       // more rows, regardless of whether they were newly inserted or already
       // in the kanban — the user's intent to "do something with these jobs"
