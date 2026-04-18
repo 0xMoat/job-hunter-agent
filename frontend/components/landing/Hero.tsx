@@ -126,9 +126,9 @@ function MockChat() {
   })
 
   return (
-    <div className="flex flex-col gap-3 p-5 text-[var(--text)]">
+    <div className="flex flex-col gap-2 p-4 text-[var(--text)]">
       {/* Header — always visible */}
-      <div className="flex items-center gap-2 pb-3 border-b border-[var(--border)]">
+      <div className="flex items-center gap-2 pb-2 border-b border-[var(--border)]">
         <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]" />
         <span className="font-body text-xs font-medium text-[var(--text-2)] tracking-wide">
           {isZh ? "AI Agent 在线" : "AI Agent Online"}
@@ -140,7 +140,7 @@ function MockChat() {
 
       {/* User message 1 — always rendered, fades in at phase >= 1 */}
       <div className="flex justify-end" style={fade(phase >= 1)}>
-        <div className="bg-[var(--accent)] text-[var(--accent-fg)] rounded-2xl rounded-br-sm px-4 py-2.5 text-sm font-body font-light max-w-[80%]">
+        <div className="bg-[var(--accent)] text-[var(--accent-fg)] rounded-2xl rounded-br-sm px-3.5 py-2 text-[13px] font-body font-light max-w-[80%]">
           {isZh
             ? "找上海的 AI 产品经理，调研公司并润色简历"
             : "Find AI PM in Shanghai — research + tailor resume"}
@@ -152,7 +152,7 @@ function MockChat() {
         className="bg-white rounded-xl border border-[var(--border)] overflow-hidden"
         style={fade(phase >= 2)}
       >
-        <div className="flex items-center gap-2 px-3.5 py-2 border-b border-[var(--border)]">
+        <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--border)]">
           <span className="w-[7px] h-[7px] rounded-full bg-emerald-500 flex-shrink-0" />
           <span className="font-body font-semibold text-xs text-[var(--text-2)]">Job Search</span>
           <span className="font-mono text-[10px] text-[var(--text-3)] truncate">
@@ -175,7 +175,7 @@ function MockChat() {
           {jobRows.map((r, i) => (
             <div
               key={i}
-              className="flex gap-2.5 px-3.5 py-2 bg-[var(--accent)]/[0.04]"
+              className="flex gap-2.5 px-3 py-1.5 bg-[var(--accent)]/[0.04]"
               style={fade(phase >= 3, i * 120)}
             >
               <div className="pt-0.5 flex-shrink-0">
@@ -195,7 +195,7 @@ function MockChat() {
           ))}
         </div>
         <div
-          className="flex items-center justify-between px-3.5 py-2 border-t border-[var(--border)] bg-black/[0.01]"
+          className="flex items-center justify-between px-3 py-1.5 border-t border-[var(--border)] bg-black/[0.01]"
           style={fade(phase >= 4)}
         >
           <span className="font-body text-[10px] text-[var(--text-3)]">
@@ -210,29 +210,29 @@ function MockChat() {
       {/* Assistant plan bubble — lays out the steps it's proposing */}
       <div className="flex justify-start" style={fade(phase >= 4)}>
         <div
-          className="bg-[var(--surface)] text-[var(--text)] rounded-2xl rounded-bl-sm px-4 py-2.5
-                     text-sm font-body font-light max-w-[88%] leading-relaxed
+          className="bg-[var(--surface)] text-[var(--text)] rounded-2xl rounded-bl-sm px-3.5 py-2
+                     text-[12.5px] font-body font-light max-w-[92%] leading-relaxed
                      border border-[var(--border)]"
         >
           {isZh
-            ? "已保存 2 条。接下来我会完整调研字节 / 阿里巴巴，对比 JD 和你的简历找知识缺口，模拟可能的面试问题，再针对性润色简历并生成 PDF。要开始吗？"
-            : "2 jobs saved. Next I'll research ByteDance / Alibaba in full, compare each JD to your resume for skill gaps, draft likely interview questions, and then tailor the resume + generate a signed-URL PDF. Ready to go?"}
+            ? "已保存 2 条。接下来我会完整调研字节 / 阿里巴巴，对每个 JD 打出 0 — 100 匹配度（含四维拆解），对比 JD 和你的简历找知识缺口，模拟可能的面试问题，再针对性润色简历并生成 PDF。要开始吗？"
+            : "2 jobs saved. Next I'll research ByteDance / Alibaba in full, score each JD 0 — 100 (with a 4-axis breakdown), compare each JD to your resume for skill gaps, draft likely interview questions, then tailor the resume + generate a signed-URL PDF. Ready to go?"}
         </div>
       </div>
 
       {/* User message 2 */}
       <div className="flex justify-end" style={fade(phase >= 4, 500)}>
-        <div className="bg-[var(--accent)] text-[var(--accent-fg)] rounded-2xl rounded-br-sm px-4 py-2.5 text-sm font-body font-light max-w-[80%]">
+        <div className="bg-[var(--accent)] text-[var(--accent-fg)] rounded-2xl rounded-br-sm px-3.5 py-2 text-[13px] font-body font-light max-w-[80%]">
           {isZh ? "好，都处理了吧" : "OK, take it from here"}
         </div>
       </div>
 
       {/* Plan-and-Execute timeline */}
       <div
-        className="bg-white rounded-xl border border-[var(--border)] p-3.5"
+        className="bg-white rounded-xl border border-[var(--border)] p-3"
         style={fade(phase >= 5)}
       >
-          <div className="flex items-center justify-between gap-2 border-b border-[var(--border)] pb-2 mb-2">
+          <div className="flex items-center justify-between gap-2 border-b border-[var(--border)] pb-1.5 mb-1.5">
             <div className="flex min-w-0 items-center gap-2">
               {allDone ? (
                 <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium bg-emerald-100 text-emerald-700">
@@ -264,7 +264,7 @@ function MockChat() {
               const isRunning = status === "running"
               const isPending = status === "pending"
               return (
-                <div key={i} className="relative flex gap-2.5 py-[3px]">
+                <div key={i} className="relative flex gap-2.5 py-[1.5px]">
                   <div className="relative z-10 mt-[6px] shrink-0">
                     {isDone && (
                       <span className="block h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white" />
@@ -307,7 +307,7 @@ function MockChat() {
           {/* Terminal preview — a single always-on log row so the timeline's
               height stays fixed; contents swap by phase. */}
           <div
-            className="mt-2 rounded-md border-l-2 border-indigo-400 bg-zinc-50/80 px-2 py-1 font-mono text-[10px] leading-relaxed text-zinc-600 transition-opacity duration-300"
+            className="mt-1.5 rounded-md border-l-2 border-indigo-400 bg-zinc-50/80 px-2 py-1 font-mono text-[10px] leading-relaxed text-zinc-600 transition-opacity duration-300"
             style={{ opacity: phase >= 5 ? 1 : 0 }}
           >
             {allDone ? (
@@ -324,33 +324,32 @@ function MockChat() {
           </div>
         </div>
 
-      {/* Completed kanban card — always rendered, fades in at phase >= 11 */}
+      {/* Completed kanban card — condensed to two rows to keep the whole
+          mock inside one viewport */}
       <div
-        className="bg-white rounded-xl p-3 border border-[var(--border)] shadow-sm"
+        className="bg-white rounded-xl px-3 py-2 border border-[var(--border)] shadow-sm"
         style={fade(phase >= 11)}
       >
-          <div className="flex items-start justify-between gap-2 mb-0.5">
-            <span className="font-body font-semibold text-sm text-[var(--text)] leading-tight">
+        <div className="flex items-center justify-between gap-2 mb-1.5">
+          <div className="flex items-baseline gap-1.5 min-w-0">
+            <span className="font-body font-semibold text-[13px] text-[var(--text)] leading-tight truncate">
               {isZh ? "字节跳动" : "ByteDance"}
             </span>
-            <div className="flex items-center gap-1 shrink-0">
-              <span className="text-[10px] font-body rounded-full px-2 py-0.5 font-semibold tabular-nums bg-[#dcfce7] text-[#16a34a]">
-                {isZh ? "匹配度" : "Match"} 92
-              </span>
-              <span className="text-[10px] font-body rounded-full px-2 py-0.5 bg-[#fef3c7] text-[#b45309]">
-                {isZh ? "对话保存" : "From chat"}
-              </span>
-            </div>
+            <span className="font-body text-[11px] text-[var(--text-3)] truncate">
+              · {isZh ? "AI 产品经理" : "AI Product Manager"}
+            </span>
           </div>
-          <p className="font-body text-xs text-[var(--text-2)] mb-2">
-            {isZh ? "AI 产品经理" : "AI Product Manager"}
-          </p>
-          <div className="flex flex-wrap gap-1">
+          <span className="shrink-0 text-[10px] font-body rounded-full px-2 py-0.5 font-semibold tabular-nums bg-[#dcfce7] text-[#16a34a]">
+            {isZh ? "匹配度" : "Match"} 92
+          </span>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-wrap gap-1 min-w-0">
             {artifactBadges.map((b, bi) => (
               <span
                 key={bi}
                 className="inline-flex items-center gap-0.5 text-[10px] font-body
-                           rounded-full px-2 py-0.5 bg-emerald-50 text-emerald-700
+                           rounded-full px-1.5 py-0.5 bg-emerald-50 text-emerald-700
                            border border-emerald-100"
               >
                 <span aria-hidden="true">✓</span>
@@ -358,16 +357,12 @@ function MockChat() {
               </span>
             ))}
           </div>
-          <div className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--border)]">
-            <span className="font-mono text-[9px] text-[var(--text-3)]">
-              {isZh ? "签名链接 · 24h" : "Signed URL · 24h"}
-            </span>
-            <span className="inline-flex items-center gap-1 text-[10px] font-body
-                             bg-[#7c6af5] text-white rounded-full px-2.5 py-1">
-              📄 {isZh ? "下载 PDF" : "Download PDF"}
-            </span>
-          </div>
+          <span className="shrink-0 inline-flex items-center gap-1 text-[10px] font-body
+                           bg-[#7c6af5] text-white rounded-full px-2.5 py-1">
+            📄 {isZh ? "PDF" : "PDF"}
+          </span>
         </div>
+      </div>
     </div>
   )
 }
