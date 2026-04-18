@@ -3,6 +3,12 @@ name: Deploy
 on:
   push:
     branches: [master]
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Force deploy even if paths did not change'
+        type: boolean
+        default: true
 
 jobs:
   # ── Detect what changed ──────────────────────────────────────────────
@@ -35,7 +41,7 @@ jobs:
   deploy-backend:
     name: Deploy Backend
     needs: changes
-    if: needs.changes.outputs.backend == 'true'
+    if: needs.changes.outputs.backend == 'true' || inputs.force == true
     runs-on: ubuntu-latest
     steps:
       - name: Deploy via SSH
@@ -61,7 +67,7 @@ jobs:
   deploy-frontend:
     name: Deploy Frontend
     needs: changes
-    if: needs.changes.outputs.frontend == 'true'
+    if: needs.changes.outputs.frontend == 'true' || inputs.force == true
     runs-on: ubuntu-latest
     env:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
