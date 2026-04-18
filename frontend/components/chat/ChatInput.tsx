@@ -6,9 +6,10 @@ import { useLanguage } from "@/contexts/LanguageContext"
 interface Props {
   onSend: (text: string) => void
   disabled: boolean
+  disabledHint?: string
 }
 
-export function ChatInput({ onSend, disabled }: Props) {
+export function ChatInput({ onSend, disabled, disabledHint }: Props) {
   const { t } = useLanguage()
   const [text, setText] = useState("")
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -33,6 +34,17 @@ export function ChatInput({ onSend, disabled }: Props) {
     const el = e.target
     el.style.height = "auto"
     el.style.height = Math.min(el.scrollHeight, 120) + "px"
+  }
+
+  if (disabledHint) {
+    return (
+      <div
+        data-tour="input"
+        className="glass flex items-center justify-center p-4 rounded-b-3xl"
+      >
+        <p className="text-sm font-body text-[var(--text-3)] text-center">{disabledHint}</p>
+      </div>
+    )
   }
 
   return (

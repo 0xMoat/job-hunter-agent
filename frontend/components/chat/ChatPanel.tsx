@@ -8,10 +8,12 @@ import { useLanguage } from "@/contexts/LanguageContext"
 import { useSession } from "@/contexts/SessionContext"
 import { apiListApplications } from "@/lib/api"
 import { getSessionToken } from "@/lib/auth"
+import { TutorialSessionContent } from "@/components/tutorial/TutorialSessionContent"
 
 export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boolean) => void }) {
   const { currentSessionToken, currentSessionId, sessions, renameSession, langfuseUrlBase } = useSession()
   const currentSession = sessions.find((s) => s.session_id === currentSessionId)
+  const isTutorial = currentSession?.is_tutorial === true
   const {
     messages,
     streaming,
@@ -171,26 +173,32 @@ export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boole
             </div>
           )}
 
-          {messages.map((msg, i) => (
-            <MessageBubble
-              key={msg.id}
-              message={msg}
-              isStreaming={streaming && i === messages.length - 1 && msg.role === "assistant"}
-              onResume={(mid, args) => {
-                const threadId = msg.planExecute?.threadId
-                if (!threadId) return
-                resumePlanExecute(mid, {
-                  threadId,
-                  action: args.action,
-                  feedback: args.feedback,
-                })
-              }}
-              onSuggestionTrigger={handleSaved}
-              onSuggestionPickPrompt={pickPlanExecuteSuggestionPrompt}
-              savedUrlsInKanban={kanbanUrls}
-              onPickFollowupPrompt={sendMessage}
-            />
-          ))}
+          {isTutorial ? (
+            <TutorialSessionContent />
+          ) : (
+            <>
+              {messages.map((msg, i) => (
+                <MessageBubble
+                  key={msg.id}
+                  message={msg}
+                  isStreaming={streaming && i === messages.length - 1 && msg.role === "assistant"}
+                  onResume={(mid, args) => {
+                    const threadId = msg.planExecute?.threadId
+                    if (!threadId) return
+                    resumePlanExecute(mid, {
+                      threadId,
+                      action: args.action,
+                      feedback: args.feedback,
+                    })
+                  }}
+                  onSuggestionTrigger={handleSaved}
+                  onSuggestionPickPrompt={pickPlanExecuteSuggestionPrompt}
+                  savedUrlsInKanban={kanbanUrls}
+                  onPickFollowupPrompt={sendMessage}
+                />
+              ))}
+            </>
+          )}
 
           <div aria-live="polite" aria-atomic="true">
             {streaming &&
@@ -222,7 +230,11 @@ export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boole
 
         {/* Input */}
         <div className="flex-shrink-0">
-          <ChatInput onSend={sendMessage} disabled={streaming} />
+          <ChatInput
+            onSend={sendMessage}
+            disabled={streaming}
+            disabledHint={isTutorial ? t("tutorial_input_disabled") : undefined}
+          />
         </div>
 
       </div>

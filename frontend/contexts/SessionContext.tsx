@@ -93,6 +93,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         session_id: session.session_id,
         name: session.name,
         token: session.token,
+        is_tutorial: (session as Partial<SessionItem>).is_tutorial ?? false,
       } as SessionItem
       setSessions((prev) => [newItem, ...prev])
       setCurrentSessionId(session.session_id)

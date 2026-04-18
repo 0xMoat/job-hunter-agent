@@ -12,6 +12,7 @@ export interface SessionItem {
     expires_at: string
   }
   created_at?: string
+  is_tutorial?: boolean
 }
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
