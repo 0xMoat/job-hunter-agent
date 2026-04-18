@@ -210,7 +210,7 @@ function MockChat() {
       {/* User message 2 */}
       <div className="flex justify-end" style={fade(phase >= 4, 200)}>
         <div className="bg-[var(--accent)] text-[var(--accent-fg)] rounded-2xl rounded-br-sm px-4 py-2.5 text-sm font-body font-light max-w-[80%]">
-          {isZh ? "好的，开始跑 Plan-and-Execute" : "Kick off Plan-and-Execute"}
+          {isZh ? "好，都处理了吧" : "OK, take it from here"}
         </div>
       </div>
 
