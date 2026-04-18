@@ -59,19 +59,19 @@ export function PlanTimelineView({
 
   let pill: { label: string; className: string; dot?: boolean } | null = null
   if (view.errorMsg) {
-    pill = { label: "出错", className: "bg-rose-100 text-rose-700" }
+    pill = { label: t("pe_pill_error"), className: "bg-rose-100 text-rose-700" }
   } else if (view.cancelled) {
-    pill = { label: "已取消", className: "bg-zinc-100 text-zinc-600" }
+    pill = { label: t("pe_pill_cancelled"), className: "bg-zinc-100 text-zinc-600" }
   } else if (view.finalResponse) {
-    pill = { label: "已完成", className: "bg-emerald-100 text-emerald-700" }
+    pill = { label: t("pe_pill_completed"), className: "bg-emerald-100 text-emerald-700" }
   } else if (view.awaitingApproval) {
     pill = {
-      label: `等你确认 · 第 ${view.approvalRound} 轮`,
+      label: t("pe_pill_awaiting", view.approvalRound),
       className: "bg-indigo-100 text-indigo-700",
     }
   } else if (view.running) {
     pill = {
-      label: "Running",
+      label: t("pe_pill_running"),
       className: "bg-indigo-100 text-indigo-700",
       dot: true,
     }
@@ -121,13 +121,13 @@ export function PlanTimelineView({
 
       {view.revisionReason && (
         <div className="rounded-md bg-indigo-50 px-3 py-1.5 text-[11px] text-indigo-700">
-          基于你的反馈已更新计划
+          {t("pe_revision_updated")}
         </div>
       )}
 
       {view.errorMsg && (
         <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-1.5 text-[11px] text-rose-700">
-          错误：{view.errorMsg}
+          {t("pe_error_prefix")}: {view.errorMsg}
         </div>
       )}
 
@@ -155,7 +155,7 @@ export function PlanTimelineView({
       {view.finalResponse && !view.cancelled && (
         <div className="mt-1 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2.5">
           <div className="mb-1 text-[11px] font-semibold text-emerald-700">
-            最终回复
+            {t("pe_final_response_label")}
           </div>
           <div className="whitespace-pre-wrap text-xs text-emerald-900">
             {view.finalResponse}
