@@ -330,14 +330,19 @@ class PlanExecuteAgent:
         past_steps_text = "\n".join(
             f"{i + 1}. {step}\n   → {result}" for i, (step, result) in enumerate(state.past_steps)
         ) or "（尚无）"
+        done_count = len(state.past_steps)
         original_plan_text = "\n".join(
             f"{i + 1}. {s}" for i, s in enumerate([s for s, _ in state.past_steps] + state.plan)
         ) if (state.past_steps or state.plan) else "（无）"
+        remaining_plan_text = "\n".join(
+            f"{done_count + i + 1}. {s}" for i, s in enumerate(state.plan)
+        ) or "（空 — 所有步骤都已执行完毕）"
 
         system_prompt = load_plan_execute_replanner_prompt(
             input=state.input,
             original_plan=original_plan_text,
             past_steps=past_steps_text,
+            remaining_plan=remaining_plan_text,
             user_feedback=state.user_feedback,
         )
         logger.debug(
@@ -373,6 +378,22 @@ class PlanExecuteAgent:
             state_pending_revise=state.pending_revise,
         )
         if isinstance(act.action, PlanResponse):
+            # Hard guardrail — the replanner LLM sometimes ignores the prompt and
+            # returns a Response while plan steps remain (observed: ~17-step
+            # plan terminated after step 11). Force-continue with the remaining
+            # plan so the user's goal actually completes.
+            if state.plan:
+                logger.warning(
+                    "pe_replan_response_rejected_plan_not_empty",
+                    remaining=len(state.plan),
+                    past_steps=len(state.past_steps),
+                    ignored_content_preview=(act.action.content or "")[:200],
+                )
+                return {
+                    "plan": state.plan,
+                    "pending_revise": False,
+                    **updates,
+                }
             logger.info("pe_replan_finish", iterations=state.iterations)
             return {"response": act.action.content, "pending_revise": False, **updates}
 
