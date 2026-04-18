@@ -10,7 +10,7 @@ import { apiListApplications } from "@/lib/api"
 import { getSessionToken } from "@/lib/auth"
 
 export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boolean) => void }) {
-  const { currentSessionToken, currentSessionId, sessions, renameSession, langfuseUrlBase } = useSession()
+  const { currentSessionToken, currentSessionId, sessions, renameSession, langfuseUrlBase, loading: sessionLoading } = useSession()
   const currentSession = sessions.find((s) => s.session_id === currentSessionId)
   const {
     messages,
@@ -143,9 +143,11 @@ export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boole
                   <button
                     key={prompt}
                     onClick={() => sendMessage(prompt)}
+                    disabled={streaming || sessionLoading}
                     className="glass rounded-full flex items-center justify-between
                                px-4 py-2.5 text-sm font-body font-normal
-                               text-[var(--text-2)] hover:bg-white/80 transition-colors text-left"
+                               text-[var(--text-2)] hover:bg-white/80 transition-colors text-left
+                               disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <span>{prompt}</span>
                     <span className="text-[var(--text-3)] flex-shrink-0 ml-2" aria-hidden="true">↗</span>
@@ -156,11 +158,11 @@ export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boole
                   return (
                     <button
                       onClick={() => sendMessage(prompt)}
-                      disabled={streaming}
+                      disabled={streaming || sessionLoading}
                       className="glass rounded-full flex items-center justify-between
                                  px-4 py-2.5 text-sm font-body font-normal
                                  text-[var(--text-2)] hover:bg-white/80 transition-colors text-left
-                                 disabled:opacity-50"
+                                 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <span>{prompt}</span>
                       <span className="text-[var(--text-3)] flex-shrink-0 ml-2" aria-hidden="true">↗</span>
@@ -222,7 +224,7 @@ export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boole
 
         {/* Input */}
         <div className="flex-shrink-0">
-          <ChatInput onSend={sendMessage} disabled={streaming} />
+          <ChatInput onSend={sendMessage} disabled={streaming || sessionLoading} />
         </div>
 
       </div>
