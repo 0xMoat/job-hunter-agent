@@ -7,8 +7,19 @@ import { ResumeDownloadCard } from "./ResumeDownloadCard"
 import { ResumeDownloadLink } from "./ResumeDownloadLink"
 import { PlanTimelineView } from "@/components/plan/PlanTimeline"
 import { PlanExecuteSuggestionCard } from "@/components/plan/PlanExecuteSuggestionCard"
-import type { ChatMessage } from "@/lib/types"
+import type { ChatMessage, ToolCallEntry } from "@/lib/types"
 import { useLanguage } from "@/contexts/LanguageContext"
+
+function jobSearchResultUrls(tc: ToolCallEntry): string[] {
+  try {
+    const data = JSON.parse(tc.resultContent ?? "{}")
+    return (data.results ?? [])
+      .map((r: { link?: string }) => r?.link)
+      .filter((u: unknown): u is string => typeof u === "string" && u.length > 0)
+  } catch {
+    return []
+  }
+}
 
 interface Props {
   message: ChatMessage
@@ -32,8 +43,20 @@ export function MessageBubble({
   savedUrlsInKanban,
   onPickFollowupPrompt,
 }: Props) {
-  const { locale } = useLanguage()
+  const { locale, t } = useLanguage()
   const isUser = message.role === "user"
+
+  // Follow-up chips show below the text bubble whenever a job_search_tool
+  // result in this message contains at least one URL the user has already
+  // saved to the kanban. Rehydrates across page reloads via savedUrlsInKanban.
+  const jobSearchTool = !isUser
+    ? message.toolCalls.find((tc) => tc.toolName === "job_search_tool" && tc.status === "done")
+    : undefined
+  const hasSavedFromThisSearch =
+    !!jobSearchTool &&
+    !!savedUrlsInKanban &&
+    jobSearchResultUrls(jobSearchTool).some((u) => savedUrlsInKanban.has(u))
+  const showFollowups = hasSavedFromThisSearch && !!onPickFollowupPrompt
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"} mb-3`}>
@@ -52,8 +75,6 @@ export function MessageBubble({
                   key={tc.toolCallId}
                   entry={tc}
                   onSaved={onSuggestionTrigger}
-                  savedUrlsInKanban={savedUrlsInKanban}
-                  onPickPrompt={onPickFollowupPrompt}
                 />
               ) : tc.toolName === "generate_resume_pdf" && tc.status === "done" ? (
                 <ResumeDownloadCard key={tc.toolCallId} entry={tc} />
@@ -140,6 +161,33 @@ export function MessageBubble({
             {isStreaming && (
               <span className="inline-block w-1 h-4 bg-current ml-0.5 animate-pulse rounded-sm align-middle" />
             )}
+          </div>
+        )}
+
+        {/* Follow-up chips — sit below the assistant text bubble so the agent
+            first answers in its own words, then the UI offers quick next moves.
+            Chip clicks fire sendMessage, letting the agent decide whether to
+            escalate to Plan-Execute (per system.md §5). */}
+        {showFollowups && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {[
+              t("pe_chip_research_and_tailor"),
+              t("pe_chip_analyze_match"),
+              t("pe_chip_prioritize_by_prefs"),
+            ].map((p) => (
+              <button
+                key={p}
+                onClick={() => onPickFollowupPrompt?.(p)}
+                disabled={isStreaming}
+                className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-white
+                           px-3 py-1.5 text-xs font-body text-[var(--text-2)] hover:bg-white/70
+                           hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors
+                           disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span>{p}</span>
+                <span className="text-[var(--text-3)]" aria-hidden="true">↗</span>
+              </button>
+            ))}
           </div>
         )}
 

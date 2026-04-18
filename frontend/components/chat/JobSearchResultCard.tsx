@@ -15,12 +15,6 @@ interface JobResult {
 interface Props {
   entry: ToolCallEntry
   onSaved?: (savedCount: number) => void
-  /** URLs already saved to the kanban (used to recompute chip visibility after
-   * page reload, since the in-component `status` state doesn't persist). */
-  savedUrlsInKanban?: Set<string>
-  /** Called when a user clicks a follow-up chip — fires `sendMessage(prompt)`
-   * in the parent chat to trigger the agent for next steps. */
-  onPickPrompt?: (prompt: string) => void
 }
 
 function parseResults(entry: ToolCallEntry): { keywords: string; results: JobResult[]; introText: string } {
@@ -37,22 +31,13 @@ function parseResults(entry: ToolCallEntry): { keywords: string; results: JobRes
   }
 }
 
-export function JobSearchResultCard({ entry, onSaved, savedUrlsInKanban, onPickPrompt }: Props) {
+export function JobSearchResultCard({ entry, onSaved }: Props) {
   const { t } = useLanguage()
   const { keywords, results, introText } = parseResults(entry)
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle")
   const [savedUrls, setSavedUrls] = useState<Set<string>>(new Set())
   const [feedback, setFeedback] = useState("")
-
-  // Follow-up chip visibility: show if user just saved (in this render session)
-  // OR any of the rendered results already sits in the kanban (persists across
-  // page reloads via savedUrlsInKanban).
-  const kanbanMatchCount = savedUrlsInKanban
-    ? results.filter((r) => savedUrlsInKanban.has(r.link)).length
-    : 0
-  const showFollowups = status === "saved" || kanbanMatchCount > 0
-  const chipCount = Math.max(kanbanMatchCount, savedUrls.size, 1)
 
   const toggle = (idx: number) => {
     if (status !== "idle") return
@@ -223,30 +208,6 @@ export function JobSearchResultCard({ entry, onSaved, savedUrlsInKanban, onPickP
         )}
       </div>
 
-      {/* Follow-up chips — appear after user has saved (this session) or when
-          any of the results already sits in the kanban. Chip clicks fire a
-          natural-language sendMessage, letting the agent decide whether to
-          escalate to Plan-Execute (per system.md §5). */}
-      {showFollowups && onPickPrompt && (
-        <div className="flex flex-wrap gap-2 px-4 py-3 border-t border-[var(--border)] bg-[var(--accent-soft,#eeebff)]/40">
-          {[
-            t("pe_chip_research_and_tailor", chipCount),
-            t("pe_chip_analyze_match"),
-            t("pe_chip_prioritize_by_prefs"),
-          ].map((p) => (
-            <button
-              key={p}
-              onClick={() => onPickPrompt(p)}
-              className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-white
-                         px-3 py-1.5 text-xs font-body text-[var(--text-2)] hover:bg-white/70
-                         hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors"
-            >
-              <span>{p}</span>
-              <span className="text-[var(--text-3)]" aria-hidden="true">↗</span>
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   )
 }

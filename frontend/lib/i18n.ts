@@ -109,8 +109,7 @@ const zh: Dict = {
     `已保存 ${saved} 个职位到看板`) as unknown as FnValue,
   pe_suggestion_saved_n_of_total: ((saved: number, pending: number) =>
     `已保存 ${saved} 个职位到看板，共 ${pending} 条待处理`) as unknown as FnValue,
-  pe_chip_research_and_tailor: ((n: number) =>
-    `帮我研究这 ${n} 家公司，并为每家针对性润色简历`) as unknown as FnValue,
+  pe_chip_research_and_tailor: '帮我研究选中的所有公司，并为每家针对性润色简历',
   pe_chip_analyze_match: '分析这些 JD 和我的简历匹配度，按优先级排序',
   pe_chip_prioritize_by_prefs: '按我的偏好筛一遍这些 JD，哪些值得优先投递',
   chat_auto_process_prompt: ((n: number) =>
@@ -321,8 +320,7 @@ const en: Dict = {
     `Saved ${saved} job${saved === 1 ? '' : 's'} to the kanban`) as unknown as FnValue,
   pe_suggestion_saved_n_of_total: ((saved: number, pending: number) =>
     `Saved ${saved} job${saved === 1 ? '' : 's'} to the kanban — ${pending} pending in total`) as unknown as FnValue,
-  pe_chip_research_and_tailor: ((n: number) =>
-    `Research these ${n} companies and tailor my resume for each`) as unknown as FnValue,
+  pe_chip_research_and_tailor: 'Research the selected companies and tailor my resume for each',
   pe_chip_analyze_match: 'Analyze JD-to-resume fit and rank by priority',
   pe_chip_prioritize_by_prefs: 'Filter these JDs by my preferences — which to apply first?',
   chat_auto_process_prompt: ((n: number) =>
