@@ -308,31 +308,24 @@ export function SettingsModal({ onClose, accessToken, onSearchComplete }: Settin
               <div className="flex flex-col gap-4">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm text-[#666] font-body">{t("settings_search_sites_label")}</label>
-                  <input type="text" value={searchConfig.target_sites}
-                    onChange={(e) => setSearchConfig((c) => ({ ...c, target_sites: e.target.value }))}
-                    placeholder={t("settings_search_sites_placeholder") as string}
-                    className="rounded-xl border border-black/8 bg-[#fafafa] px-4 py-2.5 text-sm font-body focus:outline-none focus:ring-2 focus:ring-black/10"
+                  <input type="text" value="zhipin.com" readOnly disabled
+                    title={t("settings_search_sites_coming_soon") as string}
+                    className="rounded-xl border border-black/8 bg-[#f0f0f0] px-4 py-2.5 text-sm font-body text-[#999] cursor-not-allowed focus:outline-none"
                   />
+                  <p className="text-xs text-[#999] font-body mt-0.5">{t("settings_search_sites_coming_soon")}</p>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-[#666] font-body">{t("settings_search_schedule_label")}</span>
-                  <button role="switch" aria-checked={searchConfig.schedule_enabled}
-                    onClick={() => setSearchConfig((c) => ({ ...c, schedule_enabled: !c.schedule_enabled }))}
-                    className={["w-10 h-6 rounded-full transition-colors", searchConfig.schedule_enabled ? "bg-black" : "bg-black/15"].join(" ")}
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-sm text-[#999] font-body">{t("settings_search_schedule_label")}</span>
+                    <span className="text-xs text-[#999] font-body">{t("settings_search_schedule_coming_soon")}</span>
+                  </div>
+                  <button role="switch" aria-checked={false} disabled
+                    title={t("settings_search_schedule_coming_soon") as string}
+                    className="w-10 h-6 rounded-full bg-black/10 cursor-not-allowed opacity-60"
                   >
-                    <span className={["block w-4 h-4 bg-white rounded-full shadow transition-transform mx-1", searchConfig.schedule_enabled ? "translate-x-4" : "translate-x-0"].join(" ")} />
+                    <span className="block w-4 h-4 bg-white rounded-full shadow mx-1 translate-x-0" />
                   </button>
                 </div>
-                {searchConfig.schedule_enabled && (
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-sm text-[#666] font-body">{t("settings_search_cron_label")}</label>
-                    <input type="text" value={searchConfig.schedule_cron}
-                      onChange={(e) => setSearchConfig((c) => ({ ...c, schedule_cron: e.target.value }))}
-                      placeholder="0 9 * * *"
-                      className="rounded-xl border border-black/8 bg-[#fafafa] px-4 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-black/10"
-                    />
-                  </div>
-                )}
                 <div className="flex items-center gap-3 pt-1">
                   <button onClick={handleSaveSearch} disabled={searchSaving}
                     className="rounded-xl bg-black text-white text-sm font-body px-5 py-2 hover:bg-black/80 disabled:opacity-50">
