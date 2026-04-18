@@ -7,7 +7,7 @@ import { ChatPanel } from "@/components/chat/ChatPanel"
 import { SessionSidebar } from "@/components/chat/SessionSidebar"
 import { KanbanBoard } from "@/components/tracker/KanbanBoard"
 import { SettingsModal } from "@/components/settings/SettingsModal"
-import { SessionProvider } from "@/contexts/SessionContext"
+import { SessionProvider, useSession } from "@/contexts/SessionContext"
 import { TourProvider, useTour } from "@/contexts/TourContext"
 import { useLanguage } from "@/contexts/LanguageContext"
 import { apiListApplications } from "@/lib/api"
@@ -34,6 +34,7 @@ function ChatPageInner() {
   const userMenuRef = useRef<HTMLDivElement>(null)
   const user = getUser()
   const { registerActions } = useTour()
+  const { sessions, switchSession } = useSession()
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -70,6 +71,11 @@ function ChatPageInner() {
       closeSettings: () => setShowSettings(false),
       switchToTracker: () => handleTabChange("tracker"),
       switchToChat: () => handleTabChange("chat"),
+      switchToTutorialSession: () => {
+        const tut = sessions.find((s) => s.is_tutorial)
+        if (tut) switchSession(tut.session_id)
+        handleTabChange("chat")
+      },
       closeDrawer: () => setFocusAppId(null),
       openFirstKanbanCard: async () => {
         const token = getSessionToken()

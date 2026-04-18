@@ -35,6 +35,7 @@ function parseResults(entry: ToolCallEntry): { keywords: string; results: JobRes
 export function JobSearchResultCard({ entry, onSaved }: Props) {
   const { t } = useLanguage()
   const { keywords, results, introText } = parseResults(entry)
+  const isTutorial = entry.toolCallId.startsWith("tut-")
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle")
   const [savedUrls, setSavedUrls] = useState<Set<string>>(new Set())
@@ -105,7 +106,10 @@ export function JobSearchResultCard({ entry, onSaved }: Props) {
   }
 
   return (
-    <div className="glass rounded-xl my-1 overflow-hidden">
+    <div
+      data-tour={isTutorial ? "job-search-card" : undefined}
+      className="glass rounded-xl my-1 overflow-hidden"
+    >
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[var(--border)]">
         <span className="w-[7px] h-[7px] rounded-full bg-green-500 flex-shrink-0" />

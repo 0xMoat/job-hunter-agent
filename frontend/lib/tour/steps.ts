@@ -8,6 +8,7 @@ export interface TourActions {
   closeSettings: () => void
   switchToTracker: () => void
   switchToChat: () => void
+  switchToTutorialSession: () => void
   openFirstKanbanCard: () => void
   closeDrawer: () => void
 }
@@ -22,19 +23,34 @@ export function buildTourSteps(t: T, actions: Partial<TourActions> = {}): DriveS
     showButtons: ["next", "previous", "close"],
   })
 
+  // Ensure the tutorial session is active for any chat-anchored step.
+  const enterTutorialSession = () => actions.switchToTutorialSession?.()
+
   return [
     { popover: popover("welcome") },
     {
       element: '[data-tour="sidebar"]',
       popover: { ...popover("sidebar"), side: "right", align: "start" },
+      onHighlightStarted: enterTutorialSession,
     },
     {
       element: '[data-tour="chat"]',
       popover: { ...popover("chat"), side: "left", align: "center" },
+      onHighlightStarted: enterTutorialSession,
     },
     {
       element: '[data-tour="input"]',
       popover: { ...popover("input"), side: "top", align: "center" },
+    },
+    {
+      element: '[data-tour="job-search-card"]',
+      popover: { ...popover("jd_save"), side: "right", align: "start" },
+      onHighlightStarted: enterTutorialSession,
+    },
+    {
+      element: '[data-tour="pe-timeline"]',
+      popover: { ...popover("pe"), side: "left", align: "center" },
+      onHighlightStarted: enterTutorialSession,
     },
     {
       element: '[data-tour="tab-tracker"]',
@@ -57,9 +73,6 @@ export function buildTourSteps(t: T, actions: Partial<TourActions> = {}): DriveS
     {
       element: '[data-tour="drawer-match"]',
       popover: { ...popover("drawer_match"), side: "left", align: "center" },
-    },
-    {
-      popover: popover("pe"),
       onDeselected: () => {
         actions.closeDrawer?.()
         actions.switchToChat?.()
