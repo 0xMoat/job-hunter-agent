@@ -2,8 +2,18 @@ import type { DriveStep } from "./driver"
 
 type T = (key: string, ...args: unknown[]) => string
 
-export function buildTourSteps(t: T): DriveStep[] {
-  const base = (key: string): DriveStep["popover"] => ({
+export interface TourActions {
+  openSettings: () => void
+  setSettingsTab: (tab: "prompt" | "resume" | "search") => void
+  closeSettings: () => void
+  switchToTracker: () => void
+  switchToChat: () => void
+  openFirstKanbanCard: () => void
+  closeDrawer: () => void
+}
+
+export function buildTourSteps(t: T, actions: Partial<TourActions> = {}): DriveStep[] {
+  const popover = (key: string): DriveStep["popover"] => ({
     title: t(`tour_${key}_title`),
     description: t(`tour_${key}_body`),
     nextBtnText: t("tour_next"),
@@ -13,14 +23,71 @@ export function buildTourSteps(t: T): DriveStep[] {
   })
 
   return [
-    { popover: base("welcome") },
-    { element: '[data-tour="sidebar"]', popover: { ...base("sidebar"), side: "right", align: "start" } },
-    { element: '[data-tour="chat"]', popover: { ...base("chat"), side: "left", align: "center" } },
-    { element: '[data-tour="input"]', popover: { ...base("input"), side: "top", align: "center" } },
-    { element: '[data-tour="tab-tracker"]', popover: { ...base("tab_tracker"), side: "bottom", align: "center" } },
-    { element: '[data-tour="pe-timeline"]', popover: { ...base("pe"), side: "left", align: "center" } },
-    { element: '[data-tour="settings"]', popover: { ...base("settings"), side: "bottom", align: "end" } },
-    { popover: base("memory") },
-    { popover: base("done") },
+    { popover: popover("welcome") },
+    {
+      element: '[data-tour="sidebar"]',
+      popover: { ...popover("sidebar"), side: "right", align: "start" },
+    },
+    {
+      element: '[data-tour="chat"]',
+      popover: { ...popover("chat"), side: "left", align: "center" },
+    },
+    {
+      element: '[data-tour="input"]',
+      popover: { ...popover("input"), side: "top", align: "center" },
+    },
+    {
+      element: '[data-tour="tab-tracker"]',
+      popover: { ...popover("tab_tracker"), side: "bottom", align: "center" },
+      onHighlightStarted: () => actions.switchToTracker?.(),
+    },
+    {
+      element: '[data-tour="kanban-first-card"]',
+      popover: { ...popover("kanban_card"), side: "right", align: "start" },
+    },
+    {
+      element: '[data-tour="drawer"]',
+      popover: { ...popover("drawer"), side: "left", align: "start" },
+      onHighlightStarted: () => actions.openFirstKanbanCard?.(),
+    },
+    {
+      element: '[data-tour="drawer-artifacts"]',
+      popover: { ...popover("drawer_artifacts"), side: "left", align: "center" },
+    },
+    {
+      element: '[data-tour="drawer-match"]',
+      popover: { ...popover("drawer_match"), side: "left", align: "center" },
+    },
+    {
+      popover: popover("pe"),
+      onDeselected: () => {
+        actions.closeDrawer?.()
+        actions.switchToChat?.()
+      },
+    },
+    {
+      element: '[data-tour="settings"]',
+      popover: { ...popover("settings"), side: "bottom", align: "end" },
+      onHighlightStarted: () => actions.openSettings?.(),
+    },
+    {
+      element: '[data-tour="settings-tab-prompt"]',
+      popover: { ...popover("settings_prompt"), side: "bottom", align: "start" },
+      onHighlightStarted: () => actions.setSettingsTab?.("prompt"),
+    },
+    {
+      element: '[data-tour="settings-tab-resume"]',
+      popover: { ...popover("settings_resume"), side: "bottom", align: "start" },
+      onHighlightStarted: () => actions.setSettingsTab?.("resume"),
+    },
+    {
+      popover: popover("memory"),
+      onDeselected: () => actions.closeSettings?.(),
+    },
+    {
+      element: '[data-tour="sidebar-replay"]',
+      popover: { ...popover("replay"), side: "top", align: "center" },
+    },
+    { popover: popover("done") },
   ]
 }

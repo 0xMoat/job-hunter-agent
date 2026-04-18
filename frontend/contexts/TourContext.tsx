@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
 import { useLanguage } from "@/contexts/LanguageContext"
-import { buildTourSteps } from "@/lib/tour/steps"
+import { buildTourSteps, type TourActions } from "@/lib/tour/steps"
 import { startTour, stopTour } from "@/lib/tour/driver"
 import { apiTutorialDismiss, apiTutorialStatus } from "@/lib/api-tutorial"
 import { getAccessToken } from "@/lib/auth"
@@ -11,6 +11,9 @@ interface TourContextValue {
   start: () => void
   stop: () => void
   hasAutoStarted: boolean
+  /** Page-level controllers register imperative actions the tour can trigger
+   * during step transitions (open Settings modal, switch tabs, open drawer). */
+  registerActions: (actions: Partial<TourActions>) => void
 }
 
 const TourContext = createContext<TourContextValue | null>(null)
@@ -22,14 +25,25 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
   const hasAutoStartedRef = useRef(false)
   const [hasAutoStarted, setHasAutoStarted] = useState(false)
 
+  // Actions registered by page.tsx (open settings, switch tabs, etc).
+  // Held in a ref so registration + reads don't trigger re-renders.
+  const actionsRef = useRef<Partial<TourActions>>({})
+  const registerActions = useCallback((actions: Partial<TourActions>) => {
+    actionsRef.current = { ...actionsRef.current, ...actions }
+  }, [])
+
   const finish = useCallback(() => {
     localStorage.setItem(LOCAL_DONE_KEY, "1")
+    // Best-effort teardown of UI state the tour may have left open.
+    actionsRef.current.closeDrawer?.()
+    actionsRef.current.closeSettings?.()
+    actionsRef.current.switchToChat?.()
     const token = getAccessToken()
     if (token) apiTutorialDismiss(token).catch(() => {})
   }, [])
 
   const start = useCallback(() => {
-    const steps = buildTourSteps(t)
+    const steps = buildTourSteps(t, actionsRef.current)
     startTour(steps, finish)
   }, [t, finish])
 
@@ -38,9 +52,6 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
     finish()
   }, [finish])
 
-  // Always point `startRef` at the latest `start` so the mount-only
-  // auto-start effect can invoke it with current i18n/locale without
-  // re-subscribing (which would cancel the pending 600 ms timer).
   const startRef = useRef(start)
   useEffect(() => {
     startRef.current = start
@@ -75,7 +86,7 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   return (
-    <TourContext.Provider value={{ start, stop, hasAutoStarted }}>
+    <TourContext.Provider value={{ start, stop, hasAutoStarted, registerActions }}>
       {children}
     </TourContext.Provider>
   )

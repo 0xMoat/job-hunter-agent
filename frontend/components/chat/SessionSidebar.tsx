@@ -174,6 +174,7 @@ export function SessionSidebar({ streaming }: { streaming: boolean }) {
           {/* Replay tutorial footer */}
           <div className="px-3 pt-2 pb-4 flex-shrink-0 border-t border-black/5">
             <button
+              data-tour="sidebar-replay"
               onClick={handleReplayTutorial}
               disabled={replaying}
               className="w-full rounded-full px-3 py-2 text-xs font-body font-medium

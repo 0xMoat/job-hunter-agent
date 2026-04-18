@@ -22,6 +22,8 @@ interface SettingsModalProps {
   onClose: () => void
   accessToken: string
   onSearchComplete?: () => void
+  /** Controlled tab (e.g. for tour step transitions). */
+  activeTab?: Tab
 }
 
 function renderPreview(template: string): ReactNode[] {
@@ -60,9 +62,12 @@ function renderPreview(template: string): ReactNode[] {
   })
 }
 
-export function SettingsModal({ onClose, accessToken, onSearchComplete }: SettingsModalProps) {
+export function SettingsModal({ onClose, accessToken, onSearchComplete, activeTab }: SettingsModalProps) {
   const { t } = useLanguage()
-  const [tab, setTab] = useState<Tab>("prompt")
+  const [tab, setTab] = useState<Tab>(activeTab ?? "prompt")
+  useEffect(() => {
+    if (activeTab) setTab(activeTab)
+  }, [activeTab])
 
   // System prompt tab state
   const [draft, setDraft] = useState("")
@@ -212,6 +217,7 @@ export function SettingsModal({ onClose, accessToken, onSearchComplete }: Settin
             {(["prompt", "resume", "search"] as Tab[]).map((id) => (
               <button
                 key={id}
+                data-tour={id === "prompt" ? "settings-tab-prompt" : id === "resume" ? "settings-tab-resume" : undefined}
                 onClick={() => setTab(id)}
                 className={[
                   "px-4 py-2 text-sm font-body transition-colors",

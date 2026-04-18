@@ -2,16 +2,18 @@
 
 import { useState, useEffect, useRef, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { isAuthenticated, clearAuth, getAccessToken, getUser } from "@/lib/auth"
+import { isAuthenticated, clearAuth, getAccessToken, getUser, getSessionToken } from "@/lib/auth"
 import { ChatPanel } from "@/components/chat/ChatPanel"
 import { SessionSidebar } from "@/components/chat/SessionSidebar"
 import { KanbanBoard } from "@/components/tracker/KanbanBoard"
 import { SettingsModal } from "@/components/settings/SettingsModal"
 import { SessionProvider } from "@/contexts/SessionContext"
-import { TourProvider } from "@/contexts/TourContext"
+import { TourProvider, useTour } from "@/contexts/TourContext"
 import { useLanguage } from "@/contexts/LanguageContext"
+import { apiListApplications } from "@/lib/api"
 
 type Tab = "chat" | "tracker"
+type SettingsTab = "prompt" | "resume" | "search"
 
 function ChatPageInner() {
   const router = useRouter()
@@ -25,11 +27,13 @@ function ChatPageInner() {
   const [ready, setReady] = useState(false)
   const [streaming, setStreaming] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [initialSettingsTab, setInitialSettingsTab] = useState<SettingsTab>("prompt")
   const [kanbanRefreshKey, setKanbanRefreshKey] = useState(0)
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [focusAppId, setFocusAppId] = useState<number | null>(null)
   const userMenuRef = useRef<HTMLDivElement>(null)
   const user = getUser()
+  const { registerActions } = useTour()
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -58,6 +62,33 @@ function ChatPageInner() {
     setFocusAppId(id)
     handleTabChange("tracker")
   }
+
+  useEffect(() => {
+    registerActions({
+      openSettings: () => setShowSettings(true),
+      setSettingsTab: (t) => setInitialSettingsTab(t),
+      closeSettings: () => setShowSettings(false),
+      switchToTracker: () => handleTabChange("tracker"),
+      switchToChat: () => handleTabChange("chat"),
+      closeDrawer: () => setFocusAppId(null),
+      openFirstKanbanCard: async () => {
+        const token = getSessionToken()
+        if (!token) return
+        try {
+          const { applications } = await apiListApplications(token)
+          const pick =
+            applications.find((a) => a.source === "tutorial") ??
+            applications
+              .filter((a) => a.status === "pending" && typeof a.match_score === "number")
+              .sort((a, b) => (b.match_score ?? 0) - (a.match_score ?? 0))[0]
+          if (pick) setFocusAppId(pick.id)
+        } catch {
+          /* ignore */
+        }
+      },
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [registerActions])
 
   function handleLogout() {
     clearAuth()
@@ -150,6 +181,7 @@ function ChatPageInner() {
         <SettingsModal
           accessToken={getAccessToken() ?? ""}
           onClose={() => setShowSettings(false)}
+          activeTab={initialSettingsTab}
           onSearchComplete={() => setKanbanRefreshKey((k) => k + 1)}
         />
       )}

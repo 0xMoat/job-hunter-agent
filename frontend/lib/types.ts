@@ -96,7 +96,7 @@ export interface Application {
   notes?: string
   snippet?: string
   found_date?: string
-  source: "scheduler" | "manual" | "chat"
+  source: "scheduler" | "manual" | "chat" | "tutorial"
   archived_at?: string
   updated_at: string
   match_score?: number | null
