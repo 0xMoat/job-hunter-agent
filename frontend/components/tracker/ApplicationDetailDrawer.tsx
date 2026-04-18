@@ -170,6 +170,7 @@ export function ApplicationDetailDrawer({ app, onClose }: ApplicationDetailDrawe
         aria-hidden="true"
       />
       <aside
+        data-tour="drawer"
         className="fixed right-0 top-0 h-full w-[min(440px,90vw)] z-50
                    bg-white shadow-xl overflow-y-auto"
         role="dialog"
@@ -188,8 +189,10 @@ export function ApplicationDetailDrawer({ app, onClose }: ApplicationDetailDrawe
             {t("artifact_close")}
           </button>
         </header>
-        <div className="p-4 space-y-5">
-          <Section title={t("artifact_match")}><MatchSection app={app} /></Section>
+        <div className="p-4 space-y-5" data-tour="drawer-artifacts">
+          <div data-tour="drawer-match">
+            <Section title={t("artifact_match")}><MatchSection app={app} /></Section>
+          </div>
           <Section title={t("artifact_research")}><JsonOrTextSection text={app.company_research_json} /></Section>
           <Section title={t("artifact_gap")}><TextSection text={app.gap_analysis_text} /></Section>
           <Section title={t("artifact_interview")}><QuestionsSection raw={app.interview_questions_json} /></Section>

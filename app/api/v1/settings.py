@@ -153,8 +153,9 @@ async def update_resume(
     request: Request,
     current_user: User = Depends(get_current_user),
 ) -> ResumeResponse:
-    """Save the current user's plain-text resume."""
+    """Save the current user's plain-text resume and mark it non-default."""
     user = await db_service.update_user_resume(current_user.id, body.resume_text)
+    await db_service.set_resume_is_default(current_user.id, False)
     logger.info("resume_updated", user_id=current_user.id)
     return ResumeResponse(resume_text=user.resume_text)
 

@@ -2,6 +2,10 @@
 
 import { createContext, useContext, useEffect, useState } from 'react'
 import { t as translate, type Locale } from '@/lib/i18n'
+import { apiTutorialSeed } from '@/lib/api-tutorial'
+import { getAccessToken } from '@/lib/auth'
+
+export const RESUME_INVALIDATED_EVENT = 'jh:resume-invalidated'
 
 const STORAGE_KEY = 'jh_locale'
 
@@ -30,6 +34,16 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   function setLocale(l: Locale) {
     setLocaleState(l)
     localStorage.setItem(STORAGE_KEY, l)
+    // Re-seed the default resume + mock kanban card to match the new locale.
+    // Backend only overwrites when `resume_is_default=true`, so real user
+    // resumes stay untouched. Fire-and-forget; broadcast on success so open
+    // Settings modals re-fetch the resume textarea.
+    const token = getAccessToken()
+    if (token) {
+      apiTutorialSeed(token, l)
+        .then(() => window.dispatchEvent(new Event(RESUME_INVALIDATED_EVENT)))
+        .catch(() => {})
+    }
   }
 
   function t(key: string, ...args: unknown[]): string {

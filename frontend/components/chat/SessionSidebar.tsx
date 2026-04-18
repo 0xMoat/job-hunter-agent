@@ -3,6 +3,8 @@
 import { useState } from "react"
 import { useSession } from "@/contexts/SessionContext"
 import { useLanguage } from "@/contexts/LanguageContext"
+import { apiTutorialReplay } from "@/lib/api-tutorial"
+import { getAccessToken } from "@/lib/auth"
 import type { Locale } from "@/lib/i18n"
 
 function formatSessionDate(dateStr: string | undefined, locale: Locale): string {
@@ -31,6 +33,7 @@ export function SessionSidebar({ streaming }: { streaming: boolean }) {
   const { sessions, currentSessionId, loading, langfuseUrlBase, switchSession, createSession, deleteSession } = useSession()
   const { t, locale } = useLanguage()
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [replaying, setReplaying] = useState(false)
 
   async function handleDelete(e: React.MouseEvent, sessionId: string) {
     e.stopPropagation()
@@ -43,8 +46,24 @@ export function SessionSidebar({ streaming }: { streaming: boolean }) {
     }
   }
 
+  async function handleReplayTutorial() {
+    if (replaying) return
+    const confirmMsg = t("tutorial_replay_confirm") as string
+    if (!confirm(confirmMsg)) return
+    setReplaying(true)
+    try {
+      const token = getAccessToken()
+      if (!token) return
+      await apiTutorialReplay(token, locale)
+      localStorage.removeItem("jh_tour_done")
+      window.location.reload()
+    } finally {
+      setReplaying(false)
+    }
+  }
+
   return (
-    <div className="flex-shrink-0 w-52">
+    <div className="flex-shrink-0 w-52" data-tour="sidebar">
       <div className="glass-strong rounded-3xl h-full flex flex-col w-52 overflow-hidden">
 
           {/* New chat button */}
@@ -91,8 +110,13 @@ export function SessionSidebar({ streaming }: { streaming: boolean }) {
                     onClick={() => switchSession(session.session_id)}
                     className="flex-1 text-left px-3 py-2 min-w-0"
                   >
-                    <span className="block text-xs font-body font-medium truncate">
-                      {displayName}
+                    <span className="flex items-center gap-1 text-xs font-body font-medium truncate">
+                      <span className="truncate">{displayName}</span>
+                      {session.is_tutorial && (
+                        <span className="flex-shrink-0 inline-flex items-center rounded-full bg-indigo-100 text-indigo-700 px-1.5 py-0.5 text-[9px] font-medium">
+                          {t('tutorial_badge')}
+                        </span>
+                      )}
                     </span>
                     {dateLabel && (
                       <span className={`block text-[10px] font-body mt-0.5 ${
@@ -145,6 +169,21 @@ export function SessionSidebar({ streaming }: { streaming: boolean }) {
                 </div>
               )
             })}
+          </div>
+
+          {/* Replay tutorial footer */}
+          <div className="px-3 pt-2 pb-4 flex-shrink-0 border-t border-black/5">
+            <button
+              data-tour="sidebar-replay"
+              onClick={handleReplayTutorial}
+              disabled={replaying}
+              className="w-full rounded-full px-3 py-2 text-xs font-body font-medium
+                         text-[var(--text-3)] hover:text-[var(--text-2)]
+                         hover:bg-black/5 transition-colors
+                         disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {replaying ? t('tutorial_replay') + '…' : '📘 ' + t('tutorial_replay')}
+            </button>
           </div>
 
         </div>

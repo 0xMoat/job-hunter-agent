@@ -50,6 +50,7 @@ export function KanbanCard({ app, onDelete, onOpenDetail }: KanbanCardProps) {
       style={style}
       {...attributes}
       {...listeners}
+      data-tour={app.source === "tutorial" ? "kanban-first-card" : undefined}
       onDoubleClick={(e) => {
         e.stopPropagation()
         onOpenDetail(app.id)

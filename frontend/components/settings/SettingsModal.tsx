@@ -13,7 +13,8 @@ import {
   apiRunSearch,
 } from "@/lib/api"
 import type { SearchConfig } from "@/lib/api"
-import { useLanguage } from "@/contexts/LanguageContext"
+import { apiTutorialStatus } from "@/lib/api-tutorial"
+import { useLanguage, RESUME_INVALIDATED_EVENT } from "@/contexts/LanguageContext"
 
 type Tab = "prompt" | "resume" | "search"
 
@@ -21,6 +22,8 @@ interface SettingsModalProps {
   onClose: () => void
   accessToken: string
   onSearchComplete?: () => void
+  /** Controlled tab (e.g. for tour step transitions). */
+  activeTab?: Tab
 }
 
 function renderPreview(template: string): ReactNode[] {
@@ -59,9 +62,12 @@ function renderPreview(template: string): ReactNode[] {
   })
 }
 
-export function SettingsModal({ onClose, accessToken, onSearchComplete }: SettingsModalProps) {
+export function SettingsModal({ onClose, accessToken, onSearchComplete, activeTab }: SettingsModalProps) {
   const { t } = useLanguage()
-  const [tab, setTab] = useState<Tab>("prompt")
+  const [tab, setTab] = useState<Tab>(activeTab ?? "prompt")
+  useEffect(() => {
+    if (activeTab) setTab(activeTab)
+  }, [activeTab])
 
   // System prompt tab state
   const [draft, setDraft] = useState("")
@@ -111,10 +117,17 @@ export function SettingsModal({ onClose, accessToken, onSearchComplete }: Settin
   const [resumeText, setResumeText] = useState("")
   const [resumeSaving, setResumeSaving] = useState(false)
   const [resumeSaved, setResumeSaved] = useState(false)
+  const [resumeIsDefault, setResumeIsDefault] = useState(false)
 
   useEffect(() => {
     if (tab !== "resume") return
-    apiGetResume(accessToken).then((d) => setResumeText(d.resume_text ?? "")).catch(() => {})
+    const load = () => {
+      apiGetResume(accessToken).then((d) => setResumeText(d.resume_text ?? "")).catch(() => {})
+      apiTutorialStatus(accessToken).then((s) => setResumeIsDefault(s.resume_is_default)).catch(() => {})
+    }
+    load()
+    window.addEventListener(RESUME_INVALIDATED_EVENT, load)
+    return () => window.removeEventListener(RESUME_INVALIDATED_EVENT, load)
   }, [tab, accessToken])
 
   const handleSaveResume = useCallback(async () => {
@@ -204,6 +217,7 @@ export function SettingsModal({ onClose, accessToken, onSearchComplete }: Settin
             {(["prompt", "resume", "search"] as Tab[]).map((id) => (
               <button
                 key={id}
+                data-tour={id === "prompt" ? "settings-tab-prompt" : id === "resume" ? "settings-tab-resume" : undefined}
                 onClick={() => setTab(id)}
                 className={[
                   "px-4 py-2 text-sm font-body transition-colors",
@@ -271,6 +285,11 @@ export function SettingsModal({ onClose, accessToken, onSearchComplete }: Settin
             {tab === "resume" && (
               <div className="flex flex-col gap-3">
                 <label className="text-sm text-[#666] font-body">{t("settings_tab_resume")}</label>
+                {resumeIsDefault && (
+                  <div className="rounded-xl border border-amber-300/60 bg-amber-50 px-4 py-2.5 text-xs font-body text-amber-900">
+                    {t("settings_resume_is_default_hint")}
+                  </div>
+                )}
                 <textarea
                   value={resumeText}
                   onChange={(e) => setResumeText(e.target.value)}
@@ -293,31 +312,24 @@ export function SettingsModal({ onClose, accessToken, onSearchComplete }: Settin
               <div className="flex flex-col gap-4">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm text-[#666] font-body">{t("settings_search_sites_label")}</label>
-                  <input type="text" value={searchConfig.target_sites}
-                    onChange={(e) => setSearchConfig((c) => ({ ...c, target_sites: e.target.value }))}
-                    placeholder={t("settings_search_sites_placeholder") as string}
-                    className="rounded-xl border border-black/8 bg-[#fafafa] px-4 py-2.5 text-sm font-body focus:outline-none focus:ring-2 focus:ring-black/10"
+                  <input type="text" value="zhipin.com" readOnly disabled
+                    title={t("settings_search_sites_coming_soon") as string}
+                    className="rounded-xl border border-black/8 bg-[#f0f0f0] px-4 py-2.5 text-sm font-body text-[#999] cursor-not-allowed focus:outline-none"
                   />
+                  <p className="text-xs text-[#999] font-body mt-0.5">{t("settings_search_sites_coming_soon")}</p>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-[#666] font-body">{t("settings_search_schedule_label")}</span>
-                  <button role="switch" aria-checked={searchConfig.schedule_enabled}
-                    onClick={() => setSearchConfig((c) => ({ ...c, schedule_enabled: !c.schedule_enabled }))}
-                    className={["w-10 h-6 rounded-full transition-colors", searchConfig.schedule_enabled ? "bg-black" : "bg-black/15"].join(" ")}
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-sm text-[#999] font-body">{t("settings_search_schedule_label")}</span>
+                    <span className="text-xs text-[#999] font-body">{t("settings_search_schedule_coming_soon")}</span>
+                  </div>
+                  <button role="switch" aria-checked={false} disabled
+                    title={t("settings_search_schedule_coming_soon") as string}
+                    className="w-10 h-6 rounded-full bg-black/10 cursor-not-allowed opacity-60"
                   >
-                    <span className={["block w-4 h-4 bg-white rounded-full shadow transition-transform mx-1", searchConfig.schedule_enabled ? "translate-x-4" : "translate-x-0"].join(" ")} />
+                    <span className="block w-4 h-4 bg-white rounded-full shadow mx-1 translate-x-0" />
                   </button>
                 </div>
-                {searchConfig.schedule_enabled && (
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-sm text-[#666] font-body">{t("settings_search_cron_label")}</label>
-                    <input type="text" value={searchConfig.schedule_cron}
-                      onChange={(e) => setSearchConfig((c) => ({ ...c, schedule_cron: e.target.value }))}
-                      placeholder="0 9 * * *"
-                      className="rounded-xl border border-black/8 bg-[#fafafa] px-4 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-black/10"
-                    />
-                  </div>
-                )}
                 <div className="flex items-center gap-3 pt-1">
                   <button onClick={handleSaveSearch} disabled={searchSaving}
                     className="rounded-xl bg-black text-white text-sm font-body px-5 py-2 hover:bg-black/80 disabled:opacity-50">

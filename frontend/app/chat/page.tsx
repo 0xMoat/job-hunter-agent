@@ -2,15 +2,18 @@
 
 import { useState, useEffect, useRef, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { isAuthenticated, clearAuth, getAccessToken, getUser } from "@/lib/auth"
+import { isAuthenticated, clearAuth, getAccessToken, getUser, getSessionToken } from "@/lib/auth"
 import { ChatPanel } from "@/components/chat/ChatPanel"
 import { SessionSidebar } from "@/components/chat/SessionSidebar"
 import { KanbanBoard } from "@/components/tracker/KanbanBoard"
 import { SettingsModal } from "@/components/settings/SettingsModal"
-import { SessionProvider } from "@/contexts/SessionContext"
+import { SessionProvider, useSession } from "@/contexts/SessionContext"
+import { TourProvider, useTour } from "@/contexts/TourContext"
 import { useLanguage } from "@/contexts/LanguageContext"
+import { apiListApplications } from "@/lib/api"
 
 type Tab = "chat" | "tracker"
+type SettingsTab = "prompt" | "resume" | "search"
 
 function ChatPageInner() {
   const router = useRouter()
@@ -24,11 +27,14 @@ function ChatPageInner() {
   const [ready, setReady] = useState(false)
   const [streaming, setStreaming] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [initialSettingsTab, setInitialSettingsTab] = useState<SettingsTab>("prompt")
   const [kanbanRefreshKey, setKanbanRefreshKey] = useState(0)
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [focusAppId, setFocusAppId] = useState<number | null>(null)
   const userMenuRef = useRef<HTMLDivElement>(null)
   const user = getUser()
+  const { registerActions } = useTour()
+  const { sessions, switchSession } = useSession()
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -58,6 +64,38 @@ function ChatPageInner() {
     handleTabChange("tracker")
   }
 
+  useEffect(() => {
+    registerActions({
+      openSettings: () => setShowSettings(true),
+      setSettingsTab: (t) => setInitialSettingsTab(t),
+      closeSettings: () => setShowSettings(false),
+      switchToTracker: () => handleTabChange("tracker"),
+      switchToChat: () => handleTabChange("chat"),
+      switchToTutorialSession: () => {
+        const tut = sessions.find((s) => s.is_tutorial)
+        if (tut) switchSession(tut.session_id)
+        handleTabChange("chat")
+      },
+      closeDrawer: () => setFocusAppId(null),
+      openFirstKanbanCard: async () => {
+        const token = getSessionToken()
+        if (!token) return
+        try {
+          const { applications } = await apiListApplications(token)
+          const pick =
+            applications.find((a) => a.source === "tutorial") ??
+            applications
+              .filter((a) => a.status === "pending" && typeof a.match_score === "number")
+              .sort((a, b) => (b.match_score ?? 0) - (a.match_score ?? 0))[0]
+          if (pick) setFocusAppId(pick.id)
+        } catch {
+          /* ignore */
+        }
+      },
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [registerActions])
+
   function handleLogout() {
     clearAuth()
     router.replace("/login")
@@ -83,6 +121,7 @@ function ChatPageInner() {
                 role="tab"
                 aria-selected={tab === key}
                 onClick={() => handleTabChange(key)}
+                data-tour={key === "tracker" ? "tab-tracker" : undefined}
                 className={`rounded-full px-4 py-1.5 text-sm font-body font-medium transition-colors ${
                   tab === key
                     ? "bg-[var(--accent)] text-[var(--accent-fg)]"
@@ -106,6 +145,7 @@ function ChatPageInner() {
             <div ref={userMenuRef} className="relative">
               <button
                 onClick={() => setShowUserMenu((v) => !v)}
+                data-tour="settings"
                 className="flex items-center gap-2 rounded-full px-2 py-1 hover:bg-black/5 transition-colors cursor-pointer"
               >
                 {user?.avatar_url && (
@@ -147,6 +187,7 @@ function ChatPageInner() {
         <SettingsModal
           accessToken={getAccessToken() ?? ""}
           onClose={() => setShowSettings(false)}
+          activeTab={initialSettingsTab}
           onSearchComplete={() => setKanbanRefreshKey((k) => k + 1)}
         />
       )}
@@ -157,7 +198,11 @@ function ChatPageInner() {
         <div className={`h-full ${tab === "chat" ? "flex gap-3" : "hidden"}`}>
           <SessionSidebar streaming={streaming} />
           <div className="flex-1 min-w-0 overflow-hidden">
-            <ChatPanel onStreamingChange={setStreaming} onJumpToCard={handleJumpToCard} />
+            <ChatPanel
+              onStreamingChange={setStreaming}
+              onRequestOpenSettings={() => setShowSettings(true)}
+              onJumpToCard={handleJumpToCard}
+            />
           </div>
         </div>
         <div className={`h-full ${tab === "tracker" ? "" : "hidden"}`}>
@@ -175,9 +220,11 @@ function ChatPageInner() {
 export default function ChatPage() {
   return (
     <SessionProvider>
-      <Suspense>
-        <ChatPageInner />
-      </Suspense>
+      <TourProvider>
+        <Suspense>
+          <ChatPageInner />
+        </Suspense>
+      </TourProvider>
     </SessionProvider>
   )
 }
