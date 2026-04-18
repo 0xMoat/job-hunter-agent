@@ -9,6 +9,8 @@ export default function HowItWorks() {
     { number: "1", title: t("lp_how_step1_title"), description: t("lp_how_step1_desc") },
     { number: "2", title: t("lp_how_step2_title"), description: t("lp_how_step2_desc") },
     { number: "3", title: t("lp_how_step3_title"), description: t("lp_how_step3_desc") },
+    { number: "4", title: t("lp_how_step4_title"), description: t("lp_how_step4_desc") },
+    { number: "5", title: t("lp_how_step5_title"), description: t("lp_how_step5_desc") },
   ]
 
   return (
@@ -20,36 +22,25 @@ export default function HowItWorks() {
           <span className="italic">{t("lp_how_title_2")}</span>
         </h2>
 
-        {/* Steps grid */}
-        <div className="relative grid grid-cols-1 md:grid-cols-3 gap-16 md:gap-0">
-          {/* Connecting line — desktop only */}
-          <div
-            className="hidden md:block absolute top-[52px] left-[10%] right-[10%] h-px bg-[var(--border-strong)]"
-            aria-hidden="true"
-          />
-
-          {steps.map((step, i) => (
-            <div
-              key={step.number}
-              className={`relative ${
-                i > 0 ? "md:pl-12" : ""
-              } ${i < steps.length - 1 ? "md:pr-12" : ""}`}
-            >
+        {/* Steps grid — 5 columns on lg+, stacks on smaller viewports */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-x-8 gap-y-14">
+          {steps.map((step) => (
+            <div key={step.number} className="relative">
               {/* Large decorative number */}
               <span
-                className="font-heading italic text-[5.5rem] md:text-[7rem] leading-none text-[var(--text-3)] select-none block"
+                className="font-heading italic text-[4.5rem] lg:text-[5.5rem] leading-none text-[var(--text-3)] select-none block"
                 aria-hidden="true"
               >
                 {step.number}
               </span>
 
               {/* Title */}
-              <h3 className="font-heading text-xl md:text-2xl text-[var(--text)] mt-4 mb-3">
+              <h3 className="font-heading text-xl lg:text-[1.35rem] text-[var(--text)] mt-3 mb-2 leading-snug">
                 {step.title}
               </h3>
 
               {/* Description */}
-              <p className="font-body text-base text-[var(--text-2)] leading-relaxed max-w-xs">
+              <p className="font-body text-sm lg:text-[0.95rem] text-[var(--text-2)] leading-relaxed">
                 {step.description}
               </p>
             </div>

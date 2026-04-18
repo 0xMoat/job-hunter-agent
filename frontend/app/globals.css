@@ -77,8 +77,12 @@ body {
     pointer-events: none;
   }
 
-  .animate-in {
-    opacity: 1 !important;
-    transform: translateY(0) !important;
-  }
+}
+
+/* IntersectionObserver scroll-in reveal — must sit outside @layer components
+   because Tailwind v4's utilities layer otherwise wins the cascade and
+   `.opacity-0` keeps the element invisible even after the class is toggled. */
+.animate-in {
+  opacity: 1 !important;
+  transform: translateY(0) !important;
 }
