@@ -118,6 +118,32 @@ def run():
             else:
                 print("  Google auth columns already exist on user table")
 
+        # Onboarding tour migration ------------------------------------
+        if table_exists(cur, "session"):
+            if not column_exists(cur, "session", "is_tutorial"):
+                cur.execute(
+                    'ALTER TABLE session ADD COLUMN is_tutorial BOOLEAN NOT NULL DEFAULT FALSE'
+                )
+                print("  Added column: session.is_tutorial")
+            if not column_exists(cur, "session", "created_at"):
+                cur.execute(
+                    'ALTER TABLE session ADD COLUMN created_at TIMESTAMP WITH TIME ZONE '
+                    'NOT NULL DEFAULT NOW()'
+                )
+                print("  Added column: session.created_at")
+
+        if table_exists(cur, "user"):
+            if not column_exists(cur, "user", "resume_is_default"):
+                cur.execute(
+                    'ALTER TABLE "user" ADD COLUMN resume_is_default BOOLEAN NOT NULL DEFAULT FALSE'
+                )
+                print("  Added column: user.resume_is_default")
+            if not column_exists(cur, "user", "tutorial_completed_at"):
+                cur.execute(
+                    'ALTER TABLE "user" ADD COLUMN tutorial_completed_at TIMESTAMP WITH TIME ZONE'
+                )
+                print("  Added column: user.tutorial_completed_at")
+
         conn.commit()
         print("Migration completed successfully.")
     except Exception as e:
