@@ -17,14 +17,6 @@ function useHeroCss() {
         from { opacity: 0; transform: translateY(24px); }
         to   { opacity: 1; transform: translateY(0); }
       }
-      @keyframes slideInRight {
-        from { opacity: 0; transform: translateX(20px); }
-        to   { opacity: 1; transform: translateX(0); }
-      }
-      @keyframes progressFill {
-        from { width: 0%; }
-        to   { width: 70%; }
-      }
       .animate-fade-rise       { animation: fade-rise 0.8s ease-out both; }
       .animate-fade-rise-d1    { animation: fade-rise 0.8s ease-out 0.12s both; }
       .animate-fade-rise-d2    { animation: fade-rise 0.8s ease-out 0.24s both; }
@@ -35,30 +27,33 @@ function useHeroCss() {
   }, [])
 }
 
-/* ── Job search result row ── */
-function JobRow({ title, company, location, match, color, delay, matchLabel }: {
-  title: string; company: string; location: string; match: number; color: string; delay: string; matchLabel: string
-}) {
-  return (
-    <div
-      className="flex items-center justify-between py-2.5 border-b border-[var(--border)] last:border-0"
-      style={{ animation: "slideInRight 0.5s ease-out both", animationDelay: delay }}
-    >
-      <div>
-        <div className="font-body text-sm font-semibold text-[var(--text)]">{title}</div>
-        <div className="font-body text-xs text-[var(--text-3)]">{company}·{location}</div>
-      </div>
-      <span className={`font-body text-xs font-semibold italic ${color}`}>
-        {match}% {matchLabel}
-      </span>
-    </div>
-  )
-}
-
-/* ── Rich product demo mockup ── */
+/* ── Rich product demo mockup (mirrors real Chat + JobSearchResultCard +
+       Resume Studio output) ── */
 function MockChat() {
   const { locale } = useLanguage()
   const isZh = locale === "zh-CN"
+
+  const rows = isZh
+    ? [
+        { company: "字节跳动", title: "AI 产品经理", state: "checked" },
+        { company: "阿里巴巴", title: "高级产品经理 - AI", state: "checked" },
+        { company: "Moonshot AI", title: "AI Product Lead", state: "idle" },
+      ]
+    : [
+        { company: "ByteDance", title: "AI Product Manager", state: "checked" },
+        { company: "Alibaba", title: "Senior PM - AI", state: "checked" },
+        { company: "Moonshot AI", title: "AI Product Lead", state: "idle" },
+      ]
+
+  const resumeMd = isZh
+    ? `# 林昊 · AI 产品经理
+## 工作经历
+**字节跳动  |  高级 PM**   2024 — 至今
+- 主导 LLM 助手产品 0 → 1，月活 200 万`
+    : `# Lin Hao · AI PM
+## Experience
+**ByteDance  |  Senior PM**   2024 — Present
+- Led LLM assistant 0 → 1 to 2M MAU`
 
   return (
     <div className="flex flex-col gap-3 p-5 text-[var(--text)]">
@@ -80,43 +75,71 @@ function MockChat() {
         </div>
       </div>
 
-      {/* Job Search results card */}
+      {/* Job Search result card — mirror real JobSearchResultCard */}
       <div
-        className="bg-[var(--surface)] rounded-xl border border-[var(--border)] p-4"
+        className="bg-white rounded-xl border border-[var(--border)] overflow-hidden"
         style={{ animation: "fade-rise 0.6s ease-out 0.3s both" }}
       >
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            <span className="font-body text-[10px] font-semibold text-[var(--text-2)] uppercase tracking-widest">
-              Job Search
-            </span>
-          </div>
-          <span className="font-body text-[10px] text-[var(--text-3)]">
-            {isZh ? "12 个结果" : "12 results"}
+        <div className="flex items-center gap-2 px-3.5 py-2 border-b border-[var(--border)]">
+          <span className="w-[7px] h-[7px] rounded-full bg-emerald-500 flex-shrink-0" />
+          <span className="font-body font-semibold text-xs text-[var(--text-2)]">Job Search</span>
+          <span className="font-mono text-[10px] text-[var(--text-3)] truncate">
+            {isZh ? "AI 产品经理 · 上海" : "AI PM · Shanghai"}
+          </span>
+          <span className="ml-auto font-mono text-[10px] text-[var(--text-3)]">
+            {isZh ? "3 条结果" : "3 results"}
           </span>
         </div>
-        <JobRow
-          title={isZh ? "AI 产品经理" : "AI Product Manager"}
-          company={isZh ? "字节跳动" : "ByteDance"}
-          location={isZh ? "上海" : "Shanghai"}
-          match={95} color="text-emerald-600" delay="0.5s"
-          matchLabel={isZh ? "匹配" : "Match"}
-        />
-        <JobRow
-          title={isZh ? "高级产品经理 - AI" : "Senior PM - AI"}
-          company={isZh ? "阿里巴巴" : "Alibaba"}
-          location={isZh ? "上海" : "Shanghai"}
-          match={88} color="text-orange-500" delay="0.65s"
-          matchLabel={isZh ? "匹配" : "Match"}
-        />
-        <JobRow
-          title="AI Product Lead"
-          company="Moonshot AI"
-          location={isZh ? "上海" : "Shanghai"}
-          match={82} color="text-orange-500" delay="0.8s"
-          matchLabel={isZh ? "匹配" : "Match"}
-        />
+        <div className="flex items-start gap-2 px-3.5 py-2 text-[11px] leading-relaxed
+                        bg-[#eeebff] text-[#2c2a7a] border-b border-[var(--border)]">
+          <span aria-hidden="true">💡</span>
+          <span>
+            {isZh
+              ? "3 条强匹配已按你的偏好重排，第 1 条对齐度最高。"
+              : "3 strong matches reranked for your profile — row 1 aligns best."}
+          </span>
+        </div>
+        <div className="divide-y divide-[var(--border)]">
+          {rows.map((r, i) => {
+            const checked = r.state === "checked"
+            return (
+              <div
+                key={i}
+                className={`flex gap-2.5 px-3.5 py-2 ${
+                  checked ? "bg-[var(--accent)]/[0.04]" : ""
+                }`}
+              >
+                <div className="pt-0.5 flex-shrink-0">
+                  <span
+                    className={`flex items-center justify-center w-3.5 h-3.5 rounded border ${
+                      checked
+                        ? "bg-[var(--accent)] border-[var(--accent)] text-[var(--accent-fg)] text-[9px]"
+                        : "border-[var(--border-strong)]"
+                    }`}
+                  >
+                    {checked && "✓"}
+                  </span>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-body font-semibold text-xs text-[var(--text)] leading-snug line-clamp-1">
+                    {r.title}
+                  </p>
+                  <p className="font-body text-[10px] text-[var(--text-3)] leading-relaxed">
+                    {r.company}
+                  </p>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+        <div className="flex items-center justify-between px-3.5 py-2 border-t border-[var(--border)] bg-black/[0.01]">
+          <span className="font-body text-[10px] text-[var(--text-3)]">
+            {isZh ? "已勾选 2 条" : "2 selected"}
+          </span>
+          <span className="font-body text-[10px] font-semibold px-2.5 py-1 rounded-lg text-[var(--accent-fg)] bg-[var(--accent)]">
+            {isZh ? "保存到看板 (2)" : "Save to Kanban (2)"}
+          </span>
+        </div>
       </div>
 
       {/* Assistant message */}
@@ -126,9 +149,15 @@ function MockChat() {
           style={{ animation: "fade-rise 0.5s ease-out 0.9s both" }}
         >
           {isZh ? (
-            <>找到 <span className="font-semibold">12 个</span>匹配岗位。字节跳动的匹配度最高，需要我帮你定制简历吗？</>
+            <>
+              已保存 <span className="font-semibold">2 个</span>
+              职位到看板。想让我针对字节那条做公司调研 + 简历润色吗？
+            </>
           ) : (
-            <>Found <span className="font-semibold">12</span> matching roles. ByteDance is the best match — want me to tailor your resume?</>
+            <>
+              Saved <span className="font-semibold">2</span> jobs to the kanban.
+              Want me to research ByteDance and tailor your resume for that role?
+            </>
           )}
         </div>
       </div>
@@ -139,47 +168,38 @@ function MockChat() {
         style={{ animation: "fade-rise 0.5s ease-out 1.2s both" }}
       >
         <div className="bg-[var(--accent)] text-[var(--accent-fg)] rounded-2xl rounded-br-sm px-4 py-2.5 text-sm font-body font-light max-w-[80%]">
-          {isZh ? "好的，定制简历" : "Yes, tailor my resume"}
+          {isZh ? "好的，开始吧" : "Yes, go ahead"}
         </div>
       </div>
 
-      {/* Resume Studio card */}
+      {/* Resume Studio output — markdown body + purple PDF pill */}
       <div
-        className="bg-[var(--surface)] rounded-xl border border-[var(--border)] p-4"
+        className="bg-white rounded-xl border border-[var(--border)] p-3.5"
         style={{ animation: "fade-rise 0.6s ease-out 1.5s both" }}
       >
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-blue-500" />
+            <span className="w-2 h-2 rounded-full bg-[#7c6af5]" />
             <span className="font-body text-[10px] font-semibold text-[var(--text-2)] uppercase tracking-widest">
               Resume Studio
             </span>
           </div>
-          <span className="font-body text-[10px] text-[var(--text-3)] animate-pulse">
-            {isZh ? "正在生成..." : "Generating..."}
+          <span className="font-body text-[10px] text-[var(--text-3)]">
+            {isZh ? "已匹配 6 项关键词" : "6 keywords matched"}
           </span>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-12 rounded bg-[var(--bg)] border border-[var(--border)] flex flex-col items-start justify-center px-1.5 gap-1 flex-shrink-0">
-            <div className="w-5 h-[2px] bg-[var(--text-3)] rounded-full" />
-            <div className="w-full h-[2px] bg-[var(--text-3)] rounded-full" />
-            <div className="w-4 h-[2px] bg-blue-400 rounded-full" />
-            <div className="w-full h-[2px] bg-blue-400 rounded-full" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="font-body text-sm font-semibold text-[var(--text)]">
-              {isZh ? "AI 产品经理 - 字节跳动" : "AI Product Manager - ByteDance"}
-            </div>
-            <div className="font-body text-xs text-[var(--text-3)] mt-0.5">
-              {isZh ? "已匹配 6 项技能关键词，优化 3 段经历描述" : "6 skills matched, 3 experience entries optimized"}
-            </div>
-            <div className="mt-2 h-1.5 bg-[var(--border)] rounded-full overflow-hidden">
-              <div
-                className="h-full bg-blue-500 rounded-full"
-                style={{ animation: "progressFill 2s ease-out 1.8s both" }}
-              />
-            </div>
-          </div>
+        <pre className="font-body text-[10.5px] text-[var(--text-2)] whitespace-pre-wrap
+                        leading-relaxed bg-black/[0.03] rounded-lg p-2.5 max-h-28 overflow-hidden">
+          {resumeMd}
+        </pre>
+        <div className="flex items-center justify-between mt-2">
+          <span className="font-mono text-[9px] text-[var(--text-3)]">
+            {isZh ? "签名链接 · 24h 有效" : "Signed URL · 24h"}
+          </span>
+          <span className="inline-flex items-center gap-1 text-[10px] font-body
+                           bg-[#7c6af5] text-white rounded-full px-2.5 py-1">
+            📄 {isZh ? "下载 PDF" : "Download PDF"}
+          </span>
         </div>
       </div>
     </div>
