@@ -45,7 +45,7 @@ export function KanbanBoard() {
 
   return (
     <>
-      <div className="glass-strong rounded-3xl flex flex-col h-full overflow-hidden">
+      <div className="glass-strong rounded-3xl flex flex-col h-full overflow-hidden" data-tour="kanban">
         <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
           <div className="flex gap-3 flex-1 overflow-x-auto p-4">
             {KANBAN_COLUMNS.map(({ status, labelKey }) => {

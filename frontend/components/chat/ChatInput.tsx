@@ -39,6 +39,7 @@ export function ChatInput({ onSend, disabled }: Props) {
     <form
       onSubmit={handleSubmit}
       className="glass flex items-end gap-2 p-3 rounded-b-3xl"
+      data-tour="input"
     >
       <textarea
         ref={textareaRef}

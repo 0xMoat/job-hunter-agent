@@ -73,7 +73,7 @@ export function PlanTimelineView({
   const showHeader = pill !== null || total > 0
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3" data-tour="pe-timeline">
       {showHeader && (
         <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] pb-2.5">
           <div className="flex min-w-0 items-center gap-2">

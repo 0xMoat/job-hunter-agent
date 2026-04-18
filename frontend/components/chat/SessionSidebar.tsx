@@ -44,7 +44,7 @@ export function SessionSidebar({ streaming }: { streaming: boolean }) {
   }
 
   return (
-    <div className="flex-shrink-0 w-52">
+    <div className="flex-shrink-0 w-52" data-tour="sidebar">
       <div className="glass-strong rounded-3xl h-full flex flex-col w-52 overflow-hidden">
 
           {/* New chat button */}

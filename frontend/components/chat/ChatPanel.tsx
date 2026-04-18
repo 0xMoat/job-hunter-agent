@@ -82,7 +82,7 @@ export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boole
   }, [streaming, onStreamingChange])
 
   return (
-    <div className="glass-strong rounded-3xl flex flex-col h-full">
+    <div className="glass-strong rounded-3xl flex flex-col h-full" data-tour="chat">
       <div className="flex flex-col h-full overflow-hidden">
 
         {/* Header */}

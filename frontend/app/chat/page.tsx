@@ -8,6 +8,7 @@ import { SessionSidebar } from "@/components/chat/SessionSidebar"
 import { KanbanBoard } from "@/components/tracker/KanbanBoard"
 import { SettingsModal } from "@/components/settings/SettingsModal"
 import { SessionProvider } from "@/contexts/SessionContext"
+import { TourProvider } from "@/contexts/TourContext"
 import { useLanguage } from "@/contexts/LanguageContext"
 
 type Tab = "chat" | "tracker"
@@ -77,6 +78,7 @@ function ChatPageInner() {
                 role="tab"
                 aria-selected={tab === key}
                 onClick={() => handleTabChange(key)}
+                data-tour={key === "tracker" ? "tab-tracker" : undefined}
                 className={`rounded-full px-4 py-1.5 text-sm font-body font-medium transition-colors ${
                   tab === key
                     ? "bg-[var(--accent)] text-[var(--accent-fg)]"
@@ -100,6 +102,7 @@ function ChatPageInner() {
             <div ref={userMenuRef} className="relative">
               <button
                 onClick={() => setShowUserMenu((v) => !v)}
+                data-tour="settings"
                 className="flex items-center gap-2 rounded-full px-2 py-1 hover:bg-black/5 transition-colors cursor-pointer"
               >
                 {user?.avatar_url && (
@@ -165,9 +168,11 @@ function ChatPageInner() {
 export default function ChatPage() {
   return (
     <SessionProvider>
-      <Suspense>
-        <ChatPageInner />
-      </Suspense>
+      <TourProvider>
+        <Suspense>
+          <ChatPageInner />
+        </Suspense>
+      </TourProvider>
     </SessionProvider>
   )
 }
