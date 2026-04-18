@@ -27,33 +27,42 @@ function useHeroCss() {
   }, [])
 }
 
-/* ── Rich product demo mockup (mirrors real Chat + JobSearchResultCard +
-       Resume Studio output) ── */
+/* ── Rich product demo mockup — full loop in one column:
+       JobSearchResultCard → Plan-and-Execute timeline → KanbanCard
+       with all artifacts produced. Mirrors the real shipped components. ── */
 function MockChat() {
   const { locale } = useLanguage()
   const isZh = locale === "zh-CN"
 
-  const rows = isZh
+  const jobRows = isZh
     ? [
         { company: "字节跳动", title: "AI 产品经理", state: "checked" },
         { company: "阿里巴巴", title: "高级产品经理 - AI", state: "checked" },
-        { company: "Moonshot AI", title: "AI Product Lead", state: "idle" },
       ]
     : [
         { company: "ByteDance", title: "AI Product Manager", state: "checked" },
         { company: "Alibaba", title: "Senior PM - AI", state: "checked" },
-        { company: "Moonshot AI", title: "AI Product Lead", state: "idle" },
       ]
 
-  const resumeMd = isZh
-    ? `# 林昊 · AI 产品经理
-## 工作经历
-**字节跳动  |  高级 PM**   2024 — 至今
-- 主导 LLM 助手产品 0 → 1，月活 200 万`
-    : `# Lin Hao · AI PM
-## Experience
-**ByteDance  |  Senior PM**   2024 — Present
-- Led LLM assistant 0 → 1 to 2M MAU`
+  const planSteps = isZh
+    ? [
+        { s: "done", t: "调研字节跳动" },
+        { s: "done", t: "评估匹配度（90 / 100）" },
+        { s: "done", t: "生成缺口分析 + 面试问题" },
+        { s: "running", t: "为卡片 #12 润色简历" },
+        { s: "pending", t: "生成带签名链接的 PDF" },
+      ]
+    : [
+        { s: "done", t: "Research ByteDance" },
+        { s: "done", t: "Score JD match (90 / 100)" },
+        { s: "done", t: "Generate skill gap + interview prep" },
+        { s: "running", t: "Tailor resume for card #12" },
+        { s: "pending", t: "Produce signed-URL PDF" },
+      ]
+
+  const artifactBadges = isZh
+    ? ["公司调研", "知识缺口", "面试问题", "润色简历", "简历 PDF"]
+    : ["Research", "Skill gap", "Interview Q", "Tailored resume", "Resume PDF"]
 
   return (
     <div className="flex flex-col gap-3 p-5 text-[var(--text)]">
@@ -71,7 +80,9 @@ function MockChat() {
       {/* User message 1 */}
       <div className="flex justify-end">
         <div className="bg-[var(--accent)] text-[var(--accent-fg)] rounded-2xl rounded-br-sm px-4 py-2.5 text-sm font-body font-light max-w-[80%]">
-          {isZh ? "帮我找上海的 AI 产品经理岗位" : "Find AI PM roles in Shanghai"}
+          {isZh
+            ? "找上海的 AI 产品经理，调研公司并润色简历"
+            : "Find AI PM in Shanghai — research + tailor resume"}
         </div>
       </div>
 
@@ -87,7 +98,7 @@ function MockChat() {
             {isZh ? "AI 产品经理 · 上海" : "AI PM · Shanghai"}
           </span>
           <span className="ml-auto font-mono text-[10px] text-[var(--text-3)]">
-            {isZh ? "3 条结果" : "3 results"}
+            {isZh ? "2 条结果" : "2 results"}
           </span>
         </div>
         <div className="flex items-start gap-2 px-3.5 py-2 text-[11px] leading-relaxed
@@ -95,12 +106,12 @@ function MockChat() {
           <span aria-hidden="true">💡</span>
           <span>
             {isZh
-              ? "3 条强匹配已按你的偏好重排，第 1 条对齐度最高。"
-              : "3 strong matches reranked for your profile — row 1 aligns best."}
+              ? "2 条强匹配按你的偏好重排，第 1 条对齐度最高。"
+              : "2 strong matches reranked for your profile — row 1 aligns best."}
           </span>
         </div>
         <div className="divide-y divide-[var(--border)]">
-          {rows.map((r, i) => {
+          {jobRows.map((r, i) => {
             const checked = r.state === "checked"
             return (
               <div
@@ -134,67 +145,121 @@ function MockChat() {
         </div>
         <div className="flex items-center justify-between px-3.5 py-2 border-t border-[var(--border)] bg-black/[0.01]">
           <span className="font-body text-[10px] text-[var(--text-3)]">
-            {isZh ? "已勾选 2 条" : "2 selected"}
+            {isZh ? "已保存 2 条" : "2 saved"}
           </span>
-          <span className="font-body text-[10px] font-semibold px-2.5 py-1 rounded-lg text-[var(--accent-fg)] bg-[var(--accent)]">
-            {isZh ? "保存到看板 (2)" : "Save to Kanban (2)"}
+          <span className="font-body text-[10px] font-semibold text-emerald-600">
+            {isZh ? "已入库 ✓" : "Saved ✓"}
           </span>
         </div>
       </div>
 
-      {/* Assistant message */}
-      <div className="flex justify-start">
-        <div
-          className="bg-[var(--surface)] text-[var(--text)] rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm font-body font-light max-w-[85%] leading-relaxed border border-[var(--border)]"
-          style={{ animation: "fade-rise 0.5s ease-out 0.9s both" }}
-        >
-          {isZh ? (
-            <>
-              已保存 <span className="font-semibold">2 个</span>
-              职位到看板。想让我针对字节那条做公司调研 + 简历润色吗？
-            </>
-          ) : (
-            <>
-              Saved <span className="font-semibold">2</span> jobs to the kanban.
-              Want me to research ByteDance and tailor your resume for that role?
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* User message 2 */}
-      <div
-        className="flex justify-end"
-        style={{ animation: "fade-rise 0.5s ease-out 1.2s both" }}
-      >
-        <div className="bg-[var(--accent)] text-[var(--accent-fg)] rounded-2xl rounded-br-sm px-4 py-2.5 text-sm font-body font-light max-w-[80%]">
-          {isZh ? "好的，开始吧" : "Yes, go ahead"}
-        </div>
-      </div>
-
-      {/* Resume Studio output — markdown body + purple PDF pill */}
+      {/* Plan-and-Execute timeline — mirror real PlanTimeline + PlanStepRow */}
       <div
         className="bg-white rounded-xl border border-[var(--border)] p-3.5"
-        style={{ animation: "fade-rise 0.6s ease-out 1.5s both" }}
+        style={{ animation: "fade-rise 0.6s ease-out 0.9s both" }}
       >
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-[#7c6af5]" />
-            <span className="font-body text-[10px] font-semibold text-[var(--text-2)] uppercase tracking-widest">
-              Resume Studio
+        {/* PE header pill */}
+        <div className="flex items-center justify-between gap-2 border-b border-[var(--border)] pb-2 mb-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium bg-indigo-100 text-indigo-700">
+              <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-500" />
+              {isZh ? "执行中" : "Running"}
+            </span>
+            <span className="truncate font-body text-[10px] text-zinc-600">
+              <span className="font-mono text-zinc-500">trigger_resume_studio_skill</span>
+              {" · "}Step 4
             </span>
           </div>
-          <span className="font-body text-[10px] text-[var(--text-3)]">
-            {isZh ? "已匹配 6 项关键词" : "6 keywords matched"}
-          </span>
+          <div className="flex shrink-0 items-center gap-1 font-mono text-[10px] text-zinc-500">
+            <span>4 / 5</span>
+            <span>·</span>
+            <span>01:42</span>
+          </div>
         </div>
-        <pre className="font-body text-[10.5px] text-[var(--text-2)] whitespace-pre-wrap
-                        leading-relaxed bg-black/[0.03] rounded-lg p-2.5 max-h-28 overflow-hidden">
-          {resumeMd}
-        </pre>
-        <div className="flex items-center justify-between mt-2">
+        {/* Steps */}
+        <div className="relative">
+          <div className="pointer-events-none absolute bottom-2 left-[4px] top-2 w-px bg-zinc-200" />
+          {planSteps.map((s, i) => {
+            const isDone = s.s === "done"
+            const isRunning = s.s === "running"
+            const isPending = s.s === "pending"
+            return (
+              <div key={i} className="relative flex gap-2.5 py-[3px]">
+                <div className="relative z-10 mt-[6px] shrink-0">
+                  {isDone && (
+                    <span className="block h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white" />
+                  )}
+                  {isRunning && (
+                    <span className="block h-2 w-2 rounded-full bg-indigo-500 ring-2 ring-white shadow-[0_0_0_4px_rgba(99,102,241,0.18)] animate-pulse" />
+                  )}
+                  {isPending && (
+                    <span className="block h-2 w-2 rounded-full border-[1.5px] border-zinc-300 bg-white" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1 flex items-baseline gap-2">
+                  <span className="w-4 shrink-0 font-mono text-[9px] text-zinc-400">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <span
+                    className={`flex-1 text-[11px] leading-snug ${
+                      isDone
+                        ? "text-zinc-500"
+                        : isPending
+                          ? "text-zinc-400"
+                          : "font-medium text-zinc-800"
+                    }`}
+                  >
+                    {s.t}
+                  </span>
+                  {isRunning && (
+                    <span className="shrink-0 font-mono text-[9px] text-indigo-600">
+                      01:08 running…
+                    </span>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Completed kanban card — artifact badges, mirror real KanbanCard */}
+      <div
+        className="bg-white rounded-xl p-3 border border-[var(--border)] shadow-sm"
+        style={{ animation: "fade-rise 0.6s ease-out 1.4s both" }}
+      >
+        <div className="flex items-start justify-between gap-2 mb-0.5">
+          <span className="font-body font-semibold text-sm text-[var(--text)] leading-tight">
+            {isZh ? "字节跳动" : "ByteDance"}
+          </span>
+          <div className="flex items-center gap-1 shrink-0">
+            <span className="text-[10px] font-body rounded-full px-2 py-0.5 font-semibold tabular-nums bg-[#dcfce7] text-[#16a34a]">
+              {isZh ? "匹配度" : "Match"} 92
+            </span>
+            <span className="text-[10px] font-body rounded-full px-2 py-0.5 bg-[#fef3c7] text-[#b45309]">
+              {isZh ? "对话保存" : "From chat"}
+            </span>
+          </div>
+        </div>
+        <p className="font-body text-xs text-[var(--text-2)] mb-2">
+          {isZh ? "AI 产品经理" : "AI Product Manager"}
+        </p>
+        <div className="flex flex-wrap gap-1">
+          {artifactBadges.map((b, bi) => (
+            <span
+              key={bi}
+              className="inline-flex items-center gap-0.5 text-[10px] font-body
+                         rounded-full px-2 py-0.5 bg-emerald-50 text-emerald-700
+                         border border-emerald-100"
+            >
+              <span aria-hidden="true">✓</span>
+              {b}
+            </span>
+          ))}
+        </div>
+        <div className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--border)]">
           <span className="font-mono text-[9px] text-[var(--text-3)]">
-            {isZh ? "签名链接 · 24h 有效" : "Signed URL · 24h"}
+            {isZh ? "签名链接 · 24h" : "Signed URL · 24h"}
           </span>
           <span className="inline-flex items-center gap-1 text-[10px] font-body
                            bg-[#7c6af5] text-white rounded-full px-2.5 py-1">
