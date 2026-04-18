@@ -207,8 +207,21 @@ function MockChat() {
         </div>
       </div>
 
+      {/* Assistant plan bubble — lays out the steps it's proposing */}
+      <div className="flex justify-start" style={fade(phase >= 4)}>
+        <div
+          className="bg-[var(--surface)] text-[var(--text)] rounded-2xl rounded-bl-sm px-4 py-2.5
+                     text-sm font-body font-light max-w-[88%] leading-relaxed
+                     border border-[var(--border)]"
+        >
+          {isZh
+            ? "已保存 2 条。接下来我会完整调研字节 / 阿里巴巴，对比 JD 和你的简历找知识缺口，模拟可能的面试问题，再针对性润色简历并生成 PDF。要开始吗？"
+            : "2 jobs saved. Next I'll research ByteDance / Alibaba in full, compare each JD to your resume for skill gaps, draft likely interview questions, and then tailor the resume + generate a signed-URL PDF. Ready to go?"}
+        </div>
+      </div>
+
       {/* User message 2 */}
-      <div className="flex justify-end" style={fade(phase >= 4, 200)}>
+      <div className="flex justify-end" style={fade(phase >= 4, 500)}>
         <div className="bg-[var(--accent)] text-[var(--accent-fg)] rounded-2xl rounded-br-sm px-4 py-2.5 text-sm font-body font-light max-w-[80%]">
           {isZh ? "好，都处理了吧" : "OK, take it from here"}
         </div>
