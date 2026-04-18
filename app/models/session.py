@@ -1,6 +1,5 @@
 """This file contains the session model for the application."""
 
-from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlmodel import Field, Relationship
@@ -18,5 +17,4 @@ class Session(BaseModel, table=True):
     user_id: int = Field(foreign_key="user.id")
     name: str = Field(default="")
     is_tutorial: bool = Field(default=False)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
     user: "User" = Relationship(back_populates="sessions")
