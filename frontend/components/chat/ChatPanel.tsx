@@ -9,7 +9,15 @@ import { useSession } from "@/contexts/SessionContext"
 import { apiListApplications } from "@/lib/api"
 import { getSessionToken } from "@/lib/auth"
 
-export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boolean) => void }) {
+interface ChatPanelProps {
+  onStreamingChange?: (s: boolean) => void
+  /** Called with the id of the top-scored pending card when the PE final-
+   * response CTA fires. Parent should switch to the kanban tab and open the
+   * drawer on that card. */
+  onJumpToCard?: (applicationId: number) => void
+}
+
+export function ChatPanel({ onStreamingChange, onJumpToCard }: ChatPanelProps) {
   const { currentSessionToken, currentSessionId, sessions, renameSession, langfuseUrlBase, loading: sessionLoading } = useSession()
   const currentSession = sessions.find((s) => s.session_id === currentSessionId)
   const {
@@ -66,6 +74,18 @@ export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boole
     },
     [refreshKanban],
   )
+
+  const handleJumpToTopCard = useCallback(async () => {
+    if (!onJumpToCard) return
+    const token = getSessionToken()
+    if (!token) return
+    const { applications } = await apiListApplications(token)
+    const scored = applications
+      .filter((a) => a.status === "pending" && a.match_score != null)
+      .sort((a, b) => (b.match_score ?? 0) - (a.match_score ?? 0))
+    const top = scored[0]
+    if (top) onJumpToCard(top.id)
+  }, [onJumpToCard])
 
   const QUICK_PROMPTS = [
     t('quick_prompt_1'),
@@ -191,6 +211,7 @@ export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boole
               onSuggestionPickPrompt={pickPlanExecuteSuggestionPrompt}
               savedUrlsInKanban={kanbanUrls}
               onPickFollowupPrompt={sendMessage}
+              onJumpToTopCard={handleJumpToTopCard}
             />
           ))}
 
