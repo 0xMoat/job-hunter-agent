@@ -24,6 +24,14 @@ export function apiTutorialStatus(accessToken: string) {
   return fetchJson<TutorialStatus>("/api/v1/tutorial/status", accessToken)
 }
 
+export function apiTutorialSeed(accessToken: string, locale: string) {
+  return fetchJson<{ session_id: string; name: string }>(
+    "/api/v1/tutorial/seed",
+    accessToken,
+    { method: "POST", body: JSON.stringify({ locale }) },
+  )
+}
+
 export function apiTutorialReplay(accessToken: string, locale: string) {
   return fetchJson<{ session_id: string; name: string }>(
     "/api/v1/tutorial/replay",

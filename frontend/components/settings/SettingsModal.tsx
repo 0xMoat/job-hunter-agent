@@ -14,7 +14,7 @@ import {
 } from "@/lib/api"
 import type { SearchConfig } from "@/lib/api"
 import { apiTutorialStatus } from "@/lib/api-tutorial"
-import { useLanguage } from "@/contexts/LanguageContext"
+import { useLanguage, RESUME_INVALIDATED_EVENT } from "@/contexts/LanguageContext"
 
 type Tab = "prompt" | "resume" | "search"
 
@@ -116,8 +116,13 @@ export function SettingsModal({ onClose, accessToken, onSearchComplete }: Settin
 
   useEffect(() => {
     if (tab !== "resume") return
-    apiGetResume(accessToken).then((d) => setResumeText(d.resume_text ?? "")).catch(() => {})
-    apiTutorialStatus(accessToken).then((s) => setResumeIsDefault(s.resume_is_default)).catch(() => {})
+    const load = () => {
+      apiGetResume(accessToken).then((d) => setResumeText(d.resume_text ?? "")).catch(() => {})
+      apiTutorialStatus(accessToken).then((s) => setResumeIsDefault(s.resume_is_default)).catch(() => {})
+    }
+    load()
+    window.addEventListener(RESUME_INVALIDATED_EVENT, load)
+    return () => window.removeEventListener(RESUME_INVALIDATED_EVENT, load)
   }, [tab, accessToken])
 
   const handleSaveResume = useCallback(async () => {
