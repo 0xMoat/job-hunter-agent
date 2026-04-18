@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { apiGoogleLogin, apiCreateSession } from "@/lib/api"
+import { apiGoogleLogin, apiCreateSession, apiGetSessions } from "@/lib/api"
 import {
   setAccessToken,
   setSessionToken,
@@ -40,9 +40,13 @@ export default function LoginPage() {
       setAccessToken(data.token.access_token)
       setUser(data.user)
 
-      const session = await apiCreateSession(data.token.access_token)
-      setSessionToken(session.token.access_token)
-      setSessionId(session.session_id)
+      // Fetch existing sessions — this triggers the backend auto-seed for
+      // brand-new users (adds a tutorial session). Use the first session if
+      // any exist; only create an empty one as a last-resort fallback.
+      const sessions = await apiGetSessions(data.token.access_token)
+      const primary = sessions[0] ?? (await apiCreateSession(data.token.access_token))
+      setSessionToken(primary.token.access_token)
+      setSessionId(primary.session_id)
       router.push("/chat")
     } catch (err) {
       setError(err instanceof Error ? err.message : String(t("login_error")))
