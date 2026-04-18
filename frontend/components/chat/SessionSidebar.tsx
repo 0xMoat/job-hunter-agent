@@ -3,6 +3,8 @@
 import { useState } from "react"
 import { useSession } from "@/contexts/SessionContext"
 import { useLanguage } from "@/contexts/LanguageContext"
+import { apiTutorialReplay } from "@/lib/api-tutorial"
+import { getAccessToken } from "@/lib/auth"
 import type { Locale } from "@/lib/i18n"
 
 function formatSessionDate(dateStr: string | undefined, locale: Locale): string {
@@ -31,6 +33,7 @@ export function SessionSidebar({ streaming }: { streaming: boolean }) {
   const { sessions, currentSessionId, loading, langfuseUrlBase, switchSession, createSession, deleteSession } = useSession()
   const { t, locale } = useLanguage()
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [replaying, setReplaying] = useState(false)
 
   async function handleDelete(e: React.MouseEvent, sessionId: string) {
     e.stopPropagation()
@@ -40,6 +43,22 @@ export function SessionSidebar({ streaming }: { streaming: boolean }) {
       await deleteSession(sessionId)
     } finally {
       setDeletingId(null)
+    }
+  }
+
+  async function handleReplayTutorial() {
+    if (replaying) return
+    const confirmMsg = t("tutorial_replay_confirm") as string
+    if (!confirm(confirmMsg)) return
+    setReplaying(true)
+    try {
+      const token = getAccessToken()
+      if (!token) return
+      await apiTutorialReplay(token, locale)
+      localStorage.removeItem("jh_tour_done")
+      window.location.reload()
+    } finally {
+      setReplaying(false)
     }
   }
 
@@ -150,6 +169,20 @@ export function SessionSidebar({ streaming }: { streaming: boolean }) {
                 </div>
               )
             })}
+          </div>
+
+          {/* Replay tutorial footer */}
+          <div className="px-3 pt-2 pb-4 flex-shrink-0 border-t border-black/5">
+            <button
+              onClick={handleReplayTutorial}
+              disabled={replaying}
+              className="w-full rounded-full px-3 py-2 text-xs font-body font-medium
+                         text-[var(--text-3)] hover:text-[var(--text-2)]
+                         hover:bg-black/5 transition-colors
+                         disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {replaying ? t('tutorial_replay') + '…' : '📘 ' + t('tutorial_replay')}
+            </button>
           </div>
 
         </div>

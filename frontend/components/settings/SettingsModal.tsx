@@ -13,7 +13,7 @@ import {
   apiRunSearch,
 } from "@/lib/api"
 import type { SearchConfig } from "@/lib/api"
-import { apiTutorialReplay } from "@/lib/api-tutorial"
+import { apiTutorialStatus } from "@/lib/api-tutorial"
 import { useLanguage } from "@/contexts/LanguageContext"
 
 type Tab = "prompt" | "resume" | "search"
@@ -61,7 +61,7 @@ function renderPreview(template: string): ReactNode[] {
 }
 
 export function SettingsModal({ onClose, accessToken, onSearchComplete }: SettingsModalProps) {
-  const { t, locale: currentLocale } = useLanguage()
+  const { t } = useLanguage()
   const [tab, setTab] = useState<Tab>("prompt")
 
   // System prompt tab state
@@ -112,10 +112,12 @@ export function SettingsModal({ onClose, accessToken, onSearchComplete }: Settin
   const [resumeText, setResumeText] = useState("")
   const [resumeSaving, setResumeSaving] = useState(false)
   const [resumeSaved, setResumeSaved] = useState(false)
+  const [resumeIsDefault, setResumeIsDefault] = useState(false)
 
   useEffect(() => {
     if (tab !== "resume") return
     apiGetResume(accessToken).then((d) => setResumeText(d.resume_text ?? "")).catch(() => {})
+    apiTutorialStatus(accessToken).then((s) => setResumeIsDefault(s.resume_is_default)).catch(() => {})
   }, [tab, accessToken])
 
   const handleSaveResume = useCallback(async () => {
@@ -272,6 +274,11 @@ export function SettingsModal({ onClose, accessToken, onSearchComplete }: Settin
             {tab === "resume" && (
               <div className="flex flex-col gap-3">
                 <label className="text-sm text-[#666] font-body">{t("settings_tab_resume")}</label>
+                {resumeIsDefault && (
+                  <div className="rounded-xl border border-amber-300/60 bg-amber-50 px-4 py-2.5 text-xs font-body text-amber-900">
+                    {t("settings_resume_is_default_hint")}
+                  </div>
+                )}
                 <textarea
                   value={resumeText}
                   onChange={(e) => setResumeText(e.target.value)}
@@ -286,20 +293,6 @@ export function SettingsModal({ onClose, accessToken, onSearchComplete }: Settin
                 >
                   {resumeSaving ? t("settings_resume_saving") : resumeSaved ? t("settings_resume_saved") : t("settings_resume_save")}
                 </button>
-                <div className="mt-4 pt-4 border-t border-black/5 flex flex-col gap-2">
-                  <button
-                    onClick={async () => {
-                      const confirmMsg = t("tutorial_replay_confirm") as string
-                      if (!confirm(confirmMsg)) return
-                      await apiTutorialReplay(accessToken, currentLocale)
-                      localStorage.removeItem("jh_tour_done")
-                      window.location.reload()
-                    }}
-                    className="self-start rounded-xl border border-black/10 text-sm font-body px-4 py-2 hover:bg-black/5"
-                  >
-                    {t("tutorial_replay")}
-                  </button>
-                </div>
               </div>
             )}
 

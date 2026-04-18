@@ -1,5 +1,5 @@
-# 张颖 (Jane Zhang)
-AI 工程师 · 上海 · jane.zhang@example.com · +86 138-0000-0000
+# 张三
+AI 工程师 · 上海 · zhang.san@example.com · +86 138-0000-0000
 
 ## 个人简介
 5 年后端与 AI 应用开发经验，专注于 LLM Agent 设计、RAG 系统构建与生产级推理服务部署。熟悉 LangGraph、OpenAI Function Calling 与向量检索链路的全栈调优。
