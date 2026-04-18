@@ -237,7 +237,7 @@ const zh: Dict = {
   tutorial_banner_dismiss: '暂不处理',
   tutorial_input_disabled: '本会话仅作教程展示。点击「＋ 新建对话」开始与 AI 交流。',
   tutorial_replay: '重放引导教学',
-  tutorial_replay_confirm: '将重置教学进度并重新开始引导。继续？',
+  tutorial_replay_confirm: '将重新开始引导教学。你的真实简历、看板卡片和对话历史都不会受影响，继续？',
   // Tutorial — static session content
   tut_user_1: '帮我找上海的 Agent Engineer 岗位，3-5 年经验',
   tut_assistant_1: '好的，我为你搜索"Agent Engineer · 上海"相关职位。',
@@ -518,7 +518,7 @@ const en: Dict = {
   tutorial_banner_dismiss: 'Later',
   tutorial_input_disabled: 'This session is read-only for the tutorial. Click "+ New Chat" to start your own conversation.',
   tutorial_replay: 'Replay Tutorial',
-  tutorial_replay_confirm: 'Reset tutorial progress and re-launch? This cannot be undone.',
+  tutorial_replay_confirm: 'Restart the guided tutorial? Your real resume, kanban cards and chat history are not affected.',
   // Tutorial — static session content
   tut_user_1: 'Find Agent Engineer roles in San Francisco, 3-5 yrs',
   tut_assistant_1: "Got it — searching for 'Agent Engineer · San Francisco'.",
