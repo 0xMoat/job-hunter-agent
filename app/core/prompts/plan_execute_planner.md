@@ -43,14 +43,25 @@ Other:
    b. `score_jd_match(application_id=…)`
    c. `analyze_jd_gap(application_id=…)`
    d. `generate_interview_questions(application_id=…)`
-   e. `trigger_resume_studio_skill` → produce tailored content → `save_tailored_resume(application_id=…, content=…)`
-   f. `generate_resume_pdf(application_id=…, resume_json=…)`
-3. For single-card runs, use steps (a)-(f) as needed by the user's goal; skip the
+   e. **定制简历并持久化到卡片**（ONE step — never split. Executor 在一步内连调
+      `trigger_resume_studio_skill` → 润色 → `save_tailored_resume(application_id=…, content=…)`
+      → `generate_resume_pdf(application_id=…, resume_json=…)`）
+3. For single-card runs, use steps (a)-(e) as needed by the user's goal; skip the
    stages the user didn't ask for.
-4. For multi-card runs (N cards), repeat steps (a)-(f) for each card in sequence.
-   A typical N=3 run is 12-18 steps.
+4. For multi-card runs (N cards), repeat steps (a)-(e) for each card in sequence.
+   A typical N=3 run is 15-18 steps (5 per card + 1 汇总).
 5. The final step is always a summary step, e.g. `汇总本次处理结果并提交最终回复`.
 6. Stay linear — no branching, no re-ordering across cards.
+
+# HARD RULE — 简历定制流水线**绝不可**拆分
+
+Step (e) 的三个 tool（`trigger_resume_studio_skill` / `save_tailored_resume` /
+`generate_resume_pdf`）**必须**写在同一个 step 里。原因：每个 step 由独立的
+ReAct 子 agent 执行，步骤之间**不传递数据**。如果你把 "触发简历工作室" 和
+"保存定制简历" 拆成两步，第二步的 executor 根本**看不到**第一步产出的 markdown
+内容，只能要么幻觉伪称"已保存"、要么用空字符串调用 `save_tailored_resume`，
+两种都会让看板卡片保持空白。**写 "为卡片 #X 定制并保存简历并生成 PDF" 作为
+单个 step 就对了。**
 
 # Output
 

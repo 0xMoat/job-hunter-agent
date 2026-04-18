@@ -229,6 +229,11 @@ class PlanExecuteAgent:
         step_prompt = (
             f"You are executing step {step_index + 1} of a larger plan.\n\n"
             f"Your task now: {step_text}\n\n"
+            f"HARD RULE — if this step involves saving / persisting / 定制 / 生成 PDF, "
+            f"you MUST invoke the corresponding tool (save_*, generate_resume_pdf, etc.) "
+            f"with the actual content. Describing the action in your final reply without "
+            f"calling the tool leaves the kanban card blank — the system verifies via tool "
+            f"calls, not prose.\n\n"
             f"User profile (use when helpful):\n{state.long_term_memory or '(none)'}\n\n"
             f"Pending jobs snapshot:\n{state.pending_applications or '(none)'}"
         )

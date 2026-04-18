@@ -29,12 +29,31 @@ export function KanbanCard({ app, onDelete, onOpenDetail }: KanbanCardProps) {
     opacity: isDragging ? 0.4 : 1,
   }
 
+  const artifactBadges: Array<{ key: string; labelKey: string }> = [
+    { key: "research", labelKey: "artifact_research" },
+    { key: "gap", labelKey: "artifact_gap" },
+    { key: "interview", labelKey: "artifact_interview" },
+    { key: "tailored", labelKey: "artifact_tailored" },
+    { key: "pdf", labelKey: "artifact_pdf" },
+  ].filter((b) => {
+    if (b.key === "research") return !!app.company_research_json
+    if (b.key === "gap") return !!app.gap_analysis_text
+    if (b.key === "interview") return !!app.interview_questions_json
+    if (b.key === "tailored") return !!app.tailored_resume_text
+    if (b.key === "pdf") return !!app.pdf_download_url
+    return false
+  })
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       {...attributes}
       {...listeners}
+      onDoubleClick={(e) => {
+        e.stopPropagation()
+        onOpenDetail(app.id)
+      }}
       className="bg-white rounded-xl p-3 shadow-sm border border-[var(--border)]
                  cursor-grab active:cursor-grabbing select-none
                  hover:shadow-md transition-shadow"
@@ -56,7 +75,7 @@ export function KanbanCard({ app, onDelete, onOpenDetail }: KanbanCardProps) {
                   : "bg-black/5 text-[#999]",
               ].join(" ")}
             >
-              {app.match_score}
+              {t("artifact_match")} {app.match_score}
             </span>
           )}
           {isRecentlyUpdated(app.artifacts_updated_at) && (
@@ -97,6 +116,25 @@ export function KanbanCard({ app, onDelete, onOpenDetail }: KanbanCardProps) {
                       line-clamp-3">
           {app.snippet}
         </p>
+      )}
+
+      {/* Artifact dimension badges — one per non-empty kanban artifact field.
+          Signals at a glance which parts of the research/tailor pipeline have
+          already run for this card (hidden when nothing has been generated). */}
+      {artifactBadges.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-2">
+          {artifactBadges.map((b) => (
+            <span
+              key={b.key}
+              className="inline-flex items-center gap-0.5 text-[10px] font-body
+                         rounded-full px-2 py-0.5 bg-emerald-50 text-emerald-700
+                         border border-emerald-100"
+            >
+              <span aria-hidden="true">✓</span>
+              {t(b.labelKey)}
+            </span>
+          ))}
+        </div>
       )}
 
       {/* Footer */}
