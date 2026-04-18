@@ -1,5 +1,6 @@
 """This file contains the database service for the application."""
 
+from datetime import UTC, datetime
 from typing import (
     List,
     Optional,
@@ -272,6 +273,75 @@ class DatabaseService:
             session.refresh(chat_session)
             logger.info("session_name_updated", session_id=session_id, name=name)
             return chat_session
+
+    async def seed_tutorial_for_user(
+        self,
+        user_id: int,
+        locale: str,
+        session_id: str,
+        session_name: str,
+        default_resume: str,
+    ) -> ChatSession:
+        """Create the tutorial Session row + write the default resume.
+
+        Idempotent: if a tutorial session already exists, return it unchanged.
+        The default resume is written only when the user has no resume yet, or
+        the stored resume is already flagged as default.
+        """
+        with Session(self.engine) as s:
+            existing = s.exec(
+                select(ChatSession).where(
+                    ChatSession.user_id == user_id, ChatSession.is_tutorial.is_(True)
+                )
+            ).first()
+            if existing is None:
+                tutorial = ChatSession(
+                    id=session_id,
+                    user_id=user_id,
+                    name=session_name,
+                    is_tutorial=True,
+                )
+                s.add(tutorial)
+            else:
+                tutorial = existing
+
+            user = s.exec(select(User).where(User.id == user_id)).first()
+            if not user.resume_text or user.resume_is_default:
+                user.resume_text = default_resume
+                user.resume_is_default = True
+            s.commit()
+            s.refresh(tutorial)
+            return tutorial
+
+    async def get_tutorial_session_for_user(self, user_id: int) -> Optional[ChatSession]:
+        """Return the tutorial session for a user, or None if it doesn't exist."""
+        with Session(self.engine) as s:
+            return s.exec(
+                select(ChatSession).where(
+                    ChatSession.user_id == user_id, ChatSession.is_tutorial.is_(True)
+                )
+            ).first()
+
+    async def mark_tutorial_completed(self, user_id: int) -> None:
+        """Set tutorial_completed_at to now for the given user."""
+        with Session(self.engine) as s:
+            user = s.exec(select(User).where(User.id == user_id)).first()
+            user.tutorial_completed_at = datetime.now(UTC)
+            s.commit()
+
+    async def reset_tutorial_completion(self, user_id: int) -> None:
+        """Clear tutorial_completed_at for the given user."""
+        with Session(self.engine) as s:
+            user = s.exec(select(User).where(User.id == user_id)).first()
+            user.tutorial_completed_at = None
+            s.commit()
+
+    async def set_resume_is_default(self, user_id: int, value: bool) -> None:
+        """Set or clear the resume_is_default flag for the given user."""
+        with Session(self.engine) as s:
+            user = s.exec(select(User).where(User.id == user_id)).first()
+            user.resume_is_default = value
+            s.commit()
 
     def get_session_maker(self):
         """Get a session maker for creating database sessions.
