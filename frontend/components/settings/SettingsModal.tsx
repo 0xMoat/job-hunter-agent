@@ -13,6 +13,7 @@ import {
   apiRunSearch,
 } from "@/lib/api"
 import type { SearchConfig } from "@/lib/api"
+import { apiTutorialReplay } from "@/lib/api-tutorial"
 import { useLanguage } from "@/contexts/LanguageContext"
 
 type Tab = "prompt" | "resume" | "search"
@@ -290,7 +291,6 @@ export function SettingsModal({ onClose, accessToken, onSearchComplete }: Settin
                     onClick={async () => {
                       const confirmMsg = t("tutorial_replay_confirm") as string
                       if (!confirm(confirmMsg)) return
-                      const { apiTutorialReplay } = await import("@/lib/api-tutorial")
                       await apiTutorialReplay(accessToken, currentLocale)
                       localStorage.removeItem("jh_tour_done")
                       window.location.reload()
