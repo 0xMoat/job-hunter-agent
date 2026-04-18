@@ -2,7 +2,8 @@
 
 import { useLanguage } from "@/contexts/LanguageContext"
 import { MessageBubble } from "@/components/chat/MessageBubble"
-import type { ChatMessage, ToolCallEntry } from "@/lib/types"
+import { PlanTimelineView } from "@/components/plan/PlanTimeline"
+import type { ChatMessage, PlanExecuteView, ToolCallEntry } from "@/lib/types"
 
 function buildJobSearchEntry(locale: string): ToolCallEntry {
   const resultsZh = [
@@ -47,6 +48,24 @@ function buildMsg(id: string, role: "user" | "assistant", text: string, tools: T
   }
 }
 
+function buildPlanView(t: (key: string, ...args: unknown[]) => string): PlanExecuteView {
+  return {
+    steps: [
+      { id: "tut-s1", text: t("tut_pe_plan_1"), status: "done" },
+      { id: "tut-s2", text: t("tut_pe_plan_2"), status: "done" },
+      { id: "tut-s3", text: t("tut_pe_plan_3"), status: "done" },
+    ],
+    finalResponse: t("tut_assistant_done"),
+    errorMsg: null,
+    running: false,
+    threadId: null,
+    awaitingApproval: false,
+    approvalRound: 0,
+    revisionReason: null,
+    cancelled: false,
+  }
+}
+
 export function TutorialSessionContent() {
   const { t, locale } = useLanguage()
   const jobSearch = buildJobSearchEntry(locale)
@@ -64,17 +83,7 @@ export function TutorialSessionContent() {
       <MessageBubble message={m2a} />
       <MessageBubble message={m2u} />
 
-      {/* Static P&E plan block — mirrors PlanTimeline styling */}
-      <div className="glass rounded-2xl px-4 py-3 border border-[var(--border)]">
-        <div className="text-xs font-body font-medium text-[var(--text-3)] uppercase tracking-wide mb-2">
-          Plan &amp; Execute
-        </div>
-        <ol className="space-y-1.5 text-sm font-body text-[var(--text-2)]">
-          <li>1. {t("tut_pe_plan_1")} <span className="text-green-600">✓</span></li>
-          <li>2. {t("tut_pe_plan_2")} <span className="text-green-600">✓</span></li>
-          <li>3. {t("tut_pe_plan_3")} <span className="text-green-600">✓</span></li>
-        </ol>
-      </div>
+      <PlanTimelineView view={buildPlanView(t)} />
 
       <MessageBubble message={mDone} />
     </div>
