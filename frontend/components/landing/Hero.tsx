@@ -116,6 +116,15 @@ function MockChat() {
       ? planSteps[runningIdx].tool
       : null
 
+  // Shape-preserving reveal — elements always occupy layout space so the
+  // outer card's height stays fixed from mount; phase flips toggle
+  // opacity + a small y-translate so the agent "appears" in place.
+  const fade = (visible: boolean, delayMs = 0) => ({
+    opacity: visible ? 1 : 0,
+    transform: visible ? "translateY(0)" : "translateY(6px)",
+    transition: `opacity 500ms ease-out ${delayMs}ms, transform 500ms ease-out ${delayMs}ms`,
+  })
+
   return (
     <div className="flex flex-col gap-3 p-5 text-[var(--text)]">
       {/* Header — always visible */}
@@ -129,108 +138,87 @@ function MockChat() {
         </span>
       </div>
 
-      {/* User message 1 */}
-      {phase >= 1 && (
-        <div
-          key="u1"
-          className="flex justify-end"
-          style={{ animation: "fade-rise 0.45s ease-out both" }}
-        >
-          <div className="bg-[var(--accent)] text-[var(--accent-fg)] rounded-2xl rounded-br-sm px-4 py-2.5 text-sm font-body font-light max-w-[80%]">
-            {isZh
-              ? "找上海的 AI 产品经理，调研公司并润色简历"
-              : "Find AI PM in Shanghai — research + tailor resume"}
-          </div>
+      {/* User message 1 — always rendered, fades in at phase >= 1 */}
+      <div className="flex justify-end" style={fade(phase >= 1)}>
+        <div className="bg-[var(--accent)] text-[var(--accent-fg)] rounded-2xl rounded-br-sm px-4 py-2.5 text-sm font-body font-light max-w-[80%]">
+          {isZh
+            ? "找上海的 AI 产品经理，调研公司并润色简历"
+            : "Find AI PM in Shanghai — research + tailor resume"}
         </div>
-      )}
+      </div>
 
-      {/* Job Search result card */}
-      {phase >= 2 && (
-        <div
-          key="search"
-          className="bg-white rounded-xl border border-[var(--border)] overflow-hidden"
-          style={{ animation: "fade-rise 0.5s ease-out both" }}
-        >
-          <div className="flex items-center gap-2 px-3.5 py-2 border-b border-[var(--border)]">
-            <span className="w-[7px] h-[7px] rounded-full bg-emerald-500 flex-shrink-0" />
-            <span className="font-body font-semibold text-xs text-[var(--text-2)]">Job Search</span>
-            <span className="font-mono text-[10px] text-[var(--text-3)] truncate">
-              {isZh ? "AI 产品经理 · 上海" : "AI PM · Shanghai"}
-            </span>
-            <span className="ml-auto font-mono text-[10px] text-[var(--text-3)]">
-              {isZh ? "2 条结果" : "2 results"}
-            </span>
-          </div>
-          <div className="flex items-start gap-2 px-3.5 py-2 text-[11px] leading-relaxed
-                          bg-[#eeebff] text-[#2c2a7a] border-b border-[var(--border)]">
-            <span aria-hidden="true">💡</span>
-            <span>
-              {isZh
-                ? "2 条强匹配按你的偏好重排，第 1 条对齐度最高。"
-                : "2 strong matches reranked for your profile — row 1 aligns best."}
-            </span>
-          </div>
-          {phase >= 3 && (
-            <div className="divide-y divide-[var(--border)]">
-              {jobRows.map((r, i) => (
-                <div
-                  key={i}
-                  className="flex gap-2.5 px-3.5 py-2 bg-[var(--accent)]/[0.04]"
-                  style={{ animation: `fade-rise 0.4s ease-out ${i * 120}ms both` }}
-                >
-                  <div className="pt-0.5 flex-shrink-0">
-                    <span className="flex items-center justify-center w-3.5 h-3.5 rounded bg-[var(--accent)] border border-[var(--accent)] text-[var(--accent-fg)] text-[9px]">
-                      ✓
-                    </span>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-body font-semibold text-xs text-[var(--text)] leading-snug line-clamp-1">
-                      {r.title}
-                    </p>
-                    <p className="font-body text-[10px] text-[var(--text-3)] leading-relaxed">
-                      {r.company}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          {phase >= 4 && (
-            <div
-              className="flex items-center justify-between px-3.5 py-2 border-t border-[var(--border)] bg-black/[0.01]"
-              style={{ animation: "fade-rise 0.3s ease-out both" }}
-            >
-              <span className="font-body text-[10px] text-[var(--text-3)]">
-                {isZh ? "已保存 2 条" : "2 saved"}
-              </span>
-              <span className="font-body text-[10px] font-semibold text-emerald-600">
-                {isZh ? "已入库 ✓" : "Saved ✓"}
-              </span>
-            </div>
-          )}
+      {/* Job Search result card — always in layout; inner pieces fade in */}
+      <div
+        className="bg-white rounded-xl border border-[var(--border)] overflow-hidden"
+        style={fade(phase >= 2)}
+      >
+        <div className="flex items-center gap-2 px-3.5 py-2 border-b border-[var(--border)]">
+          <span className="w-[7px] h-[7px] rounded-full bg-emerald-500 flex-shrink-0" />
+          <span className="font-body font-semibold text-xs text-[var(--text-2)]">Job Search</span>
+          <span className="font-mono text-[10px] text-[var(--text-3)] truncate">
+            {isZh ? "AI 产品经理 · 上海" : "AI PM · Shanghai"}
+          </span>
+          <span className="ml-auto font-mono text-[10px] text-[var(--text-3)]">
+            {isZh ? "2 条结果" : "2 results"}
+          </span>
         </div>
-      )}
+        <div className="flex items-start gap-2 px-3.5 py-2 text-[11px] leading-relaxed
+                        bg-[#eeebff] text-[#2c2a7a] border-b border-[var(--border)]">
+          <span aria-hidden="true">💡</span>
+          <span>
+            {isZh
+              ? "2 条强匹配按你的偏好重排，第 1 条对齐度最高。"
+              : "2 strong matches reranked for your profile — row 1 aligns best."}
+          </span>
+        </div>
+        <div className="divide-y divide-[var(--border)]">
+          {jobRows.map((r, i) => (
+            <div
+              key={i}
+              className="flex gap-2.5 px-3.5 py-2 bg-[var(--accent)]/[0.04]"
+              style={fade(phase >= 3, i * 120)}
+            >
+              <div className="pt-0.5 flex-shrink-0">
+                <span className="flex items-center justify-center w-3.5 h-3.5 rounded bg-[var(--accent)] border border-[var(--accent)] text-[var(--accent-fg)] text-[9px]">
+                  ✓
+                </span>
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-body font-semibold text-xs text-[var(--text)] leading-snug line-clamp-1">
+                  {r.title}
+                </p>
+                <p className="font-body text-[10px] text-[var(--text-3)] leading-relaxed">
+                  {r.company}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div
+          className="flex items-center justify-between px-3.5 py-2 border-t border-[var(--border)] bg-black/[0.01]"
+          style={fade(phase >= 4)}
+        >
+          <span className="font-body text-[10px] text-[var(--text-3)]">
+            {isZh ? "已保存 2 条" : "2 saved"}
+          </span>
+          <span className="font-body text-[10px] font-semibold text-emerald-600">
+            {isZh ? "已入库 ✓" : "Saved ✓"}
+          </span>
+        </div>
+      </div>
 
       {/* User message 2 */}
-      {phase >= 4 && (
-        <div
-          key="u2"
-          className="flex justify-end"
-          style={{ animation: "fade-rise 0.4s ease-out 0.2s both" }}
-        >
-          <div className="bg-[var(--accent)] text-[var(--accent-fg)] rounded-2xl rounded-br-sm px-4 py-2.5 text-sm font-body font-light max-w-[80%]">
-            {isZh ? "好的，开始跑 Plan-and-Execute" : "Kick off Plan-and-Execute"}
-          </div>
+      <div className="flex justify-end" style={fade(phase >= 4, 200)}>
+        <div className="bg-[var(--accent)] text-[var(--accent-fg)] rounded-2xl rounded-br-sm px-4 py-2.5 text-sm font-body font-light max-w-[80%]">
+          {isZh ? "好的，开始跑 Plan-and-Execute" : "Kick off Plan-and-Execute"}
         </div>
-      )}
+      </div>
 
       {/* Plan-and-Execute timeline */}
-      {phase >= 5 && (
-        <div
-          key="plan"
-          className="bg-white rounded-xl border border-[var(--border)] p-3.5"
-          style={{ animation: "fade-rise 0.5s ease-out both" }}
-        >
+      <div
+        className="bg-white rounded-xl border border-[var(--border)] p-3.5"
+        style={fade(phase >= 5)}
+      >
           <div className="flex items-center justify-between gap-2 border-b border-[var(--border)] pb-2 mb-2">
             <div className="flex min-w-0 items-center gap-2">
               {allDone ? (
@@ -297,29 +285,37 @@ function MockChat() {
                         </span>
                       )}
                     </div>
-                    {isRunning && (
-                      <div
-                        className="mt-1 ml-6 rounded-md border-l-2 border-indigo-400 bg-zinc-50/80 px-2 py-1 font-mono text-[10px] leading-relaxed text-zinc-600"
-                        style={{ animation: "fade-rise 0.3s ease-out both" }}
-                      >
-                        <span className="text-indigo-600">→ {s.tool}</span>
-                      </div>
-                    )}
                   </div>
                 </div>
               )
             })}
           </div>
-        </div>
-      )}
 
-      {/* Completed kanban card */}
-      {phase >= 11 && (
-        <div
-          key="kanban"
-          className="bg-white rounded-xl p-3 border border-[var(--border)] shadow-sm"
-          style={{ animation: "fade-rise 0.5s ease-out both" }}
-        >
+          {/* Terminal preview — a single always-on log row so the timeline's
+              height stays fixed; contents swap by phase. */}
+          <div
+            className="mt-2 rounded-md border-l-2 border-indigo-400 bg-zinc-50/80 px-2 py-1 font-mono text-[10px] leading-relaxed text-zinc-600 transition-opacity duration-300"
+            style={{ opacity: phase >= 5 ? 1 : 0 }}
+          >
+            {allDone ? (
+              <span className="text-emerald-600">
+                ✓ {isZh ? "全部完成 — 产物已回写看板" : "all done — artifacts written to kanban"}
+              </span>
+            ) : runningTool ? (
+              <span className="text-indigo-600">→ {runningTool}</span>
+            ) : (
+              <span className="text-zinc-400">
+                {isZh ? "(等待规划器输出)" : "(waiting for planner)"}
+              </span>
+            )}
+          </div>
+        </div>
+
+      {/* Completed kanban card — always rendered, fades in at phase >= 11 */}
+      <div
+        className="bg-white rounded-xl p-3 border border-[var(--border)] shadow-sm"
+        style={fade(phase >= 11)}
+      >
           <div className="flex items-start justify-between gap-2 mb-0.5">
             <span className="font-body font-semibold text-sm text-[var(--text)] leading-tight">
               {isZh ? "字节跳动" : "ByteDance"}
@@ -359,7 +355,6 @@ function MockChat() {
             </span>
           </div>
         </div>
-      )}
     </div>
   )
 }
