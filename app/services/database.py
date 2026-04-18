@@ -305,7 +305,9 @@ class DatabaseService:
             else:
                 tutorial = existing
 
-            user = s.exec(select(User).where(User.id == user_id)).first()
+            user = s.get(User, user_id)
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
             if not user.resume_text or user.resume_is_default:
                 user.resume_text = default_resume
                 user.resume_is_default = True
@@ -325,21 +327,27 @@ class DatabaseService:
     async def mark_tutorial_completed(self, user_id: int) -> None:
         """Set tutorial_completed_at to now for the given user."""
         with Session(self.engine) as s:
-            user = s.exec(select(User).where(User.id == user_id)).first()
+            user = s.get(User, user_id)
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
             user.tutorial_completed_at = datetime.now(UTC)
             s.commit()
 
     async def reset_tutorial_completion(self, user_id: int) -> None:
         """Clear tutorial_completed_at for the given user."""
         with Session(self.engine) as s:
-            user = s.exec(select(User).where(User.id == user_id)).first()
+            user = s.get(User, user_id)
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
             user.tutorial_completed_at = None
             s.commit()
 
     async def set_resume_is_default(self, user_id: int, value: bool) -> None:
         """Set or clear the resume_is_default flag for the given user."""
         with Session(self.engine) as s:
-            user = s.exec(select(User).where(User.id == user_id)).first()
+            user = s.get(User, user_id)
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
             user.resume_is_default = value
             s.commit()
 
