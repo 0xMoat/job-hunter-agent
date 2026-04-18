@@ -135,10 +135,15 @@ class PlanExecuteAgent:
             if not pending:
                 return ""
             lines = []
-            for i, app in enumerate(pending, 1):
-                company = f" {app.company} —" if app.company else ""
-                url = f" {app.url}" if app.url else ""
-                lines.append(f"{i}. [{app.title}]{company}{url}")
+            for app in pending:
+                company = f" · {app.company}" if app.company else ""
+                url = f" · {app.url}" if app.url else ""
+                # application_id first so the planner wires the correct id into
+                # tool calls — positional numbering caused the executor to try
+                # application_id=1 when the user said "第 1 个".
+                lines.append(
+                    f"- application_id={app.id} · [{app.title}]{company}{url}"
+                )
             return "\n".join(lines)
         except Exception:
             logger.exception("pe_pending_apps_failed", user_id=user_id)

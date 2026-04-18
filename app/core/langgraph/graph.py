@@ -253,10 +253,15 @@ class LangGraphAgent:
                 return "暂无待处理的职位"
             max_display = 15
             lines = []
-            for i, app in enumerate(pending[:max_display], 1):
-                company_part = f" {app.company} —" if app.company else ""
-                url_part = f" {app.url}" if app.url else ""
-                lines.append(f"{i}. [{app.title}]{company_part}{url_part}")
+            for app in pending[:max_display]:
+                company_part = f" · {app.company}" if app.company else ""
+                url_part = f" · {app.url}" if app.url else ""
+                # Lead with application_id so the LLM never confuses a user's
+                # ordinal ("第1个" / "1") with the actual DB id when calling
+                # score_jd_match / analyze_jd_gap / etc.
+                lines.append(
+                    f"- application_id={app.id} · [{app.title}]{company_part}{url_part}"
+                )
             if len(pending) > max_display:
                 lines.append(f"...还有 {len(pending) - max_display} 条未显示")
             return "\n".join(lines)
