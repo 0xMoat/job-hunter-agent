@@ -12,8 +12,13 @@ import { TutorialSessionContent } from "@/components/tutorial/TutorialSessionCon
 import { DefaultResumeBanner } from "@/components/tutorial/DefaultResumeBanner"
 import { apiTutorialStatus } from "@/lib/api-tutorial"
 
+<<<<<<< HEAD
 export function ChatPanel({ onStreamingChange, onRequestOpenSettings }: { onStreamingChange?: (s: boolean) => void; onRequestOpenSettings?: () => void }) {
   const { currentSessionToken, currentSessionId, sessions, renameSession, langfuseUrlBase } = useSession()
+=======
+export function ChatPanel({ onStreamingChange }: { onStreamingChange?: (s: boolean) => void }) {
+  const { currentSessionToken, currentSessionId, sessions, renameSession, langfuseUrlBase, loading: sessionLoading } = useSession()
+>>>>>>> 4d0b172 (fix(chat-ui): lock input + prompt buttons while session list is loading)
   const currentSession = sessions.find((s) => s.session_id === currentSessionId)
   const isTutorial = currentSession?.is_tutorial === true
   const {
@@ -161,9 +166,11 @@ export function ChatPanel({ onStreamingChange, onRequestOpenSettings }: { onStre
                   <button
                     key={prompt}
                     onClick={() => sendMessage(prompt)}
+                    disabled={streaming || sessionLoading}
                     className="glass rounded-full flex items-center justify-between
                                px-4 py-2.5 text-sm font-body font-normal
-                               text-[var(--text-2)] hover:bg-white/80 transition-colors text-left"
+                               text-[var(--text-2)] hover:bg-white/80 transition-colors text-left
+                               disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <span>{prompt}</span>
                     <span className="text-[var(--text-3)] flex-shrink-0 ml-2" aria-hidden="true">↗</span>
@@ -174,11 +181,11 @@ export function ChatPanel({ onStreamingChange, onRequestOpenSettings }: { onStre
                   return (
                     <button
                       onClick={() => sendMessage(prompt)}
-                      disabled={streaming}
+                      disabled={streaming || sessionLoading}
                       className="glass rounded-full flex items-center justify-between
                                  px-4 py-2.5 text-sm font-body font-normal
                                  text-[var(--text-2)] hover:bg-white/80 transition-colors text-left
-                                 disabled:opacity-50"
+                                 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <span>{prompt}</span>
                       <span className="text-[var(--text-3)] flex-shrink-0 ml-2" aria-hidden="true">↗</span>
@@ -246,11 +253,15 @@ export function ChatPanel({ onStreamingChange, onRequestOpenSettings }: { onStre
 
         {/* Input */}
         <div className="flex-shrink-0">
+<<<<<<< HEAD
           <ChatInput
             onSend={sendMessage}
             disabled={streaming}
             disabledHint={isTutorial ? t("tutorial_input_disabled") : undefined}
           />
+=======
+          <ChatInput onSend={sendMessage} disabled={streaming || sessionLoading} />
+>>>>>>> 4d0b172 (fix(chat-ui): lock input + prompt buttons while session list is loading)
         </div>
 
       </div>
