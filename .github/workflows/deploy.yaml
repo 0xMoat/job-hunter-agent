@@ -1,7 +1,9 @@
 name: Deploy
 
 on:
-  push:
+  workflow_run:
+    workflows: ["Tests"]
+    types: [completed]
     branches: [master]
   workflow_dispatch:
     inputs:
@@ -14,6 +16,7 @@ jobs:
   # ── Detect what changed ──────────────────────────────────────────────
   changes:
     name: Detect changes
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
@@ -41,7 +44,9 @@ jobs:
   deploy-backend:
     name: Deploy Backend
     needs: changes
-    if: needs.changes.outputs.backend == 'true' || inputs.force == true
+    if: |
+      (github.event_name == 'workflow_dispatch' && inputs.force == true) ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && needs.changes.outputs.backend == 'true')
     runs-on: ubuntu-latest
     steps:
       - name: Deploy via SSH
@@ -114,7 +119,9 @@ jobs:
   deploy-frontend:
     name: Deploy Frontend
     needs: changes
-    if: needs.changes.outputs.frontend == 'true' || inputs.force == true
+    if: |
+      (github.event_name == 'workflow_dispatch' && inputs.force == true) ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && needs.changes.outputs.frontend == 'true')
     runs-on: ubuntu-latest
     env:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
