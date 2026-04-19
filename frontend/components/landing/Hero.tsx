@@ -46,10 +46,10 @@ function MockChat() {
       400,  // 1: user1
       500,  // 2: search card + intro
       500,  // 3: both rows appear UNCHECKED
-      750,  // 4: row[0] ticks
-      750,  // 5: row[1] ticks
-      800,  // 6: "保存到看板 (2)" CTA surfaces — pause for the eye
-      900,  // 7: CTA flips to "已入库 ✓"
+      650,  // 4: row[0] ticks
+      650,  // 5: row[1] ticks
+      250,  // 6: brief beat after the second tick
+      450,  // 7: CTA flips to "已入库 ✓"
       700,  // 8: assistant plan bubble
       600,  // 9: user2
       500,  // 10: plan timeline mounts, step 1 running
