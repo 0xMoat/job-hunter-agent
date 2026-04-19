@@ -27,7 +27,7 @@ export function buildTourSteps(t: T, actions: Partial<TourActions> = {}): DriveS
   const enterTutorialSession = () => actions.switchToTutorialSession?.()
 
   return [
-    { popover: popover("welcome") },
+    { element: "#jh-tour-center-anchor", popover: popover("welcome") },
     {
       element: '[data-tour="sidebar"]',
       popover: { ...popover("sidebar"), side: "right", align: "start" },
@@ -94,6 +94,7 @@ export function buildTourSteps(t: T, actions: Partial<TourActions> = {}): DriveS
       onHighlightStarted: () => actions.setSettingsTab?.("resume"),
     },
     {
+      element: "#jh-tour-center-anchor",
       popover: popover("memory"),
       onDeselected: () => actions.closeSettings?.(),
     },
@@ -101,6 +102,6 @@ export function buildTourSteps(t: T, actions: Partial<TourActions> = {}): DriveS
       element: '[data-tour="sidebar-replay"]',
       popover: { ...popover("replay"), side: "top", align: "center" },
     },
-    { popover: popover("done") },
+    { element: "#jh-tour-center-anchor", popover: popover("done") },
   ]
 }
