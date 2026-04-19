@@ -45,15 +45,18 @@ function MockChat() {
     const schedule = [
       400,  // 1: user1
       500,  // 2: search card + intro
-      700,  // 3: rows
-      600,  // 4: saved + user2
-      600,  // 5: plan timeline mounts, step 1 running
-      700,  // 6: step 1 done, step 2 running
-      700,  // 7: step 2 done, step 3 running
-      700,  // 8: step 3 done, step 4 running
-      900,  // 9: step 4 done, step 5 running
-      700,  // 10: all done
-      500,  // 11: kanban card
+      500,  // 3: rows appear UNCHECKED
+      600,  // 4: checkboxes tick + "保存到看板" CTA surfaces
+      700,  // 5: CTA "pressed" → footer flips to "已入库 ✓"
+      500,  // 6: assistant plan bubble
+      500,  // 7: user2
+      500,  // 8: plan timeline mounts, step 1 running
+      700,  // 9: step 1 done, step 2 running
+      700,  // 10: step 2 done, step 3 running
+      700,  // 11: step 3 done, step 4 running
+      900,  // 12: step 4 done, step 5 running
+      700,  // 13: all done
+      500,  // 14: kanban card
     ]
     const timers: ReturnType<typeof setTimeout>[] = []
     let cum = 0
@@ -96,9 +99,11 @@ function MockChat() {
     ? ["公司调研", "知识缺口", "面试问题", "润色简历", "简历 PDF"]
     : ["Research", "Skill gap", "Interview Q", "Tailored resume", "Resume PDF"]
 
+  const PE_START = 8
+  const PE_DONE = 13
   const stepStatus = (i: number): "done" | "running" | "pending" => {
-    if (phase < 5) return "pending"
-    const active = phase - 5
+    if (phase < PE_START) return "pending"
+    const active = phase - PE_START
     if (active >= 5) return "done"
     if (i < active) return "done"
     if (i === active) return "running"
@@ -107,10 +112,11 @@ function MockChat() {
 
   const planCompleted = Math.min(
     5,
-    Math.max(0, phase - 5) + (phase >= 10 ? 1 : 0),
+    Math.max(0, phase - PE_START) + (phase >= PE_DONE ? 1 : 0),
   )
-  const allDone = phase >= 10
-  const runningIdx = phase >= 5 && phase < 10 ? phase - 5 : -1
+  const allDone = phase >= PE_DONE
+  const runningIdx =
+    phase >= PE_START && phase < PE_DONE ? phase - PE_START : -1
   const runningTool =
     runningIdx >= 0 && runningIdx < planSteps.length
       ? planSteps[runningIdx].tool
@@ -172,43 +178,82 @@ function MockChat() {
           </span>
         </div>
         <div className="divide-y divide-[var(--border)]">
-          {jobRows.map((r, i) => (
-            <div
-              key={i}
-              className="flex gap-2.5 px-3 py-1.5 bg-[var(--accent)]/[0.04]"
-              style={fade(phase >= 3, i * 120)}
-            >
-              <div className="pt-0.5 flex-shrink-0">
-                <span className="flex items-center justify-center w-3.5 h-3.5 rounded bg-[var(--accent)] border border-[var(--accent)] text-[var(--accent-fg)] text-[9px]">
-                  ✓
-                </span>
+          {jobRows.map((r, i) => {
+            const rowChecked = phase >= 4
+            return (
+              <div
+                key={i}
+                className="flex gap-2.5 px-3 py-1.5 transition-colors duration-300"
+                style={{
+                  ...fade(phase >= 3, i * 120),
+                  backgroundColor: rowChecked
+                    ? "rgba(15,23,42,0.04)"
+                    : "transparent",
+                }}
+              >
+                <div className="pt-0.5 flex-shrink-0">
+                  <span
+                    className="flex items-center justify-center w-3.5 h-3.5 rounded border text-[9px]"
+                    style={{
+                      backgroundColor: rowChecked ? "var(--accent)" : "white",
+                      borderColor: rowChecked
+                        ? "var(--accent)"
+                        : "var(--border-strong)",
+                      color: "var(--accent-fg)",
+                      transition:
+                        "background-color 300ms ease-out, border-color 300ms ease-out",
+                    }}
+                  >
+                    {rowChecked && "✓"}
+                  </span>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-body font-semibold text-xs text-[var(--text)] leading-snug line-clamp-1">
+                    {r.title}
+                  </p>
+                  <p className="font-body text-[10px] text-[var(--text-3)] leading-relaxed">
+                    {r.company}
+                  </p>
+                </div>
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="font-body font-semibold text-xs text-[var(--text)] leading-snug line-clamp-1">
-                  {r.title}
-                </p>
-                <p className="font-body text-[10px] text-[var(--text-3)] leading-relaxed">
-                  {r.company}
-                </p>
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
         <div
           className="flex items-center justify-between px-3 py-1.5 border-t border-[var(--border)] bg-black/[0.01]"
           style={fade(phase >= 4)}
         >
           <span className="font-body text-[10px] text-[var(--text-3)]">
-            {isZh ? "已保存 2 条" : "2 saved"}
+            {phase >= 5
+              ? isZh
+                ? "已保存 2 条"
+                : "2 saved"
+              : isZh
+                ? "已勾选 2 条"
+                : "2 selected"}
           </span>
-          <span className="font-body text-[10px] font-semibold text-emerald-600">
-            {isZh ? "已入库 ✓" : "Saved ✓"}
-          </span>
+          {phase >= 5 ? (
+            <span
+              className="font-body text-[10px] font-semibold text-emerald-600"
+              style={{ animation: "fade-rise 0.3s ease-out both" }}
+            >
+              {isZh ? "已入库 ✓" : "Saved ✓"}
+            </span>
+          ) : (
+            <span
+              className="font-body text-[10px] font-semibold px-2.5 py-1 rounded-lg text-[var(--accent-fg)] bg-[var(--accent)]"
+              style={{
+                animation: "fade-rise 0.3s ease-out both",
+              }}
+            >
+              {isZh ? "保存到看板 (2)" : "Save to Kanban (2)"}
+            </span>
+          )}
         </div>
       </div>
 
       {/* Assistant plan bubble — lays out the steps it's proposing */}
-      <div className="flex justify-start" style={fade(phase >= 4)}>
+      <div className="flex justify-start" style={fade(phase >= 6)}>
         <div
           className="bg-[var(--surface)] text-[var(--text)] rounded-2xl rounded-bl-sm px-3.5 py-2
                      text-[12.5px] font-body font-light max-w-[92%] leading-relaxed
@@ -221,7 +266,7 @@ function MockChat() {
       </div>
 
       {/* User message 2 */}
-      <div className="flex justify-end" style={fade(phase >= 4, 500)}>
+      <div className="flex justify-end" style={fade(phase >= 7)}>
         <div className="bg-[var(--accent)] text-[var(--accent-fg)] rounded-2xl rounded-br-sm px-3.5 py-2 text-[13px] font-body font-light max-w-[80%]">
           {isZh ? "好，都处理了吧" : "OK, take it from here"}
         </div>
@@ -230,7 +275,7 @@ function MockChat() {
       {/* Plan-and-Execute timeline */}
       <div
         className="bg-white rounded-xl border border-[var(--border)] p-3"
-        style={fade(phase >= 5)}
+        style={fade(phase >= PE_START)}
       >
           <div className="flex items-center justify-between gap-2 border-b border-[var(--border)] pb-1.5 mb-1.5">
             <div className="flex min-w-0 items-center gap-2">
@@ -308,7 +353,7 @@ function MockChat() {
               height stays fixed; contents swap by phase. */}
           <div
             className="mt-1.5 rounded-md border-l-2 border-indigo-400 bg-zinc-50/80 px-2 py-1 font-mono text-[10px] leading-relaxed text-zinc-600 transition-opacity duration-300"
-            style={{ opacity: phase >= 5 ? 1 : 0 }}
+            style={{ opacity: phase >= PE_START ? 1 : 0 }}
           >
             {allDone ? (
               <span className="text-emerald-600">
@@ -328,7 +373,7 @@ function MockChat() {
           mock inside one viewport */}
       <div
         className="bg-white rounded-xl px-3 py-2 border border-[var(--border)] shadow-sm"
-        style={fade(phase >= 11)}
+        style={fade(phase >= 14)}
       >
         <div className="flex items-center justify-between gap-2 mb-1.5">
           <div className="flex items-baseline gap-1.5 min-w-0">
