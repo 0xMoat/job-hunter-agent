@@ -51,16 +51,63 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
+            set -euo pipefail
             cd /home/ubuntu/apps/job-hunter-agent
+
+            # ── Capture pre-pull SHA so we can diff which subsystems changed ──
+            OLD_SHA=$(git rev-parse HEAD)
             git fetch origin master
+            NEW_SHA=$(git rev-parse FETCH_HEAD)
             git checkout -f FETCH_HEAD
-            docker compose -f docker-compose.prod.yml up -d --build
-            # Sync Caddy site configs and restart
-            sudo cp caddy/sites/*.conf /etc/caddy/sites/
-            sudo systemctl restart caddy
-            echo "Waiting for health check..."
+
+            if [ "$OLD_SHA" = "$NEW_SHA" ]; then
+              CHANGED="(forced — no git delta)"
+            else
+              CHANGED=$(git diff --name-only "$OLD_SHA" "$NEW_SHA")
+            fi
+            echo "── Files changed since last deploy ──"
+            echo "$CHANGED"
+            echo "──────────────────────────────────────"
+
+            # Helper: returns 0 if any path in CHANGED starts with given prefix.
+            changed_under() {
+              echo "$CHANGED" | grep -Eq "^$1" && return 0 || return 1
+            }
+
+            # ── App services: rebuild only when code / infra / deps changed ──
+            if changed_under "app/|scripts/|pyproject\.toml|uv\.lock|Dockerfile|docker-compose\.prod\.yml" \
+               || [ "$OLD_SHA" = "$NEW_SHA" ]; then
+              echo "→ rebuilding app container"
+              docker compose -f docker-compose.prod.yml up -d --build app
+            else
+              echo "→ app unchanged, skipping rebuild"
+            fi
+
+            # ── Prometheus config ─────────────────────────────────────────
+            if changed_under "prometheus/"; then
+              echo "→ prometheus config changed — restarting"
+              docker compose -f docker-compose.prod.yml restart prometheus
+            fi
+
+            # ── Grafana dashboards / datasources ──────────────────────────
+            if changed_under "grafana/"; then
+              echo "→ grafana config changed — restarting"
+              docker compose -f docker-compose.prod.yml restart grafana
+            fi
+
+            # ── Caddy site configs ────────────────────────────────────────
+            if changed_under "caddy/"; then
+              echo "→ caddy config changed — syncing and reloading"
+              sudo cp caddy/sites/*.conf /etc/caddy/sites/
+              sudo systemctl reload caddy
+            fi
+
+            # Bring up anything that happens to be stopped (safety net).
+            docker compose -f docker-compose.prod.yml up -d
+
+            echo "Waiting for backend health check..."
             sleep 15
-            curl -sf http://localhost:8000/health || exit 1
+            curl -sf http://localhost:8000/health
             echo "Backend deployed successfully"
 
   # ── Frontend: Deploy to Vercel ───────────────────────────────────────
