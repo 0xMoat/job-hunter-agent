@@ -133,6 +133,9 @@ function MockChat() {
     transition: `opacity 500ms ease-out ${delayMs}ms, transform 500ms ease-out ${delayMs}ms`,
   })
 
+  // 0 at P3 (rows just appeared unchecked), 1 at P4, 2 at P5+.
+  const checkedCount = Math.max(0, Math.min(jobRows.length, phase - 3))
+
   return (
     <div className="flex flex-col gap-2 p-4 text-[var(--text)]">
       {/* Header — always visible */}
@@ -223,16 +226,16 @@ function MockChat() {
         </div>
         <div
           className="flex items-center justify-between px-3 py-1.5 border-t border-[var(--border)] bg-black/[0.01]"
-          style={fade(phase >= 6)}
+          style={fade(phase >= 3)}
         >
-          <span className="font-body text-[10px] text-[var(--text-3)]">
+          <span className="font-body text-[10px] text-[var(--text-3)] transition-colors duration-200">
             {phase >= 7
               ? isZh
-                ? "已保存 2 条"
-                : "2 saved"
+                ? `已保存 ${jobRows.length} 条`
+                : `${jobRows.length} saved`
               : isZh
-                ? "已勾选 2 条"
-                : "2 selected"}
+                ? `已勾选 ${checkedCount} 条`
+                : `${checkedCount} selected`}
           </span>
           {phase >= 7 ? (
             <span
@@ -243,12 +246,20 @@ function MockChat() {
             </span>
           ) : (
             <span
-              className="font-body text-[10px] font-semibold px-2.5 py-1 rounded-lg text-[var(--accent-fg)] bg-[var(--accent)]"
+              className="font-body text-[10px] font-semibold px-2.5 py-1 rounded-lg transition-opacity duration-200"
               style={{
-                animation: "fade-rise 0.3s ease-out both",
+                backgroundColor: "var(--accent)",
+                color: "var(--accent-fg)",
+                opacity: checkedCount === 0 ? 0.5 : 1,
               }}
             >
-              {isZh ? "保存到看板 (2)" : "Save to Kanban (2)"}
+              {isZh
+                ? checkedCount === 0
+                  ? "保存到看板"
+                  : `保存到看板 (${checkedCount})`
+                : checkedCount === 0
+                  ? "Save to Kanban"
+                  : `Save to Kanban (${checkedCount})`}
             </span>
           )}
         </div>
