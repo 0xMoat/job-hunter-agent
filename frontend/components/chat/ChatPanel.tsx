@@ -38,6 +38,7 @@ export function ChatPanel({ onStreamingChange, onRequestOpenSettings, onJumpToCa
     currentSessionId,
     currentSessionName: currentSession?.name ?? "",
     renameSession,
+    skipHistory: isTutorial,
   })
   const { t } = useLanguage()
   const bottomRef = useRef<HTMLDivElement>(null)

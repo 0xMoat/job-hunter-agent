@@ -322,6 +322,8 @@ interface UseChatOptions {
   currentSessionId: string | null
   currentSessionName: string
   renameSession: (id: string, name: string) => void
+  /** Skip history fetch; the tutorial session is rendered statically. */
+  skipHistory?: boolean
 }
 
 export function useChat({
@@ -329,6 +331,7 @@ export function useChat({
   currentSessionId,
   currentSessionName,
   renameSession,
+  skipHistory,
 }: UseChatOptions) {
   const { t } = useLanguage()
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -346,6 +349,12 @@ export function useChat({
     hydratedRef.current = false
     setMessages([])
     setError(null)
+    if (skipHistory) {
+      // Tutorial session renders static content; nothing to fetch.
+      hydratedRef.current = true
+      setHistoryLoading(false)
+      return
+    }
     setHistoryLoading(true)
 
     apiGetMessages(sessionToken)
@@ -378,7 +387,7 @@ export function useChat({
         setHistoryLoading(false)
         hydratedRef.current = true
       })
-  }, [sessionToken, currentSessionId])
+  }, [sessionToken, currentSessionId, skipHistory])
 
   // Persist finished P&E bubbles to localStorage so they survive page refresh.
   // Gated on hydratedRef so we never wipe the cache with an empty initial state.
