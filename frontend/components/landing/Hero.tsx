@@ -45,18 +45,20 @@ function MockChat() {
     const schedule = [
       400,  // 1: user1
       500,  // 2: search card + intro
-      500,  // 3: rows appear UNCHECKED
-      600,  // 4: checkboxes tick + "保存到看板" CTA surfaces
-      700,  // 5: CTA "pressed" → footer flips to "已入库 ✓"
-      500,  // 6: assistant plan bubble
-      500,  // 7: user2
-      500,  // 8: plan timeline mounts, step 1 running
-      700,  // 9: step 1 done, step 2 running
-      700,  // 10: step 2 done, step 3 running
-      700,  // 11: step 3 done, step 4 running
-      900,  // 12: step 4 done, step 5 running
-      700,  // 13: all done
-      500,  // 14: kanban card
+      500,  // 3: both rows appear UNCHECKED
+      750,  // 4: row[0] ticks
+      750,  // 5: row[1] ticks
+      800,  // 6: "保存到看板 (2)" CTA surfaces — pause for the eye
+      900,  // 7: CTA flips to "已入库 ✓"
+      700,  // 8: assistant plan bubble
+      600,  // 9: user2
+      500,  // 10: plan timeline mounts, step 1 running
+      700,  // 11: step 1 done, step 2 running
+      700,  // 12: step 2 done, step 3 running
+      700,  // 13: step 3 done, step 4 running
+      900,  // 14: step 4 done, step 5 running
+      700,  // 15: all done
+      500,  // 16: kanban card
     ]
     const timers: ReturnType<typeof setTimeout>[] = []
     let cum = 0
@@ -99,8 +101,8 @@ function MockChat() {
     ? ["公司调研", "知识缺口", "面试问题", "润色简历", "简历 PDF"]
     : ["Research", "Skill gap", "Interview Q", "Tailored resume", "Resume PDF"]
 
-  const PE_START = 8
-  const PE_DONE = 13
+  const PE_START = 10
+  const PE_DONE = 15
   const stepStatus = (i: number): "done" | "running" | "pending" => {
     if (phase < PE_START) return "pending"
     const active = phase - PE_START
@@ -179,7 +181,7 @@ function MockChat() {
         </div>
         <div className="divide-y divide-[var(--border)]">
           {jobRows.map((r, i) => {
-            const rowChecked = phase >= 4
+            const rowChecked = phase >= 4 + i
             return (
               <div
                 key={i}
@@ -221,10 +223,10 @@ function MockChat() {
         </div>
         <div
           className="flex items-center justify-between px-3 py-1.5 border-t border-[var(--border)] bg-black/[0.01]"
-          style={fade(phase >= 4)}
+          style={fade(phase >= 6)}
         >
           <span className="font-body text-[10px] text-[var(--text-3)]">
-            {phase >= 5
+            {phase >= 7
               ? isZh
                 ? "已保存 2 条"
                 : "2 saved"
@@ -232,7 +234,7 @@ function MockChat() {
                 ? "已勾选 2 条"
                 : "2 selected"}
           </span>
-          {phase >= 5 ? (
+          {phase >= 7 ? (
             <span
               className="font-body text-[10px] font-semibold text-emerald-600"
               style={{ animation: "fade-rise 0.3s ease-out both" }}
@@ -253,7 +255,7 @@ function MockChat() {
       </div>
 
       {/* Assistant plan bubble — lays out the steps it's proposing */}
-      <div className="flex justify-start" style={fade(phase >= 6)}>
+      <div className="flex justify-start" style={fade(phase >= 8)}>
         <div
           className="bg-[var(--surface)] text-[var(--text)] rounded-2xl rounded-bl-sm px-3.5 py-2
                      text-[12.5px] font-body font-light max-w-[92%] leading-relaxed
@@ -266,7 +268,7 @@ function MockChat() {
       </div>
 
       {/* User message 2 */}
-      <div className="flex justify-end" style={fade(phase >= 7)}>
+      <div className="flex justify-end" style={fade(phase >= 9)}>
         <div className="bg-[var(--accent)] text-[var(--accent-fg)] rounded-2xl rounded-br-sm px-3.5 py-2 text-[13px] font-body font-light max-w-[80%]">
           {isZh ? "好，都处理了吧" : "OK, take it from here"}
         </div>
@@ -373,7 +375,7 @@ function MockChat() {
           mock inside one viewport */}
       <div
         className="bg-white rounded-xl px-3 py-2 border border-[var(--border)] shadow-sm"
-        style={fade(phase >= 14)}
+        style={fade(phase >= 16)}
       >
         <div className="flex items-center justify-between gap-2 mb-1.5">
           <div className="flex items-baseline gap-1.5 min-w-0">
