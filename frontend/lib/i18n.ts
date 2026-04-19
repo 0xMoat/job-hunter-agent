@@ -274,7 +274,7 @@ const zh: Dict = {
   tut_assistant_done: '已为 2 家公司完成研究、匹配分析和简历定制，可在「追踪看板」卡片中查看每项产物。',
   // Tutorial — tour steps
   tour_welcome_title: '欢迎使用 Job Hunter ✦',
-  tour_welcome_body: '我会花 1 分钟带你看看核心功能。你随时可以点击右下角「跳过」退出。',
+  tour_welcome_body: '我会花 1 分钟带你看看核心功能。你随时可以点击右上角 × 关闭退出。',
   tour_sidebar_title: '对话侧边栏',
   tour_sidebar_body: '每个对话都是一次独立的求职任务。教学会话已经为你准备好，点击它可以查看完整示例。',
   tour_chat_title: '与 Agent 对话',
@@ -582,7 +582,7 @@ Company research, match analysis, skill gaps, interview questions, and the tailo
   tut_assistant_done: 'Done — research, match scoring, and tailored resumes are ready. Open any kanban card to view artifacts.',
   // Tutorial — tour steps
   tour_welcome_title: 'Welcome to Job Hunter ✦',
-  tour_welcome_body: "I'll spend a minute showing you around. You can skip anytime from the bottom-right.",
+  tour_welcome_body: "I'll spend a minute showing you around. You can close the tour anytime from the × in the top right.",
   tour_sidebar_title: 'Conversation sidebar',
   tour_sidebar_body: 'Each conversation is one job-hunt task. A tutorial session is already set up — click it to see a full example.',
   tour_chat_title: 'Chat with the Agent',

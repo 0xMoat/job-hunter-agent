@@ -44,7 +44,11 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
 
   const start = useCallback(() => {
     const steps = buildTourSteps(t, actionsRef.current)
-    startTour(steps, finish)
+    startTour(steps, finish, {
+      doneBtnText: t("tour_done"),
+      nextBtnText: t("tour_next"),
+      prevBtnText: t("tour_prev"),
+    })
   }, [t, finish])
 
   const stop = useCallback(() => {
