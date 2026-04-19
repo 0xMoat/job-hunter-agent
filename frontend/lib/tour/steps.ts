@@ -26,24 +26,13 @@ export function buildTourSteps(t: T, actions: Partial<TourActions> = {}): DriveS
   // Ensure the tutorial session is active for any chat-anchored step.
   const enterTutorialSession = () => actions.switchToTutorialSession?.()
 
-  // Driver.js renders a 20×20 default cutout in the overlay when a step has
-  // no real target element — visible as a white square mid-screen. Strip the
-  // cutout sub-path from the overlay SVG for these "centered" steps.
-  const eraseStageCutout = () => {
-    const path = document.querySelector("body > svg > path") as SVGPathElement | null
-    if (!path) return
-    const d = path.getAttribute("d") ?? ""
-    // Keep only the first sub-path (the full-viewport rect); drop the 2nd M... sub-path.
-    const firstOnly = d.split(/\s*M/).filter(Boolean)[0]
-    if (firstOnly) path.setAttribute("d", "M" + firstOnly)
-  }
+  // Applied to welcome/memory/done steps that have no target element.
+  // CSS in globals.css hides the overlay SVG + popover arrow when this class
+  // is present so the popover sits cleanly in the middle of the viewport.
+  const centered = "tour-centered"
 
   return [
-    {
-      element: "#jh-tour-center-anchor",
-      popover: popover("welcome"),
-      onHighlighted: eraseStageCutout,
-    },
+    { popover: { ...popover("welcome"), popoverClass: centered } },
     {
       element: '[data-tour="sidebar"]',
       popover: { ...popover("sidebar"), side: "right", align: "start" },
@@ -110,19 +99,13 @@ export function buildTourSteps(t: T, actions: Partial<TourActions> = {}): DriveS
       onHighlightStarted: () => actions.setSettingsTab?.("resume"),
     },
     {
-      element: "#jh-tour-center-anchor",
-      popover: popover("memory"),
-      onHighlighted: eraseStageCutout,
+      popover: { ...popover("memory"), popoverClass: centered },
       onDeselected: () => actions.closeSettings?.(),
     },
     {
       element: '[data-tour="sidebar-replay"]',
       popover: { ...popover("replay"), side: "top", align: "center" },
     },
-    {
-      element: "#jh-tour-center-anchor",
-      popover: popover("done"),
-      onHighlighted: eraseStageCutout,
-    },
+    { popover: { ...popover("done"), popoverClass: centered } },
   ]
 }
