@@ -2,9 +2,14 @@
 
 import os
 
+from dotenv import load_dotenv
+
 # CRITICAL: must set APP_ENV before any app.* import — Settings reads it at module load,
 # and DatabaseService() is instantiated at app.api.v1.* import time.
 os.environ.setdefault("APP_ENV", "test")
+
+# Load .env.test to populate POSTGRES_* and other environment variables
+load_dotenv(f".env.{os.environ['APP_ENV']}")
 
 import uuid
 from typing import AsyncIterator
