@@ -215,6 +215,21 @@ body {
   pointer-events: none !important;
 }
 
+/* Centered popovers (welcome/memory/done — no target element): hide the
+   dark overlay SVG entirely and force the popover to true viewport center
+   without an arrow. */
+body:has(.driver-popover.tour-centered) > svg {
+  display: none !important;
+}
+.driver-popover.tour-centered {
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+}
+.driver-popover.tour-centered .driver-popover-arrow {
+  display: none !important;
+}
+
 /* Arrows: match the popover's translucent surface so they blend. */
 .driver-popover .driver-popover-arrow {
   border-width: 7px !important;
