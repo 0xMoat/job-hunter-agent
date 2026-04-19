@@ -6,6 +6,7 @@ import os
 # and DatabaseService() is instantiated at app.api.v1.* import time.
 os.environ.setdefault("APP_ENV", "test")
 
+import uuid
 from typing import AsyncIterator
 
 import psycopg2
@@ -25,12 +26,16 @@ def _ensure_test_db() -> None:
         password=os.environ["POSTGRES_PASSWORD"],
     )
     admin_conn.autocommit = True
-    cur = admin_conn.cursor()
-    cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (os.environ["POSTGRES_DB"],))
-    if cur.fetchone() is None:
-        cur.execute(f'CREATE DATABASE "{os.environ["POSTGRES_DB"]}"')
-    cur.close()
-    admin_conn.close()
+    try:
+        cur = admin_conn.cursor()
+        try:
+            cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (os.environ["POSTGRES_DB"],))
+            if cur.fetchone() is None:
+                cur.execute(f'CREATE DATABASE "{os.environ["POSTGRES_DB"]}"')
+        finally:
+            cur.close()
+    finally:
+        admin_conn.close()
 
 
 @pytest.fixture(scope="session")
@@ -49,5 +54,4 @@ async def client(app) -> AsyncIterator[AsyncClient]:
 
 @pytest.fixture
 def fake_user_id() -> str:
-    import uuid
     return str(uuid.uuid4())
