@@ -88,17 +88,26 @@ async def _rerank_and_intro(
         f"Raw search hits (some are non-JD pages or unrelated roles):\n"
         + "\n".join(summaries)
         + "\n\nDo TWO things:\n"
-        "1. Pick the indices of hits that are real job postings AND semantically "
-        "match the keywords (e.g. 'Agent Engineer' → LLM agent / AI agent "
-        "developer, NOT 'data operations' or 'frontend'). Location must match "
-        "the same city. Exclude login/register/company-profile pages. "
-        "Keep at most 10.\n"
+        "1. For each hit that is a real job posting AND semantically matches "
+        "the keywords (e.g. 'Agent Engineer' → LLM agent / AI agent "
+        "developer, NOT 'data operations' or 'frontend'), emit a pick. "
+        "Location must match the same city. Exclude login/register/"
+        "company-profile pages. Keep at most 10 picks.\n"
+        "   For each pick also extract:\n"
+        "   - `company`: the hiring company's short name (e.g. \"元聚\", "
+        "\"字节跳动\"). Strip suffixes like \"招聘\"/\"有限公司\"/\"-BOSS直聘\". "
+        "Boss 直聘 title format is commonly 「职位招聘」_公司-BOSS直聘.\n"
+        "   - `role`: the job title in clean form (e.g. \"Agent 工程师\", "
+        "\"后端开发\"). Strip the 「」 brackets and the \"招聘\" suffix.\n"
+        "   Leave either field as an empty string if the title is ambiguous.\n"
         "2. Write a SHORT one-sentence Chinese intro (≤40 字) previewing the "
         "filtered list for the user, naming at most two standout jobs by index "
         "with a reason (e.g. 薪资最高 / 福利最全 / 经验要求低). Skip the "
         "sentence if no hit is worth highlighting.\n\n"
         "Return ONLY a JSON object, no prose, no markdown fences:\n"
-        '{\"relevant_indices\": [0, 2, 3], \"intro\": \"找到 N 条匹配，#2 元聚薪资最高。\"}'
+        '{\"picks\": [{\"index\": 0, \"company\": \"元聚\", \"role\": \"Agent 工程师\"}, '
+        '{\"index\": 2, \"company\": \"字节跳动\", \"role\": \"后端开发\"}], '
+        '\"intro\": \"找到 N 条匹配，#2 元聚薪资最高。\"}'
     )
     # Call DeepSeek HTTP API directly. We deliberately bypass LangChain here
     # because a `ChatDeepSeek.ainvoke` inside a LangGraph tool silently
@@ -125,17 +134,33 @@ async def _rerank_and_intro(
         if not match:
             raise ValueError(f"no JSON block in rerank response: {content[:200]!r}")
         payload = json.loads(match.group(0))
-        indices = payload.get("relevant_indices") or []
+        picks = payload.get("picks") or []
         intro = (payload.get("intro") or "").strip()
     except Exception:
         logger.exception("job_search_rerank_failed", hit_count=len(results))
         return results, ""
-    kept = [results[i] for i in indices if isinstance(i, int) and 0 <= i < len(results)]
+    kept: list[dict] = []
+    kept_indices: list[int] = []
+    for p in picks:
+        if not isinstance(p, dict):
+            continue
+        idx = p.get("index")
+        if not isinstance(idx, int) or not (0 <= idx < len(results)):
+            continue
+        hit = {**results[idx]}
+        company = (p.get("company") or "").strip()
+        role = (p.get("role") or "").strip()
+        if company:
+            hit["company"] = company
+        if role:
+            hit["role"] = role
+        kept.append(hit)
+        kept_indices.append(idx)
     logger.info(
         "job_search_reranked",
         before=len(results),
         after=len(kept),
-        kept_indices=indices,
+        kept_indices=kept_indices,
         intro_len=len(intro),
     )
     return kept, intro

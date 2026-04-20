@@ -11,6 +11,8 @@ interface JobResult {
   title: string
   link: string
   snippet: string
+  company?: string
+  role?: string
 }
 
 interface Props {
@@ -59,8 +61,8 @@ export function JobSearchResultCard({ entry, onSaved }: Props) {
       const listings = Array.from(selected).map((idx) => {
         const r = results[idx]
         return {
-          title: r.title,
-          company: "",
+          title: r.role || r.title,
+          company: r.company || "",
           url: r.link,
           snippet: r.snippet,
           source: "chat",
