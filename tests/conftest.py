@@ -20,13 +20,18 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
 
-@pytest.fixture(scope="session")
-def _ensure_test_db() -> None:
-    """Create the jha_test database if it doesn't exist. Runs once per session."""
+def _ensure_test_db_at_import() -> None:
+    """Create the jha_test database if it doesn't exist.
+
+    MUST run before any `app.*` module is imported by pytest collection:
+    several tests import `app.api.v1.chatbot` at module top, which triggers
+    `DatabaseService()` to connect to POSTGRES_DB. If the DB doesn't exist yet,
+    collection fails before any fixture has a chance to run.
+    """
     admin_conn = psycopg2.connect(
         host=os.environ["POSTGRES_HOST"],
         port=os.environ["POSTGRES_PORT"],
-        dbname="postgres",  # connect to default DB to issue CREATE DATABASE
+        dbname="postgres",
         user=os.environ["POSTGRES_USER"],
         password=os.environ["POSTGRES_PASSWORD"],
     )
@@ -43,9 +48,16 @@ def _ensure_test_db() -> None:
         admin_conn.close()
 
 
+_ensure_test_db_at_import()
+
+
 @pytest.fixture(scope="session")
-def app(_ensure_test_db):
-    """Import the FastAPI app once. Triggers Settings load + DatabaseService.create_all."""
+def app():
+    """Import the FastAPI app once. Triggers Settings load + DatabaseService.create_all.
+
+    The test DB is guaranteed to exist because `_ensure_test_db_at_import()`
+    ran at conftest module load (before any test file was collected).
+    """
     from app.main import app as fastapi_app
     return fastapi_app
 
