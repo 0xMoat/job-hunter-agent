@@ -22,6 +22,12 @@ make eval                        # Interactive mode
 make eval-quick                  # Non-interactive, default settings
 make eval-no-report              # Skip JSON report generation
 
+# Testing
+make test                        # Run all tests (requires local Postgres on :5432)
+make test-fast                   # Skip @pytest.mark.slow tests
+uv run pytest tests/integration -v   # Integration only
+uv run pytest -k "auth"          # Filter by name
+
 # Docker
 make docker-run                  # Start with docker-compose (development)
 make docker-run-env ENV=staging  # Start for specific environment
@@ -31,7 +37,7 @@ make docker-stop ENV=development
 
 Environment is controlled by `APP_ENV`. Config is loaded from `.env.<environment>` (e.g. `.env.development`). Copy `.env.example` to get started.
 
-There are no automated tests in this repository.
+Tests live in `tests/` (`tests/unit/`, `tests/integration/`). Run with `make test`. Tests require a local Postgres on `:5432` reachable as `myuser/mypassword`; the fixture creates a `jha_test` database automatically. See `tests/conftest.py` for the test client + DB fixture.
 
 ## Architecture
 

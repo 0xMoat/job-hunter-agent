@@ -162,6 +162,12 @@ docker-compose-logs:
 	fi; \
 	APP_ENV=$(ENV) $(DOCKER_COMPOSE) --env-file $$ENV_FILE logs -f
 
+test:
+	APP_ENV=test uv run pytest -v
+
+test-fast:
+	APP_ENV=test uv run pytest -v -m "not slow"
+
 # Help
 help:
 	@echo "Usage: make <target>"

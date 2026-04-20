@@ -1,0 +1,70 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: myuser
+          POSTGRES_PASSWORD: mypassword
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U myuser"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+      - name: Set up Python
+        run: uv python install 3.13
+      - name: Install dependencies
+        run: uv sync --group test
+      - name: Run pytest
+        env:
+          APP_ENV: test
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: "5432"
+          POSTGRES_DB: jha_test
+          POSTGRES_USER: myuser
+          POSTGRES_PASSWORD: mypassword
+          JWT_SECRET_KEY: test-secret-do-not-use-in-prod
+          GOOGLE_CLIENT_ID: test-client-id.apps.googleusercontent.com
+          OPENAI_API_KEY: sk-test-fake
+          DEEPSEEK_API_KEY: sk-test-fake
+          LANGFUSE_PUBLIC_KEY: pk-lf-test
+          LANGFUSE_SECRET_KEY: sk-lf-test
+          LANGFUSE_HOST: http://localhost:3000
+          DEFAULT_LLM_TEMPERATURE: "0.0"
+          MAX_TOKENS: "2000"
+          LOG_LEVEL: WARNING
+        run: uv run pytest -v
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
