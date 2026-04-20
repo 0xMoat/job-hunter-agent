@@ -84,12 +84,14 @@ def inject_main_llm(monkeypatch, fake) -> None:
     except (ImportError, AttributeError):
         pass
 
-    # Invalidate PE agent graph cache
+    # Invalidate PE agent graph + executor cache. The PlanExecuteAgent singleton
+    # is instantiated in app.api.v1.chatbot (same pattern as the main agent).
     try:
-        from app.core.langgraph.plan_execute import plan_execute_agent as pe_agent
+        from app.api.v1.chatbot import plan_execute_agent as pe_agent
 
         monkeypatch.setattr(pe_agent, "_llm", fake, raising=False)
         monkeypatch.setattr(pe_agent, "_graph", None, raising=False)
+        monkeypatch.setattr(pe_agent, "_executor", None, raising=False)
     except (ImportError, AttributeError):
         pass
 
