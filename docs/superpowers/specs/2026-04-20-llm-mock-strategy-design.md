@@ -108,21 +108,27 @@ File: `tests/unit/test_llm_service.py`. Fresh `LLMService()` per test, uses `pat
 
 **E-1: route + node units (6 tests)** `tests/unit/test_plan_execute_nodes.py`
 
+**Note on PE schema** (verified against `app/schemas/plan_execute.py` + `app/core/langgraph/plan_execute.py`):
+- State field is `input`, not `goal`.
+- Replanner structured output is `Act(action: Response | Plan)` (where `Response` is re-exported as `PlanResponse`) — there is no `PlanDecision` class.
+- `_route_after_approval` reads `state.response` / `state.pending_revise` / default; approval state is set by `_approval_gate` consuming the resume payload, NOT from an `approval_action` field.
+- HITL resume action strings are `"approve"` (default) / `"revise"` / `"cancel"` — the action string for rework is **`"revise"`**, not `"reject"`.
+
 | Test | Approach |
 |---|---|
-| `test_route_after_approval_approve_goes_to_executor` | Pure function, synthetic state |
-| `test_route_after_approval_reject_goes_to_replanner` | Pure function |
-| `test_route_after_approval_cancel_ends` | Pure function |
-| `test_should_end_empty_plan_ends` | Pure function |
-| `test_planner_generates_plan_from_goal` | `make_structured_fake(Plan, Plan(steps=["a","b"]))`; call `agent._planner(state, config)`; assert `{"plan": ["a","b"]}` |
-| `test_replan_returns_final_response_ends_run` | `make_structured_fake(PlanDecision, PlanDecision(action="respond", response="done"))`; assert state gets `response` field |
+| `test_route_after_approval_default_approve_goes_to_executor` | Pure function; state with no `response`, `pending_revise=False` → `"executor"` |
+| `test_route_after_approval_pending_revise_goes_to_replanner` | Pure function; `pending_revise=True` → `"replanner"` |
+| `test_route_after_approval_with_response_set_ends` | Pure function; `response="cancelled..."` → `END` |
+| `test_should_end_empty_plan_ends` | Pure function; `plan=[]`, no response → `END` |
+| `test_planner_generates_plan_from_input` | `make_structured_fake(Plan, Plan(steps=["a","b"]))`; call `agent._planner(state, config)`; assert `{"plan": ["a","b"]}` |
+| `test_replan_returns_final_response_when_plan_empty` | `make_structured_fake(Act, Act(action=PlanResponse(content="done")))`; with `state.plan=[]` → returned dict has `response="done"`, `pending_revise=False` |
 
 **E-2: compiled graph + HITL (2 tests)** `tests/integration/test_plan_execute_graph.py`. `MemorySaver`, `inject_main_llm` for the executor ReAct sub-agent.
 
 | Test | Script |
 |---|---|
-| `test_happy_path_plan_approve_execute_end` | planner→`Plan(["step1"])`, executor-LLM→`AIMessage("done")`, replanner→`respond`. Resume with `Command(resume={"action":"approve"})`. Assert: `response` field set, LLM called 3 times |
-| `test_reject_loops_back_to_replanner` | planner→`Plan(["step1"])` → interrupt → `Command(resume={"action":"reject","feedback":"no"})` → replanner→`Plan(["step2"])` → interrupt again. Assert: `approval_round == 2` |
+| `test_happy_path_plan_approve_execute_end` | planner→`Plan(["step one"])`, executor-LLM→`AIMessage("step done")`, replanner→`Act(action=PlanResponse("all done"))`. Resume with `Command(resume={"action":"approve"})`. Assert snapshot state has `response="all done"` |
+| `test_revise_loops_back_to_replanner_and_increments_approval_round` | planner→`Plan(["original step"])` → interrupt → `Command(resume={"action":"revise","feedback":"..."})` → replanner→`Act(action=Plan(["revised step"]))` → loops back to approval_gate. Assert: `approval_round` advances, `plan == ["revised step"]`, `pending_revise == True` |
 
 ### B — main ReAct graph (4 tests)
 
