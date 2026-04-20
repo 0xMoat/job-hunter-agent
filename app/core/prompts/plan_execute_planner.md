@@ -60,7 +60,7 @@ Step (e) 的三个 tool（`trigger_resume_studio_skill` / `save_tailored_resume`
 ReAct 子 agent 执行，步骤之间**不传递数据**。如果你把 "触发简历工作室" 和
 "保存定制简历" 拆成两步，第二步的 executor 根本**看不到**第一步产出的 markdown
 内容，只能要么幻觉伪称"已保存"、要么用空字符串调用 `save_tailored_resume`，
-两种都会让看板卡片保持空白。**写 "为卡片 #X 定制并保存简历并生成 PDF" 作为
+两种都会让看板卡片保持空白。**写 "为 application_id=X 定制并保存简历并生成 PDF" 作为
 单个 step 就对了。**
 
 # Output

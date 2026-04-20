@@ -33,6 +33,8 @@ interface Props {
   savedUrlsInKanban?: Set<string>
   onPickFollowupPrompt?: (prompt: string) => void
   onJumpToTopCard?: () => void | Promise<void>
+  /** Map of application_id → company name for humanizing plan step text. */
+  companyById?: Record<number, string>
 }
 
 export function MessageBubble({
@@ -44,6 +46,7 @@ export function MessageBubble({
   savedUrlsInKanban,
   onPickFollowupPrompt,
   onJumpToTopCard,
+  companyById,
 }: Props) {
   const { locale, t } = useLanguage()
   const isUser = message.role === "user"
@@ -116,6 +119,7 @@ export function MessageBubble({
               }
               actionsDisabled={isStreaming}
               onJumpToTopCard={onJumpToTopCard}
+              companyById={companyById}
             />
           </div>
         )}

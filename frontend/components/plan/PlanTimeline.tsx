@@ -15,6 +15,9 @@ interface PlanTimelineViewProps {
   /** Fired from the final-response CTA. The parent is expected to locate the
    * top-scored pending card, switch to the kanban tab, and open its drawer. */
   onJumpToTopCard?: () => void | Promise<void>
+  /** Map of application_id → company name, used to render plan step text with
+   * human-readable company labels instead of bare "#4" card ids. */
+  companyById?: Record<number, string>
 }
 
 function fmtDuration(seconds: number): string {
@@ -30,6 +33,7 @@ export function PlanTimelineView({
   onCancel,
   actionsDisabled,
   onJumpToTopCard,
+  companyById,
 }: PlanTimelineViewProps) {
   const { t } = useLanguage()
   const [jumping, setJumping] = useState(false)
@@ -137,7 +141,7 @@ export function PlanTimelineView({
             <div className="pointer-events-none absolute bottom-3 left-[5px] top-3 w-px bg-zinc-200" />
           )}
           {view.steps.map((s, i) => (
-            <PlanStepRow key={s.id} step={s} position={i + 1} />
+            <PlanStepRow key={s.id} step={s} position={i + 1} companyById={companyById} />
           ))}
         </div>
       )}

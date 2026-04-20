@@ -44,6 +44,7 @@ export function ChatPanel({ onStreamingChange, onRequestOpenSettings, onJumpToCa
   const bottomRef = useRef<HTMLDivElement>(null)
   const [pendingCount, setPendingCount] = useState(0)
   const [kanbanUrls, setKanbanUrls] = useState<Set<string>>(new Set())
+  const [companyById, setCompanyById] = useState<Record<number, string>>({})
   const [resumeIsDefault, setResumeIsDefault] = useState(false)
 
   useEffect(() => {
@@ -67,6 +68,11 @@ export function ChatPanel({ onStreamingChange, onRequestOpenSettings, onJumpToCa
             .filter((u): u is string => typeof u === "string" && u.length > 0),
         ),
       )
+      const nextCompanyById: Record<number, string> = {}
+      for (const a of applications) {
+        if (a.company) nextCompanyById[a.id] = a.company
+      }
+      setCompanyById(nextCompanyById)
     } catch {
       // silent
     }
@@ -236,6 +242,7 @@ export function ChatPanel({ onStreamingChange, onRequestOpenSettings, onJumpToCa
                   savedUrlsInKanban={kanbanUrls}
                   onPickFollowupPrompt={sendMessage}
                   onJumpToTopCard={handleJumpToTopCard}
+                  companyById={companyById}
                 />
               ))}
             </>

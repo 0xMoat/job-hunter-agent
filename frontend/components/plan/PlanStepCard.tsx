@@ -28,8 +28,15 @@ function fmtDuration(seconds: number): string {
   return `${m}:${String(s).padStart(2, "0")}`
 }
 
-export function humanizePlanStepText(text: string): string {
-  return text.replace(/application_id\s*[:=]\s*(\d+)/g, "卡片 #$1")
+export function humanizePlanStepText(
+  text: string,
+  companyById?: Record<number, string>,
+): string {
+  return text.replace(/application_id\s*[:=]\s*(\d+)/g, (_m, raw: string) => {
+    const id = Number(raw)
+    const company = companyById?.[id]
+    return company ? `${company}（#${id}）` : `卡片 #${id}`
+  })
 }
 
 /**
@@ -38,7 +45,15 @@ export function humanizePlanStepText(text: string): string {
  * expands inline with a mono tool-log preview so the user can see the
  * agent is actually working (Variant B from the mock comparison).
  */
-export function PlanStepRow({ step, position }: { step: PlanStep; position: number }) {
+export function PlanStepRow({
+  step,
+  position,
+  companyById,
+}: {
+  step: PlanStep
+  position: number
+  companyById?: Record<number, string>
+}) {
   const isRunning = step.status === "running"
   const isDone = step.status === "done"
   const isFailed = step.status === "failed"
@@ -100,7 +115,7 @@ export function PlanStepRow({ step, position }: { step: PlanStep; position: numb
                     : "font-medium text-zinc-800"
             }`}
           >
-            {humanizePlanStepText(step.text)}
+            {humanizePlanStepText(step.text, companyById)}
           </span>
           {isRunning && (
             <span className="shrink-0 font-mono text-[10px] text-indigo-600">
