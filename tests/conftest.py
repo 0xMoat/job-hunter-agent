@@ -60,3 +60,69 @@ async def client(app) -> AsyncIterator[AsyncClient]:
 @pytest.fixture
 def fake_user_id() -> str:
     return str(uuid.uuid4())
+
+
+@pytest_asyncio.fixture
+async def test_user(app):
+    """Create a fresh test user for each test. Uses uuid-suffixed google_id
+    and email so re-runs and parallel test files don't conflict."""
+    from app.services.database import DatabaseService
+
+    db = DatabaseService()
+    suffix = uuid.uuid4().hex[:12]
+    user = await db.upsert_user_by_google_id(
+        google_id=f"test-google-{suffix}",
+        email=f"test-{suffix}@example.test",
+        name=f"Test User {suffix}",
+        avatar_url="https://example.test/avatar.png",
+    )
+    return user
+
+
+@pytest_asyncio.fixture
+async def user_token(test_user) -> str:
+    """JWT that passes `get_current_user` dependency."""
+    from app.utils.auth import create_access_token
+
+    token = create_access_token(str(test_user.id))
+    return token.access_token
+
+
+@pytest_asyncio.fixture
+async def user_client(client, user_token) -> AsyncIterator[AsyncClient]:
+    """Async HTTP client pre-authenticated as test_user (user-level JWT)."""
+    client.headers["Authorization"] = f"Bearer {user_token}"
+    try:
+        yield client
+    finally:
+        client.headers.pop("Authorization", None)
+
+
+@pytest_asyncio.fixture
+async def test_session(test_user):
+    """Create a fresh test session owned by test_user."""
+    from app.services.database import DatabaseService
+
+    db = DatabaseService()
+    session_id = str(uuid.uuid4())
+    session = await db.create_session(session_id, test_user.id)
+    return session
+
+
+@pytest_asyncio.fixture
+async def session_token(test_session) -> str:
+    """JWT that passes `get_current_session` dependency."""
+    from app.utils.auth import create_access_token
+
+    token = create_access_token(test_session.id)
+    return token.access_token
+
+
+@pytest_asyncio.fixture
+async def session_client(client, session_token) -> AsyncIterator[AsyncClient]:
+    """Async HTTP client pre-authenticated with session-level JWT."""
+    client.headers["Authorization"] = f"Bearer {session_token}"
+    try:
+        yield client
+    finally:
+        client.headers.pop("Authorization", None)
