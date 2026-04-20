@@ -74,9 +74,10 @@ def inject_main_llm(monkeypatch, fake) -> None:
 
     monkeypatch.setattr(llm_service, "_llm", fake)
 
-    # Invalidate main agent graph cache if the module has been imported
+    # Invalidate main agent graph cache if the module has been imported.
+    # The main LangGraphAgent singleton is instantiated in app.api.v1.chatbot.
     try:
-        from app.core.langgraph.graph import agent as main_agent
+        from app.api.v1.chatbot import agent as main_agent
 
         monkeypatch.setattr(main_agent, "_llm", fake, raising=False)
         monkeypatch.setattr(main_agent, "_graph", None, raising=False)
