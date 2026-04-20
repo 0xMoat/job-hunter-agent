@@ -19,18 +19,24 @@ from typing import Any, List, Tuple
 from unittest.mock import AsyncMock
 
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
+from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import BaseMessage
 from pydantic import BaseModel
 
 
-def make_fake_chat_model(responses: List[BaseMessage]) -> FakeMessagesListChatModel:
-    """Return a FakeMessagesListChatModel pre-loaded with scripted responses.
+def make_fake_chat_model(responses: List[BaseMessage]) -> GenericFakeChatModel:
+    """Return a GenericFakeChatModel pre-loaded with scripted responses.
 
-    Successive .ainvoke / .astream calls pop from the list. Each entry should be
-    an AIMessage (optionally with tool_calls) or similar BaseMessage subclass.
+    Each .ainvoke call pulls the next response from the iterator. Crucially,
+    GenericFakeChatModel implements `_stream` that splits content into
+    AIMessageChunks and fires `on_llm_new_token`, which is what LangGraph's
+    `stream_mode="messages"` consumes — so scripted text actually appears in
+    the SSE stream (FakeMessagesListChatModel does not emit chunks).
+
+    Each entry should be an AIMessage (optionally with tool_calls) or similar
+    BaseMessage subclass.
     """
-    return FakeMessagesListChatModel(responses=responses)
+    return GenericFakeChatModel(messages=iter(responses))
 
 
 def make_flaky_chat_model(side_effects: List[Any]) -> AsyncMock:
