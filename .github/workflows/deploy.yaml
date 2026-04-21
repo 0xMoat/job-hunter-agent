@@ -101,8 +101,22 @@ jobs:
                 sleep 5
               done
 
+              # Preserve the currently-running image under its SHA so the
+              # rebuild about to overwrite :latest doesn't orphan it.
+              # Result: old image keeps a name (sha-<7-char>) instead of
+              # becoming a <none>:<none> dangling layer.
+              OLD_SHORT=${OLD_SHA:0:7}
+              if docker image inspect job-hunter-agent-app:latest >/dev/null 2>&1; then
+                docker tag job-hunter-agent-app:latest "job-hunter-agent-app:sha-$OLD_SHORT" || true
+              fi
+
               echo "→ rebuilding app container"
               docker compose -f docker-compose.prod.yml up -d --build app
+
+              # Stamp the fresh build with its git SHA for audit / rollback lookup.
+              NEW_SHORT=${NEW_SHA:0:7}
+              docker tag job-hunter-agent-app:latest "job-hunter-agent-app:sha-$NEW_SHORT"
+              echo "→ tagged new image as job-hunter-agent-app:sha-$NEW_SHORT"
             else
               echo "→ app unchanged, skipping rebuild"
             fi
