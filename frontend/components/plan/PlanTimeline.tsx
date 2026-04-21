@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import type { PlanExecuteView, PlanStep } from "@/lib/types"
 import { PlanStepRow } from "./PlanStepCard"
 import { PlanApprovalCard } from "./PlanApprovalCard"
-import { computeWaves } from "./planUtils"
+import { computeWaves, buildCardColorMap, stepColor } from "./planUtils"
 import { useLanguage } from "@/contexts/LanguageContext"
 
 interface PlanTimelineViewProps {
@@ -119,6 +119,7 @@ export function PlanTimelineView({
   const showHeader = pill !== null || total > 0
   const waves = computeWaves(view.steps)
   const isMultiWave = waves.length > 1
+  const cardColors = buildCardColorMap(view.steps)
 
   // ── SVG edge drawing ──────────────────────────────────────────────────────
   const containerRef = useRef<HTMLDivElement>(null)
@@ -335,20 +336,24 @@ export function PlanTimelineView({
                     )}
                   </div>
                   {/* Steps in this wave — horizontal flex-wrap */}
-                  <div className="flex flex-wrap gap-x-1 gap-y-0">
-                    {wave.map((s) => (
-                      <div
-                        key={s.id}
-                        ref={setStepRef(s.id)}
-                        className="min-w-0 flex-1 basis-60"
-                      >
-                        <PlanStepRow
-                          step={s}
-                          position={stepNumberMap.get(s.id) ?? 0}
-                          companyById={companyById}
-                        />
-                      </div>
-                    ))}
+                  <div className="flex flex-wrap gap-x-1.5 gap-y-1">
+                    {wave.map((s) => {
+                      const color = stepColor(s.id, cardColors)
+                      return (
+                        <div
+                          key={s.id}
+                          ref={setStepRef(s.id)}
+                          className="min-w-0 flex-1 basis-60 rounded-md px-1.5 py-0.5"
+                          style={{ backgroundColor: color.bg }}
+                        >
+                          <PlanStepRow
+                            step={s}
+                            position={stepNumberMap.get(s.id) ?? 0}
+                            companyById={companyById}
+                          />
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               ))}

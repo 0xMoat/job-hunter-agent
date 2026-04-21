@@ -3,7 +3,7 @@
 import { useState } from "react"
 import type { PlanStep } from "@/lib/types"
 import { pillLabel } from "./PlanStepCard"
-import { computeWaves } from "./planUtils"
+import { computeWaves, buildCardColorMap, stepColor } from "./planUtils"
 import { useLanguage } from "@/contexts/LanguageContext"
 
 interface PlanApprovalCardProps {
@@ -31,6 +31,7 @@ export function PlanApprovalCard({
 
   const waves = steps ? computeWaves(steps) : []
   const isMultiWave = waves.length > 1
+  const cardColors = steps ? buildCardColorMap(steps) : new Map()
 
   if (revising) {
     return (
@@ -97,14 +98,22 @@ export function PlanApprovalCard({
                   Wave {wi + 1} · {wave.length > 1 ? "并行" : ""}
                 </div>
                 <div className="flex flex-wrap gap-1">
-                  {wave.map((s) => (
-                    <span
-                      key={s.id}
-                      className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] text-indigo-800"
-                    >
-                      {pillLabel(s.text, companyById)}
-                    </span>
-                  ))}
+                  {wave.map((s) => {
+                    const color = stepColor(s.id, cardColors)
+                    return (
+                      <span
+                        key={s.id}
+                        className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+                        style={{
+                          backgroundColor: color.bg,
+                          color: color.text,
+                          border: `1px solid ${color.border}`,
+                        }}
+                      >
+                        {pillLabel(s.text, companyById)}
+                      </span>
+                    )
+                  })}
                 </div>
               </div>
             ))}
