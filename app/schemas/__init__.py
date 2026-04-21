@@ -15,7 +15,9 @@ from app.schemas.plan_execute import (
     Act,
     Plan,
     PlanExecuteState,
+    PlanStep,
     Response as PlanResponse,
+    StepStatus,
 )
 
 __all__ = [
@@ -31,5 +33,7 @@ __all__ = [
     "Act",
     "Plan",
     "PlanExecuteState",
+    "PlanStep",
     "PlanResponse",
+    "StepStatus",
 ]

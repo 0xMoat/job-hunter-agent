@@ -1,14 +1,40 @@
 """Schemas for the Plan-and-Execute subgraph."""
 
+from enum import Enum
+from typing import Annotated
+
 from pydantic import BaseModel, Field
 
 
-class Plan(BaseModel):
-    """An ordered list of natural-language steps to execute."""
+def _merge_dicts(left: dict, right: dict) -> dict:
+    """LangGraph state reducer: merge two dicts (right wins on key collision)."""
+    merged = left.copy()
+    merged.update(right)
+    return merged
 
-    steps: list[str] = Field(
+
+class StepStatus(str, Enum):
+    PENDING = "pending"
+    RUNNING = "running"
+    DONE = "done"
+    FAILED = "failed"
+    SKIPPED = "skipped"
+
+
+class PlanStep(BaseModel):
+    """A single step in a DAG plan with explicit dependencies."""
+
+    id: str = Field(..., description="唯一步骤 id，如 'A1', 'B2'")
+    text: str = Field(..., description="自然语言指令")
+    depends_on: list[str] = Field(default_factory=list, description="前置步骤 id 列表")
+
+
+class Plan(BaseModel):
+    """A DAG of steps to execute."""
+
+    steps: list[PlanStep] = Field(
         ...,
-        description="按顺序执行的步骤，每步一句自然语言指令，原子化且可独立执行。",
+        description="DAG 步骤列表，每步声明自身 id 和依赖。",
     )
 
 
@@ -30,27 +56,28 @@ class Act(BaseModel):
 class PlanExecuteState(BaseModel):
     """Runtime state for the Plan-and-Execute subgraph."""
 
-    input: str = Field(..., description="用户目标（固定模板或自由文本）")
-    plan: list[str] = Field(default_factory=list, description="待执行的剩余步骤")
-    past_steps: list[tuple[str, str]] = Field(
-        default_factory=list, description="已执行步骤的 (step_text, result) 历史"
+    input: str = Field(..., description="用户目标")
+    plan: list[PlanStep] = Field(default_factory=list, description="完整 DAG 定义（执行期间不弹出）")
+    step_results: Annotated[dict[str, str], _merge_dicts] = Field(
+        default_factory=dict, description="step_id → result text"
+    )
+    step_status: Annotated[dict[str, str], _merge_dicts] = Field(
+        default_factory=dict, description="step_id → StepStatus value"
     )
     response: str | None = Field(default=None, description="最终答复，由 Replanner 设置")
     long_term_memory: str = Field(default="", description="mem0 检索的用户画像")
     pending_applications: str = Field(default="", description="进入子图前快照")
     target_application_ids: list[int] = Field(
         default_factory=list,
-        description="PE 启动时快照的目标卡片 id 列表。Analysis/save tools 会按此 list 循环。",
+        description="PE 启动时快照的目标卡片 id 列表",
     )
-    iterations: int = Field(default=0, description="循环次数（硬护栏）")
+    iterations: int = Field(default=0, description="scheduler→collector 循环次数（硬护栏）")
     # ── HITL ──
     user_feedback: str | None = Field(
         default=None,
-        description="revise 动作时用户输入的修改意见，Replanner 读取后置回 None",
+        description="revise 动作时用户输入的修改意见",
     )
-    approval_round: int = Field(
-        default=0, description="审批轮次，每次 interrupt 前 +1"
-    )
+    approval_round: int = Field(default=0, description="审批轮次")
     pending_revise: bool = Field(
         default=False,
         description="路由 hint：True 时 Replanner 产出的新 plan 送回 approval_gate",
