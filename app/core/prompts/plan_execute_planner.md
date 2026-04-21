@@ -66,21 +66,21 @@ ReAct 子 agent 执行，步骤之间**不传递数据**。
 ## Example output (2 cards)
 
 ```json
-{
+{{
   "steps": [
-    {"id": "A1", "text": "company_research(card=10) 并 save_company_research(application_id=10, content=...)", "depends_on": []},
-    {"id": "B1", "text": "company_research(card=11) 并 save_company_research(application_id=11, content=...)", "depends_on": []},
-    {"id": "A2", "text": "score_jd_match(application_id=10)", "depends_on": ["A1"]},
-    {"id": "A3", "text": "analyze_jd_gap(application_id=10)", "depends_on": ["A1"]},
-    {"id": "A4", "text": "generate_interview_questions(application_id=10)", "depends_on": ["A1"]},
-    {"id": "B2", "text": "score_jd_match(application_id=11)", "depends_on": ["B1"]},
-    {"id": "B3", "text": "analyze_jd_gap(application_id=11)", "depends_on": ["B1"]},
-    {"id": "B4", "text": "generate_interview_questions(application_id=11)", "depends_on": ["B1"]},
-    {"id": "A5", "text": "为 application_id=10 定制简历+PDF", "depends_on": ["A2", "A3", "A4"]},
-    {"id": "B5", "text": "为 application_id=11 定制简历+PDF", "depends_on": ["B2", "B3", "B4"]},
-    {"id": "Z", "text": "汇总本次处理结果并提交最终回复", "depends_on": ["A5", "B5"]}
+    {{"id": "A1", "text": "company_research(card=10) 并 save_company_research(application_id=10, content=...)", "depends_on": []}},
+    {{"id": "B1", "text": "company_research(card=11) 并 save_company_research(application_id=11, content=...)", "depends_on": []}},
+    {{"id": "A2", "text": "score_jd_match(application_id=10)", "depends_on": ["A1"]}},
+    {{"id": "A3", "text": "analyze_jd_gap(application_id=10)", "depends_on": ["A1"]}},
+    {{"id": "A4", "text": "generate_interview_questions(application_id=10)", "depends_on": ["A1"]}},
+    {{"id": "B2", "text": "score_jd_match(application_id=11)", "depends_on": ["B1"]}},
+    {{"id": "B3", "text": "analyze_jd_gap(application_id=11)", "depends_on": ["B1"]}},
+    {{"id": "B4", "text": "generate_interview_questions(application_id=11)", "depends_on": ["B1"]}},
+    {{"id": "A5", "text": "为 application_id=10 定制简历+PDF", "depends_on": ["A2", "A3", "A4"]}},
+    {{"id": "B5", "text": "为 application_id=11 定制简历+PDF", "depends_on": ["B2", "B3", "B4"]}},
+    {{"id": "Z", "text": "汇总本次处理结果并提交最终回复", "depends_on": ["A5", "B5"]}}
   ]
-}
+}}
 ```
 
 For single-card runs, use steps (a)-(e) as needed by the user's goal; skip the
