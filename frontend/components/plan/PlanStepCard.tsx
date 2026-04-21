@@ -58,6 +58,7 @@ export function PlanStepRow({
   const isDone = step.status === "done"
   const isFailed = step.status === "failed"
   const isPending = step.status === "pending"
+  const isSkipped = step.status === "skipped"
 
   // Step-level elapsed. Prefer the server-emitted start time (survives page
   // refresh); fall back to the first local render that saw `running` for
@@ -102,6 +103,9 @@ export function PlanStepRow({
         {isPending && (
           <span className="block h-2.5 w-2.5 rounded-full border-[1.5px] border-zinc-300 bg-white" />
         )}
+        {isSkipped && (
+          <span className="block h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-white" />
+        )}
       </div>
 
       {/* Body */}
@@ -118,11 +122,18 @@ export function PlanStepRow({
                   ? "text-zinc-400"
                   : isFailed
                     ? "text-rose-700"
-                    : "font-medium text-zinc-800"
+                    : isSkipped
+                      ? "text-amber-600/70 line-through"
+                      : "font-medium text-zinc-800"
             }`}
           >
             {humanizePlanStepText(step.text, companyById)}
           </span>
+          {isSkipped && (
+            <span className="shrink-0 font-mono text-[10px] text-amber-600">
+              skipped
+            </span>
+          )}
           {isRunning && !isStalled && (
             <span className="shrink-0 font-mono text-[10px] text-indigo-600">
               {fmtDuration(elapsed)} running…

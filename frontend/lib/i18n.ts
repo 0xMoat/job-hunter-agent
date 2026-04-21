@@ -124,6 +124,9 @@ const zh: Dict = {
   pe_jump_top_card: '→ 查看匹配度最高的卡片',
   pe_jump_top_card_loading: '定位中…',
   pe_jump_top_card_empty: '看板里暂无已评分的卡片',
+  pe_wave_label: ((n: number) => `Wave ${n}`) as unknown as FnValue,
+  pe_parallel_steps: ((n: number) => `${n} 步并行`) as unknown as FnValue,
+  pe_approval_dag_title: '执行计划（DAG）',
   pe_chip_analyze_match: '分析这些 JD 和我的简历匹配度，按优先级排序',
   pe_chip_prioritize_by_prefs: '按我的偏好筛一遍这些 JD，哪些值得优先投递',
   chat_auto_process_prompt: ((n: number) =>
@@ -431,6 +434,9 @@ const en: Dict = {
   pe_jump_top_card: '→ Jump to the top-match card',
   pe_jump_top_card_loading: 'Locating…',
   pe_jump_top_card_empty: 'No scored cards on the kanban yet',
+  pe_wave_label: ((n: number) => `Wave ${n}`) as unknown as FnValue,
+  pe_parallel_steps: ((n: number) => `${n} in parallel`) as unknown as FnValue,
+  pe_approval_dag_title: 'Execution plan (DAG)',
   pe_chip_analyze_match: 'Analyze JD-to-resume fit and rank by priority',
   pe_chip_prioritize_by_prefs: 'Filter these JDs by my preferences — which to apply first?',
   chat_auto_process_prompt: ((n: number) =>

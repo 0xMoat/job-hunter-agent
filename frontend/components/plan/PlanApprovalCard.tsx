@@ -1,24 +1,36 @@
 "use client"
 
 import { useState } from "react"
+import type { PlanStep } from "@/lib/types"
+import { humanizePlanStepText } from "./PlanStepCard"
+import { computeWaves } from "./planUtils"
+import { useLanguage } from "@/contexts/LanguageContext"
 
 interface PlanApprovalCardProps {
   round: number
+  steps?: PlanStep[]
   onApprove: () => void
   onRevise: (feedback: string) => void
   onCancel: () => void
   disabled?: boolean
+  companyById?: Record<number, string>
 }
 
 export function PlanApprovalCard({
   round,
+  steps,
   onApprove,
   onRevise,
   onCancel,
   disabled = false,
+  companyById,
 }: PlanApprovalCardProps) {
+  const { t } = useLanguage()
   const [revising, setRevising] = useState(false)
   const [feedback, setFeedback] = useState("")
+
+  const waves = steps ? computeWaves(steps) : []
+  const isMultiWave = waves.length > 1
 
   if (revising) {
     return (
@@ -71,6 +83,35 @@ export function PlanApprovalCard({
         <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-indigo-500" />
         等你确认 · 第 {round} 轮
       </div>
+
+      {/* DAG preview — show wave structure so the user sees parallelism */}
+      {isMultiWave && steps && (
+        <div className="mb-3 rounded-md border border-indigo-200 bg-white/60 px-3 py-2">
+          <div className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-indigo-600">
+            {t("pe_approval_dag_title")}
+          </div>
+          <div className="flex flex-col gap-1.5">
+            {waves.map((wave, wi) => (
+              <div key={wi} className="flex items-start gap-2">
+                <span className="mt-px shrink-0 font-mono text-[10px] font-medium text-indigo-500">
+                  W{wi + 1}
+                </span>
+                <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                  {wave.map((s) => (
+                    <span
+                      key={s.id}
+                      className="text-[11px] leading-relaxed text-indigo-800"
+                    >
+                      {humanizePlanStepText(s.text, companyById)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-wrap justify-end gap-2">
         <button
           type="button"
