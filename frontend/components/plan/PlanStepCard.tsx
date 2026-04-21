@@ -39,6 +39,37 @@ export function humanizePlanStepText(
   })
 }
 
+/** Ultra-short label for pill display in the approval DAG preview. */
+const PILL_PATTERNS: [RegExp, string][] = [
+  [/company_research.*save_company_research/i, "调研"],
+  [/score_jd_match/i, "评分"],
+  [/analyze_jd_gap/i, "缺口"],
+  [/generate_interview_questions/i, "面试"],
+  [/定制.*简历|resume.*pdf|trigger_resume_studio/i, "简历PDF"],
+  [/汇总/i, "📝 汇总"],
+]
+
+export function pillLabel(
+  text: string,
+  companyById?: Record<number, string>,
+): string {
+  // Extract application_id for the suffix
+  const idMatch = text.match(/(?:application_id|card)\s*[:=]\s*(\d+)/)
+  const id = idMatch ? Number(idMatch[1]) : null
+  const suffix = id
+    ? companyById?.[id]
+      ? ` ${companyById[id]}`
+      : ` #${id}`
+    : ""
+
+  for (const [pattern, label] of PILL_PATTERNS) {
+    if (pattern.test(text)) return `${label}${suffix}`
+  }
+  // Fallback: truncate
+  const short = text.length > 15 ? text.slice(0, 15) + "…" : text
+  return short
+}
+
 /**
  * One step rendered as a single-line feed entry — replaces the previous
  * large-card layout so a 17-step plan fits on one screen. The active step

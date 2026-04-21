@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import type { PlanStep } from "@/lib/types"
-import { humanizePlanStepText } from "./PlanStepCard"
+import { pillLabel } from "./PlanStepCard"
 import { computeWaves } from "./planUtils"
 import { useLanguage } from "@/contexts/LanguageContext"
 
@@ -84,30 +84,33 @@ export function PlanApprovalCard({
         等你确认 · 第 {round} 轮
       </div>
 
-      {/* DAG preview — show wave structure so the user sees parallelism */}
+      {/* DAG preview — pill layout per wave */}
       {isMultiWave && steps && (
         <div className="mb-3 rounded-md border border-indigo-200 bg-white/60 px-3 py-2">
-          <div className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-indigo-600">
-            {t("pe_approval_dag_title")}
+          <div className="mb-2 text-[10px] font-medium text-indigo-600">
+            {t("pe_approval_dag_title")} · {steps.length} 步
           </div>
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-2">
             {waves.map((wave, wi) => (
-              <div key={wi} className="flex items-start gap-2">
-                <span className="mt-px shrink-0 font-mono text-[10px] font-medium text-indigo-500">
-                  W{wi + 1}
-                </span>
-                <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+              <div key={wi}>
+                <div className="mb-1 text-[9px] font-semibold uppercase tracking-wider text-indigo-500">
+                  Wave {wi + 1} · {wave.length > 1 ? "并行" : ""}
+                </div>
+                <div className="flex flex-wrap gap-1">
                   {wave.map((s) => (
                     <span
                       key={s.id}
-                      className="text-[11px] leading-relaxed text-indigo-800"
+                      className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] text-indigo-800"
                     >
-                      {humanizePlanStepText(s.text, companyById)}
+                      {pillLabel(s.text, companyById)}
                     </span>
                   ))}
                 </div>
               </div>
             ))}
+          </div>
+          <div className="mt-2 text-[9px] text-indigo-400">
+            同一 Wave 内的步骤并行执行
           </div>
         </div>
       )}
