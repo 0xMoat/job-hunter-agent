@@ -82,6 +82,25 @@ jobs:
             # ── App services: rebuild only when code / infra / deps changed ──
             if changed_under "app/|scripts/|pyproject\.toml|uv\.lock|Dockerfile|docker-compose\.prod\.yml" \
                || [ "$OLD_SHA" = "$NEW_SHA" ]; then
+              # Drain: wait up to 60s for any in-flight Plan-Execute SSE
+              # streams to finish so the container restart doesn't orphan
+              # them mid-step. Timeout-bounded so a stuck run can't block
+              # deploys indefinitely.
+              echo "→ draining in-flight Plan-Execute runs"
+              for i in $(seq 1 12); do
+                count=$(curl -sf --max-time 3 \
+                  http://localhost:8000/api/v1/chatbot/plan-execute/inflight \
+                  2>/dev/null | python3 -c \
+                  'import json,sys; print(json.load(sys.stdin).get("count",0))' \
+                  2>/dev/null || echo 0)
+                if [ "$count" = "0" ]; then
+                  echo "  drain: no in-flight runs"
+                  break
+                fi
+                echo "  drain: $count in-flight run(s), waiting 5s (attempt $i/12)"
+                sleep 5
+              done
+
               echo "→ rebuilding app container"
               docker compose -f docker-compose.prod.yml up -d --build app
             else

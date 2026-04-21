@@ -19,7 +19,7 @@ from pydantic import BaseModel
 from app.api.v1.auth import get_current_session
 from app.core.config import settings
 from app.core.langgraph.graph import LangGraphAgent
-from app.core.langgraph.plan_execute import PlanExecuteAgent
+from app.core.langgraph.plan_execute import ACTIVE_PE_THREADS, PlanExecuteAgent
 from app.core.limiter import limiter
 from app.core.logging import logger
 from app.core.metrics import llm_stream_duration_seconds
@@ -211,3 +211,16 @@ async def plan_execute(
             yield f"data: {_json.dumps({'type': 'error', 'message': str(e), 'done': True})}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+@router.get("/plan-execute/inflight")
+@limiter.limit("60/minute")
+async def plan_execute_inflight(request: Request):
+    """Return the count of in-flight Plan-Execute streams.
+
+    Used by the deploy pipeline as a drain gate — restart waits until
+    this hits zero (or a timeout) to avoid killing SSE streams mid-run.
+    No auth: the numeric count is not sensitive and the endpoint is
+    only reachable from the Oracle host loopback in production.
+    """
+    return {"count": len(ACTIVE_PE_THREADS), "thread_ids": sorted(ACTIVE_PE_THREADS)}

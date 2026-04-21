@@ -169,6 +169,7 @@ export type PlanStreamChunk =
   | { type: "plan_revised"; plan: PlanStepDescriptor[]; reason: string; done: false }
   | { type: "final_response"; content: string; done: true }
   | { type: "error"; message: string; done: true }
+  | { type: "interrupted"; message: string; done: true }
   // ── live executor events ──
   | { type: "step_text_delta"; step_id: string; delta: string; done: false }
   | {

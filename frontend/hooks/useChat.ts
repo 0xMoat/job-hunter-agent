@@ -319,6 +319,29 @@ function applyPlanChunkToMessage(
       ),
     )
   }
+  if (chunk.type === "interrupted") {
+    // Server told us it's shutting down mid-run (SIGTERM / container
+    // restart). Flip any still-running step to failed and freeze the
+    // view so the user gets a clear signal instead of a stuck timer.
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === assistantId && m.planExecute
+          ? {
+              ...m,
+              planExecute: {
+                ...m.planExecute,
+                errorMsg: chunk.message,
+                awaitingApproval: false,
+                running: false,
+                steps: m.planExecute.steps.map((s) =>
+                  s.status === "running" ? { ...s, status: "failed" as const } : s,
+                ),
+              },
+            }
+          : m,
+      ),
+    )
+  }
 }
 
 interface UseChatOptions {

@@ -52,14 +52,20 @@ EXECUTOR_RECURSION_LIMIT = 25
 # corrected arg, but not three times in a row with unchanged args.
 MAX_REPEATED_TOOL_CALLS = 3
 
+# Module-level registry of PE thread ids with an active streaming generator.
+# Read by the `/plan-execute/inflight` endpoint so the deploy pipeline can
+# drain cleanly before restarting the container, and used by the graceful
+# shutdown path to emit `interrupted` SSE events on SIGTERM.
+ACTIVE_PE_THREADS: set[str] = set()
+
 
 def _detect_repeated_tool_call(messages: list) -> Optional[str]:
-    """Return the tool name if the same (name, args) was invoked more than
-    MAX_REPEATED_TOOL_CALLS times in the given message trace.
+    """Return tool name if one was invoked with identical args beyond the cap.
 
-    Args are canonicalized via ``json.dumps(sort_keys=True)`` so whitespace
-    differences in tool-call args (DeepSeek sometimes re-emits args with
-    minor key-order changes) don't falsely clear the loop check.
+    Scans the ReAct message trace for any (tool_name, args-fingerprint) that
+    appears more than ``MAX_REPEATED_TOOL_CALLS`` times. Args are canonicalized
+    via ``json.dumps(sort_keys=True)`` so key-order noise from DeepSeek's
+    streaming output doesn't defeat the check.
     """
     counts: dict[tuple[str, str], int] = {}
     for msg in messages:
@@ -698,6 +704,8 @@ class PlanExecuteAgent:
                 has_feedback=bool((resume_payload or {}).get("feedback")),
             )
 
+        ACTIVE_PE_THREADS.add(pe_thread_id)
+
         langfuse_handler = CallbackHandler()
         config: RunnableConfig = {
             "configurable": {"thread_id": pe_thread_id, "user_id": user_id},
@@ -971,6 +979,25 @@ class PlanExecuteAgent:
                     "content": summary,
                     "done": True,
                 })
+        except asyncio.CancelledError:
+            # Container is shutting down (SIGTERM) or the client disconnected
+            # mid-stream. Emit a tombstone so the UI can transition the in-
+            # flight step out of "running" cleanly, then re-raise so the
+            # ASGI runtime can finish the cancellation.
+            logger.info(
+                "pe_astream_cancelled",
+                session_id=session_id,
+                pe_thread_id=pe_thread_id,
+            )
+            try:
+                yield _json.dumps({
+                    "type": "interrupted",
+                    "message": "服务正在重启或连接已断开，本次处理已中止。请稍后重新发起。",
+                    "done": True,
+                })
+            except Exception:
+                pass
+            raise
         except Exception as e:
             logger.exception("pe_astream_failed", session_id=session_id)
             yield _json.dumps({
@@ -979,4 +1006,5 @@ class PlanExecuteAgent:
                 "done": True,
             })
         finally:
+            ACTIVE_PE_THREADS.discard(pe_thread_id)
             langfuse_handler.client.flush()
