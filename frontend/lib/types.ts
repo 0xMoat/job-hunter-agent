@@ -144,6 +144,9 @@ export interface PlanStep {
   liveText?: string
   /** Live tool invocations + their eventual results. */
   toolCalls?: PlanLiveToolCall[]
+  /** Server-side step start time (ms since epoch). Used by the UI timer so
+   *  stall detection survives page reloads. */
+  startedAt?: number
 }
 
 export interface PlanStepDescriptor {
@@ -153,7 +156,7 @@ export interface PlanStepDescriptor {
 
 export type PlanStreamChunk =
   | { type: "plan_created"; steps: PlanStepDescriptor[]; done: false }
-  | { type: "step_started"; id: string; done: false }
+  | { type: "step_started"; id: string; started_at_utc?: string; done: false }
   | { type: "step_completed"; id: string; result: string; done: false }
   | { type: "plan_updated"; remaining: PlanStepDescriptor[]; done: false }
   | {

@@ -77,6 +77,9 @@ function applyPlanChunkToMessage(
     return
   }
   if (chunk.type === "step_started") {
+    const startedAt = chunk.started_at_utc
+      ? Date.parse(chunk.started_at_utc)
+      : Date.now()
     setMessages((prev) =>
       prev.map((m) => {
         if (m.id !== assistantId || !m.planExecute) return m
@@ -91,6 +94,7 @@ function applyPlanChunkToMessage(
                     status: "running" as const,
                     liveText: "",
                     toolCalls: [],
+                    startedAt,
                   }
                 : s,
             ),

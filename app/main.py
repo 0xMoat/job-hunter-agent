@@ -56,6 +56,16 @@ async def lifespan(app: FastAPI):
     scheduler = await setup_scheduler()
     scheduler.start()
     logger.info("scheduler_started")
+
+    # Clean up checkpoint rows from Plan-Execute runs that died mid-flight
+    # (container restart during an in-flight SSE stream leaves orphaned
+    # LangGraph state no one can advance).
+    try:
+        from app.api.v1.chatbot import plan_execute_agent
+        await plan_execute_agent.reap_stale_pe_threads(older_than_hours=24)
+    except Exception:
+        logger.exception("pe_reap_on_startup_failed")
+
     yield
     scheduler.shutdown()
     logger.info("application_shutdown")

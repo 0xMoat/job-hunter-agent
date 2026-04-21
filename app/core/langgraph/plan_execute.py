@@ -8,7 +8,7 @@ import asyncio
 import json as _json
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Any, AsyncGenerator, Optional
 from urllib.parse import quote_plus
 
@@ -492,6 +492,72 @@ class PlanExecuteAgent:
         logger.info("pe_graph_created", environment=settings.ENVIRONMENT.value)
         return self._graph
 
+    async def reap_stale_pe_threads(self, older_than_hours: int = 24) -> int:
+        """Drop LangGraph checkpoint rows for PE threads older than a cutoff.
+
+        Deploys can restart the container mid-run, leaving PE threads frozen
+        in postgres (no code advances them, no one can resume them because
+        the frontend has long since lost the thread_id). Over time these
+        accumulate. This runs at startup and removes rows whose thread_id
+        starts with ``pe_`` and whose newest checkpoint was written more
+        than ``older_than_hours`` ago.
+
+        LangGraph's checkpoint_ids are UUIDv6 — the top 48 bits of a 60-bit
+        timestamp (100ns-since-1582-10-15) live in the first 12 hex chars,
+        so lexicographic comparison of the full UUID is also chronological.
+
+        Returns the number of threads whose rows were deleted.
+        """
+        pool = await self._get_connection_pool()
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=older_than_hours)
+        uuid6_epoch = datetime(1582, 10, 15, tzinfo=timezone.utc)
+        cutoff_100ns = int((cutoff - uuid6_epoch).total_seconds() * 1e7)
+        time_high = (cutoff_100ns >> 28) & 0xFFFFFFFF
+        time_mid = (cutoff_100ns >> 12) & 0xFFFF
+        time_low = cutoff_100ns & 0x0FFF
+        cutoff_uuid = f"{time_high:08x}-{time_mid:04x}-6{time_low:03x}-0000-000000000000"
+
+        deleted_threads = 0
+        tables_with_thread_id = ("checkpoints", "checkpoint_writes", "checkpoint_blobs")
+        async with pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    """
+                    SELECT thread_id FROM checkpoints
+                    WHERE thread_id LIKE 'pe_%'
+                    GROUP BY thread_id
+                    HAVING MAX(checkpoint_id) < %s
+                    """,
+                    (cutoff_uuid,),
+                )
+                rows = await cur.fetchall()
+                stale_ids = [r[0] for r in rows]
+
+            for thread_id in stale_ids:
+                for table in tables_with_thread_id:
+                    async with conn.cursor() as cur:
+                        try:
+                            await cur.execute(
+                                f"DELETE FROM {table} WHERE thread_id = %s",
+                                (thread_id,),
+                            )
+                        except Exception:
+                            logger.exception(
+                                "pe_reap_delete_failed",
+                                table=table,
+                                thread_id=thread_id,
+                            )
+                deleted_threads += 1
+
+        if deleted_threads:
+            logger.info(
+                "pe_reap_stale_threads",
+                deleted_threads=deleted_threads,
+                older_than_hours=older_than_hours,
+                cutoff_uuid=cutoff_uuid,
+            )
+        return deleted_threads
+
     # ---------- public streaming API ----------
 
     async def astream(
@@ -651,9 +717,13 @@ class PlanExecuteAgent:
                 current_step_index = len(past_steps) - 1
                 if pending_ids:
                     active_step_id = pending_ids[0]
+                    # Authoritative server-side start timestamp so the frontend
+                    # timer is not driven by local clock on refresh — lets the
+                    # UI detect stalled steps after container restarts.
                     out.append(_json.dumps({
                         "type": "step_started",
                         "id": active_step_id,
+                        "started_at_utc": datetime.now(timezone.utc).isoformat(),
                         "done": False,
                     }))
 

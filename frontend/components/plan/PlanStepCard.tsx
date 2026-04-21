@@ -59,20 +59,23 @@ export function PlanStepRow({
   const isFailed = step.status === "failed"
   const isPending = step.status === "pending"
 
-  // Step-level elapsed — starts the first time this row enters running.
-  const startedAtRef = useRef<number | null>(null)
+  // Step-level elapsed. Prefer the server-emitted start time (survives page
+  // refresh); fall back to the first local render that saw `running` for
+  // legacy cached steps emitted before the server started sending it.
+  const STALL_THRESHOLD_SECONDS = 600 // 10 min — container restart / LLM hang
+  const localStartRef = useRef<number | null>(null)
   const [now, setNow] = useState(Date.now())
-  if (isRunning && startedAtRef.current === null) {
-    startedAtRef.current = Date.now()
+  if (isRunning && step.startedAt == null && localStartRef.current === null) {
+    localStartRef.current = Date.now()
   }
   useEffect(() => {
     if (!isRunning) return
     const id = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(id)
   }, [isRunning])
-  const elapsed = startedAtRef.current
-    ? Math.floor((now - startedAtRef.current) / 1000)
-    : 0
+  const startOrigin = step.startedAt ?? localStartRef.current
+  const elapsed = startOrigin ? Math.floor((now - startOrigin) / 1000) : 0
+  const isStalled = isRunning && elapsed > STALL_THRESHOLD_SECONDS
 
   const hasToolCalls = Boolean(step.toolCalls && step.toolCalls.length > 0)
   const hasLiveText = Boolean(step.liveText && step.liveText.length > 0)
@@ -90,8 +93,11 @@ export function PlanStepRow({
         {isFailed && (
           <span className="block h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-white" />
         )}
-        {isRunning && (
+        {isRunning && !isStalled && (
           <span className="block h-2.5 w-2.5 rounded-full bg-indigo-500 ring-2 ring-white shadow-[0_0_0_4px_rgba(99,102,241,0.18)] animate-pulse" />
+        )}
+        {isStalled && (
+          <span className="block h-2.5 w-2.5 rounded-full bg-amber-500 ring-2 ring-white shadow-[0_0_0_4px_rgba(251,191,36,0.22)]" />
         )}
         {isPending && (
           <span className="block h-2.5 w-2.5 rounded-full border-[1.5px] border-zinc-300 bg-white" />
@@ -117,9 +123,17 @@ export function PlanStepRow({
           >
             {humanizePlanStepText(step.text, companyById)}
           </span>
-          {isRunning && (
+          {isRunning && !isStalled && (
             <span className="shrink-0 font-mono text-[10px] text-indigo-600">
               {fmtDuration(elapsed)} running…
+            </span>
+          )}
+          {isStalled && (
+            <span
+              className="shrink-0 font-mono text-[10px] text-amber-700"
+              title="超过 10 分钟无更新，服务可能在该步骤期间重启。请重新发起处理。"
+            >
+              {fmtDuration(elapsed)} 可能已中断
             </span>
           )}
           {isDone && hasResult && (
