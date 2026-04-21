@@ -1,8 +1,10 @@
 """Job search tool — searches Boss 直聘 job listings via DuckDuckGo.
 
 Boss 直聘 indexes many non-JD pages under zhipin.com (wiki entries, company
-home pages, SEO long-tail aggregators). We apply two-layer filtering so only
-real `/job_detail/<id>.html` links reach the LLM.
+home pages, SEO long-tail aggregators like 「X 是做什么的」). We require every
+candidate URL to match the real ``/job_detail/<id>.html`` shape — both in the
+strict pass and in the loose fallback — and then let the LLM apply a second
+pass to reject SEO article titles that slip past DDG's ranking.
 """
 
 import asyncio
@@ -21,13 +23,19 @@ _search = DuckDuckGoSearchResults(num_results=12, handle_tool_error=True)
 # Real JD page on Boss 直聘.
 _JD_URL_RE = re.compile(r"^https://www\.zhipin\.com/job_detail/[A-Za-z0-9]+\.html")
 
-# Path fragments known to be non-JD (company home, wiki, SEO aggregators).
-_NON_JD_FRAGMENTS = (
-    "/wiki/",
-    "/gongsi/",
-    "/hot-jobs",
-    "/web/common/position/",
-    "/z_",
+# Title substrings typical of BOSS 直聘 SEO long-tail articles — they mimic a
+# job title but answer "is-this-role-like / how-much-does-it-pay" rather than
+# being a real JD. DDG sometimes ranks these ahead of real listings.
+_SEO_TITLE_MARKERS = (
+    "是做什么的",
+    "是什么",
+    "怎么样",
+    "工资多少",
+    "薪资多少",
+    "月薪多少",
+    "岗位职责是什么",
+    "招聘要求简介",
+    "有前途吗",
 )
 
 # Below this count we fall back to a looser query. DDG's index of Boss 直聘
@@ -43,12 +51,16 @@ def _is_real_jd(result: dict) -> bool:
     return bool(_JD_URL_RE.match(_url_of(result)))
 
 
-def _is_plausible_zhipin(result: dict) -> bool:
-    """Loose filter: zhipin.com URL excluding obvious non-JD paths."""
-    url = _url_of(result)
-    if not url.startswith("https://www.zhipin.com"):
-        return False
-    return not any(frag in url for frag in _NON_JD_FRAGMENTS)
+def _is_seo_article(result: dict) -> bool:
+    """Reject BOSS 直聘 SEO long-tail articles by title heuristics.
+
+    Real JD titles on BOSS look like ``「X 招聘」_Y-BOSS直聘``. SEO pages end
+    in 「...是做什么的」/「...怎么样」and the like. We belt-and-suspender this
+    alongside the URL check because DDG has been observed returning the SEO
+    HTML under the ``/job_detail/`` prefix when the article is cross-linked.
+    """
+    title = (result.get("title") or "")
+    return any(marker in title for marker in _SEO_TITLE_MARKERS)
 
 
 async def _ddg(query: str) -> list[dict]:
@@ -92,7 +104,14 @@ async def _rerank_and_intro(
         "the keywords (e.g. 'Agent Engineer' → LLM agent / AI agent "
         "developer, NOT 'data operations' or 'frontend'), emit a pick. "
         "Location must match the same city. Exclude login/register/"
-        "company-profile pages. Keep at most 10 picks.\n"
+        "company-profile pages. "
+        "REJECT BOSS 直聘 SEO article pages whose title asks or answers "
+        "questions about a role instead of posting one — signals include "
+        "'是做什么的', '是什么', '怎么样', '工资多少', '月薪多少', "
+        "'有前途吗', '岗位职责是什么', '招聘要求简介', or any title that "
+        "reads like an encyclopedia entry rather than a direct hiring notice. "
+        "Real JD titles start with 「…招聘」 and end with -BOSS直聘. "
+        "Keep at most 10 picks.\n"
         "   For each pick also extract:\n"
         "   - `company`: the hiring company's short name (e.g. \"元聚\", "
         "\"字节跳动\"). Strip suffixes like \"招聘\"/\"有限公司\"/\"-BOSS直聘\". "
@@ -194,7 +213,9 @@ async def job_search_tool(keywords: str, location: str, job_type: str = "fulltim
 
     try:
         raw_strict = await _ddg(strict_query)
-        filtered = [r for r in raw_strict if _is_real_jd(r)]
+        filtered = [
+            r for r in raw_strict if _is_real_jd(r) and not _is_seo_article(r)
+        ]
         strategy = "strict"
 
         if len(filtered) < _MIN_STRICT_RESULTS:
@@ -205,9 +226,14 @@ async def job_search_tool(keywords: str, location: str, job_type: str = "fulltim
             )
             raw_loose = await _ddg(loose_query)
             seen = {_url_of(r) for r in filtered}
+            # Loose fallback now also requires the real-JD URL shape — BOSS
+            # SEO aggregators live at paths like /shanghai/zp<id>.html and
+            # /?ka=..., which pass a naive ``zhipin.com`` prefix check but
+            # never contain a real JD. Keeping the URL bar high here avoids
+            # depending on the LLM as the sole gate.
             for r in raw_loose:
                 url = _url_of(r)
-                if url in seen or not _is_plausible_zhipin(r):
+                if url in seen or not _is_real_jd(r) or _is_seo_article(r):
                     continue
                 filtered.append(r)
                 seen.add(url)
