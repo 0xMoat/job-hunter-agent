@@ -611,14 +611,17 @@ class PlanExecuteAgent:
         tables_with_thread_id = ("checkpoints", "checkpoint_writes", "checkpoint_blobs")
         async with pool.connection() as conn:
             async with conn.cursor() as cur:
+                # Parameterize the LIKE pattern too — psycopg otherwise
+                # misreads the `%'` in the literal 'pe_%' as a placeholder
+                # prefix and refuses the query.
                 await cur.execute(
                     """
                     SELECT thread_id FROM checkpoints
-                    WHERE thread_id LIKE 'pe_%'
+                    WHERE thread_id LIKE %s
                     GROUP BY thread_id
                     HAVING MAX(checkpoint_id) < %s
                     """,
-                    (cutoff_uuid,),
+                    ("pe_%", cutoff_uuid),
                 )
                 rows = await cur.fetchall()
                 stale_ids = [r[0] for r in rows]
