@@ -92,3 +92,55 @@ async def test_replan_returns_final_response_when_plan_empty(monkeypatch):
 
     assert result.get("response") == "all done"
     assert result.get("pending_revise") is False
+
+
+# ============================================================================
+# Part 3: executor loop detection
+# ============================================================================
+
+from types import SimpleNamespace
+
+from app.core.langgraph.plan_execute import (
+    MAX_REPEATED_TOOL_CALLS,
+    _detect_repeated_tool_call,
+)
+
+
+def _fake_ai_msg(calls):
+    return SimpleNamespace(tool_calls=calls)
+
+
+def test_detect_repeated_tool_call_none_when_varied_args():
+    messages = [
+        _fake_ai_msg([{"name": "generate_resume_pdf", "args": {"application_id": 1}}]),
+        _fake_ai_msg([{"name": "generate_resume_pdf", "args": {"application_id": 2}}]),
+        _fake_ai_msg([{"name": "generate_resume_pdf", "args": {"application_id": 3}}]),
+        _fake_ai_msg([{"name": "generate_resume_pdf", "args": {"application_id": 4}}]),
+    ]
+    assert _detect_repeated_tool_call(messages) is None
+
+
+def test_detect_repeated_tool_call_fires_after_threshold():
+    same_args = {"application_id": 2, "resume_json": "{}"}
+    # One more than MAX_REPEATED_TOOL_CALLS — triggers the guardrail.
+    messages = [
+        _fake_ai_msg([{"name": "generate_resume_pdf", "args": same_args}])
+        for _ in range(MAX_REPEATED_TOOL_CALLS + 1)
+    ]
+    assert _detect_repeated_tool_call(messages) == "generate_resume_pdf"
+
+
+def test_detect_repeated_tool_call_ignores_non_ai_messages():
+    messages = [_fake_ai_msg(None), SimpleNamespace()]
+    assert _detect_repeated_tool_call(messages) is None
+
+
+def test_detect_repeated_tool_call_arg_order_insensitive():
+    """Key order changes in tool args must still count as identical calls."""
+    msgs = [
+        _fake_ai_msg([{"name": "save_tailored_resume", "args": {"a": 1, "b": 2}}]),
+        _fake_ai_msg([{"name": "save_tailored_resume", "args": {"b": 2, "a": 1}}]),
+        _fake_ai_msg([{"name": "save_tailored_resume", "args": {"a": 1, "b": 2}}]),
+        _fake_ai_msg([{"name": "save_tailored_resume", "args": {"b": 2, "a": 1}}]),
+    ]
+    assert _detect_repeated_tool_call(msgs) == "save_tailored_resume"

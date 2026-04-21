@@ -35,7 +35,49 @@ from app.core.prompts import (
 from app.schemas import Act, Plan, PlanExecuteState, PlanResponse
 from app.services.job_service import job_service
 
-MAX_ITERATIONS = 50
+MAX_ITERATIONS = 20
+
+# Single-step wall clock cap. A step covers one ReAct agent run (plan step
+# like "生成 PDF"), which normally finishes in <30 s. Anything longer is
+# almost certainly an LLM self-correction loop or a hung upstream call.
+EXECUTOR_STEP_TIMEOUT_SECONDS = 180
+
+# Inner ReAct agent recursion budget. Sized generously enough for the
+# planner, one tool call, and a final answer (≈6 node traversals per
+# tool call), while staying well below anything that could spin overnight.
+EXECUTOR_RECURSION_LIMIT = 25
+
+# Max identical (tool_name, args_fingerprint) invocations per step before
+# we call it a loop. LLMs can legitimately retry a tool once after a
+# corrected arg, but not three times in a row with unchanged args.
+MAX_REPEATED_TOOL_CALLS = 3
+
+
+def _detect_repeated_tool_call(messages: list) -> Optional[str]:
+    """Return the tool name if the same (name, args) was invoked more than
+    MAX_REPEATED_TOOL_CALLS times in the given message trace.
+
+    Args are canonicalized via ``json.dumps(sort_keys=True)`` so whitespace
+    differences in tool-call args (DeepSeek sometimes re-emits args with
+    minor key-order changes) don't falsely clear the loop check.
+    """
+    counts: dict[tuple[str, str], int] = {}
+    for msg in messages:
+        tool_calls = getattr(msg, "tool_calls", None) or []
+        for tc in tool_calls:
+            name = tc.get("name") if isinstance(tc, dict) else getattr(tc, "name", None)
+            args = tc.get("args") if isinstance(tc, dict) else getattr(tc, "args", None)
+            if not name:
+                continue
+            try:
+                fingerprint = _json.dumps(args, sort_keys=True, default=str)
+            except Exception:
+                fingerprint = repr(args)
+            key = (name, fingerprint)
+            counts[key] = counts.get(key, 0) + 1
+            if counts[key] > MAX_REPEATED_TOOL_CALLS:
+                return name
+    return None
 
 
 class _ExecutorState(AgentState):
@@ -239,23 +281,65 @@ class PlanExecuteAgent:
             f"with the actual content. Describing the action in your final reply without "
             f"calling the tool leaves the kanban card blank — the system verifies via tool "
             f"calls, not prose.\n\n"
+            f"LOOP GUARDRAIL — do not invoke the same tool with the same arguments more "
+            f"than twice. If a tool returns an error, adjust your args meaningfully or "
+            f"give up the step with a brief explanation instead of retrying verbatim.\n\n"
             f"User profile (use when helpful):\n{state.long_term_memory or '(none)'}\n\n"
             f"Pending jobs snapshot:\n{state.pending_applications or '(none)'}"
         )
 
+        # Give the ReAct sub-graph its own bounded recursion budget so a stuck
+        # step can't consume the outer graph's allowance.
+        child_config = dict(config or {})
+        child_config["recursion_limit"] = EXECUTOR_RECURSION_LIMIT
+
         executor = self._get_executor()
         try:
-            result = await executor.ainvoke(
-                {
-                    "messages": [HumanMessage(content=step_prompt)],
-                    "long_term_memory": state.long_term_memory or "",
-                    "pending_applications": state.pending_applications or "",
-                },
-                config=config,
+            result = await asyncio.wait_for(
+                executor.ainvoke(
+                    {
+                        "messages": [HumanMessage(content=step_prompt)],
+                        "long_term_memory": state.long_term_memory or "",
+                        "pending_applications": state.pending_applications or "",
+                    },
+                    config=child_config,
+                ),
+                timeout=EXECUTOR_STEP_TIMEOUT_SECONDS,
             )
-            final_msg = result["messages"][-1]
-            result_text = final_msg.content if isinstance(final_msg.content, str) else str(final_msg.content)
-            logger.info("pe_step_executed", step_index=step_index, step_text=step_text)
+            messages = result.get("messages", [])
+            loop_offender = _detect_repeated_tool_call(messages)
+            if loop_offender:
+                result_text = (
+                    f"LOOP_DETECTED: 工具 {loop_offender} 在本步中以相同参数被反复调用超过"
+                    f" {MAX_REPEATED_TOOL_CALLS} 次，已中止该步骤以避免死循环。"
+                )
+                logger.warning(
+                    "pe_step_loop_detected",
+                    step_index=step_index,
+                    step_text=step_text,
+                    tool_name=loop_offender,
+                )
+            else:
+                final_msg = messages[-1] if messages else None
+                if final_msg is None:
+                    result_text = "FAILED: executor returned no messages"
+                else:
+                    result_text = (
+                        final_msg.content
+                        if isinstance(final_msg.content, str)
+                        else str(final_msg.content)
+                    )
+                logger.info("pe_step_executed", step_index=step_index, step_text=step_text)
+        except asyncio.TimeoutError:
+            result_text = (
+                f"TIMEOUT: 该步骤执行超过 {EXECUTOR_STEP_TIMEOUT_SECONDS} 秒未完成，已中止。"
+            )
+            logger.warning(
+                "pe_step_timed_out",
+                step_index=step_index,
+                step_text=step_text,
+                timeout_seconds=EXECUTOR_STEP_TIMEOUT_SECONDS,
+            )
         except Exception as e:
             result_text = f"FAILED: {e!s}"
             logger.exception("pe_step_failed", step_index=step_index, step_text=step_text)
