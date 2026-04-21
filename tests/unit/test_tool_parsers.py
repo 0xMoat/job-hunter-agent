@@ -168,3 +168,49 @@ async def test_cover_letter_handles_empty_resume(monkeypatch):
 )
 def test_duckduckgo_search_transforms_ddg_output():
     pass
+
+
+# === job_search Pick validators ===========================================
+#
+# `_rerank_and_intro` uses Instructor to enforce a Pydantic schema on DeepSeek's
+# output. The validators on `Pick` are the *semantic* guardrail — field-level
+# rules that reject LLM outputs we don't want to trust (platform name as
+# "company", unstripped 「」 brackets in role, etc). These tests lock the
+# stripping rules so regressions surface before hitting prod.
+
+from app.core.langgraph.tools.job_search import Pick  # noqa: E402
+
+
+def test_pick_company_strips_platform_tokens():
+    """BOSS 直聘 is the platform, not a company — should become empty."""
+    assert Pick(index=0, company="BOSS直聘", role="x").company == ""
+    assert Pick(index=0, company="BOSS 直聘", role="x").company == ""
+    assert Pick(index=0, company="招聘", role="x").company == ""
+
+
+def test_pick_company_strips_suffix_chain():
+    """Common suffix garbage from BOSS title format must be peeled off."""
+    assert Pick(index=0, company="元聚招聘", role="x").company == "元聚"
+    assert Pick(index=0, company="元聚招聘-BOSS直聘", role="x").company == "元聚"
+    assert Pick(index=0, company="上海元聚有限公司", role="x").company == "上海元聚"
+
+
+def test_pick_company_passes_clean_name_through():
+    assert Pick(index=0, company="字节跳动", role="x").company == "字节跳动"
+
+
+def test_pick_role_unwraps_brackets_and_招聘_suffix():
+    assert Pick(index=0, company="x", role="「Agent工程师招聘」").role == "Agent工程师"
+    assert Pick(index=0, company="x", role="  后端开发招聘  ").role == "后端开发"
+
+
+def test_pick_rejects_negative_index():
+    with pytest.raises(ValidationError):
+        Pick(index=-1, company="x", role="y")
+
+
+def test_pick_seo_flag_round_trip():
+    p = Pick(index=3, company="", role="", is_seo_article=True)
+    assert p.is_seo_article is True
+    # Default is False when not provided.
+    assert Pick(index=0, company="x", role="y").is_seo_article is False

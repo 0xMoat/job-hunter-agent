@@ -11,9 +11,11 @@ import asyncio
 import json
 import re
 
-import httpx
+import instructor
 from langchain_community.tools import DuckDuckGoSearchResults
 from langchain_core.tools import tool
+from openai import AsyncOpenAI
+from pydantic import BaseModel, Field, field_validator
 
 from app.core.config import settings
 from app.core.logging import logger
@@ -69,7 +71,106 @@ async def _ddg(query: str) -> list[dict]:
     )
 
 
-_JSON_BLOCK_RE = re.compile(r"\{.*\}", re.DOTALL)
+# Platform / noise tokens the LLM occasionally puts in `company` — almost
+# always a sign the real company name was ambiguous. Fall back to empty so
+# downstream uses the original title.
+_PLATFORM_COMPANY_TOKENS = frozenset({
+    "boss直聘", "boss 直聘", "boss", "招聘", "boss直聘招聘",
+    "zhipin", "zhipin.com", "",
+})
+
+
+class Pick(BaseModel):
+    """One surviving search hit, with company/role extracted from the title."""
+
+    index: int = Field(ge=0, description="Zero-based index into the input hits list.")
+    company: str = Field(
+        description=(
+            "The hiring company's short name, e.g. '元聚', '字节跳动'. "
+            "Strip platform suffixes (招聘 / 有限公司 / -BOSS直聘). "
+            "Return empty string if the title is ambiguous."
+        ),
+    )
+    role: str = Field(
+        description=(
+            "The job title in clean form, e.g. 'Agent 工程师', '后端开发'. "
+            "Strip 「」 brackets and '招聘' suffix. "
+            "Return empty string if the title is ambiguous."
+        ),
+    )
+    is_seo_article: bool = Field(
+        default=False,
+        description=(
+            "True iff this hit is a BOSS 直聘 SEO aggregator article "
+            "(title asks or answers '是做什么的 / 怎么样 / 工资多少' instead "
+            "of posting a job). The server drops picks with this flag set."
+        ),
+    )
+
+    @field_validator("company", mode="after")
+    @classmethod
+    def _strip_platform(cls, v: str) -> str:
+        cleaned = v.strip()
+        # Strip known platform suffixes iteratively — `removesuffix` is
+        # exact-substring, unlike `rstrip` which is character-set-based and
+        # would mangle e.g. '元聚招' by treating '招聘' as {'招','聘'}.
+        for suffix in ("-BOSS直聘", "-boss直聘", "有限公司", "招聘"):
+            if cleaned.endswith(suffix):
+                cleaned = cleaned.removesuffix(suffix).strip("-").strip()
+        if cleaned.lower() in _PLATFORM_COMPANY_TOKENS:
+            return ""
+        return cleaned
+
+    @field_validator("role", mode="after")
+    @classmethod
+    def _strip_role(cls, v: str) -> str:
+        cleaned = v.strip().strip("「」").strip()
+        for suffix in ("招聘",):
+            if cleaned.endswith(suffix):
+                cleaned = cleaned.removesuffix(suffix).strip()
+        return cleaned
+
+
+class RerankResult(BaseModel):
+    """Full response schema — picks + a short preview intro."""
+
+    picks: list[Pick] = Field(
+        default_factory=list,
+        max_length=10,
+        description="Filtered hits, in the order you want them shown to the user.",
+    )
+    intro: str = Field(
+        default="",
+        max_length=80,
+        description=(
+            "≤40 字 Chinese one-sentence preview naming at most two standout "
+            "jobs by index with a reason (e.g. 薪资最高 / 经验要求低). Empty "
+            "if nothing is worth highlighting."
+        ),
+    )
+
+
+_RERANK_CLIENT: instructor.AsyncInstructor | None = None
+
+
+def _get_rerank_client() -> instructor.AsyncInstructor:
+    """Lazy-singleton AsyncOpenAI client wrapped with Instructor.
+
+    Deliberately uses the raw OpenAI SDK against DeepSeek's OpenAI-compatible
+    endpoint — LangChain's ``ChatDeepSeek`` would inherit the parent
+    LangGraph callback context and leak the rerank response into the chat
+    SSE stream, which is not what we want for an internal tool helper.
+    """
+    global _RERANK_CLIENT
+    if _RERANK_CLIENT is None:
+        _RERANK_CLIENT = instructor.from_openai(
+            AsyncOpenAI(
+                api_key=settings.DEEPSEEK_API_KEY,
+                base_url="https://api.deepseek.com",
+            ),
+            mode=instructor.Mode.TOOLS,
+        )
+    return _RERANK_CLIENT
 
 
 async def _rerank_and_intro(
@@ -77,10 +178,11 @@ async def _rerank_and_intro(
 ) -> tuple[list[dict], str]:
     """LLM rerank + 1-sentence Chinese intro for the filtered hits.
 
-    Uses plain text completion (no `with_structured_output`) to avoid leaking
-    a function_calling tool_call event to the chat stream — the previous
-    implementation surfaced a `_RerankDecision` bubble in the UI. We prompt
-    the LLM to return raw JSON, then parse it.
+    Uses Instructor + Pydantic with DeepSeek tool-calling so the LLM response
+    is schema-validated at the API layer and then semantically checked by
+    ``Pick`` validators. Format errors no longer happen; semantic errors
+    (e.g. ``company='BOSS直聘'``) get one retry via Instructor's
+    ``max_retries``.
 
     Returns (kept_results, intro_text). On LLM failure, returns the original
     list + an empty intro so the tool degrades gracefully.
@@ -99,90 +201,57 @@ async def _rerank_and_intro(
         f"  location: {location}\n\n"
         f"Raw search hits (some are non-JD pages or unrelated roles):\n"
         + "\n".join(summaries)
-        + "\n\nDo TWO things:\n"
-        "1. For each hit that is a real job posting AND semantically matches "
-        "the keywords (e.g. 'Agent Engineer' → LLM agent / AI agent "
-        "developer, NOT 'data operations' or 'frontend'), emit a pick. "
+        + "\n\nFor each hit that is a real job posting AND semantically "
+        "matches the keywords (e.g. 'Agent Engineer' → LLM agent / AI agent "
+        "developer, NOT 'data operations' or 'frontend'), emit a Pick. "
         "Location must match the same city. Exclude login/register/"
-        "company-profile pages. "
-        "REJECT BOSS 直聘 SEO article pages whose title asks or answers "
-        "questions about a role instead of posting one — signals include "
-        "'是做什么的', '是什么', '怎么样', '工资多少', '月薪多少', "
-        "'有前途吗', '岗位职责是什么', '招聘要求简介', or any title that "
-        "reads like an encyclopedia entry rather than a direct hiring notice. "
-        "Real JD titles start with 「…招聘」 and end with -BOSS直聘. "
-        "Keep at most 10 picks.\n"
-        "   For each pick also extract:\n"
-        "   - `company`: the hiring company's short name (e.g. \"元聚\", "
-        "\"字节跳动\"). Strip suffixes like \"招聘\"/\"有限公司\"/\"-BOSS直聘\". "
-        "Boss 直聘 title format is commonly 「职位招聘」_公司-BOSS直聘.\n"
-        "   - `role`: the job title in clean form (e.g. \"Agent 工程师\", "
-        "\"后端开发\"). Strip the 「」 brackets and the \"招聘\" suffix.\n"
-        "   Leave either field as an empty string if the title is ambiguous.\n"
-        "2. Write a SHORT one-sentence Chinese intro (≤40 字) previewing the "
-        "filtered list for the user, naming at most two standout jobs by index "
-        "with a reason (e.g. 薪资最高 / 福利最全 / 经验要求低). Skip the "
-        "sentence if no hit is worth highlighting.\n\n"
-        "Return ONLY a JSON object, no prose, no markdown fences:\n"
-        '{\"picks\": [{\"index\": 0, \"company\": \"元聚\", \"role\": \"Agent 工程师\"}, '
-        '{\"index\": 2, \"company\": \"字节跳动\", \"role\": \"后端开发\"}], '
-        '\"intro\": \"找到 N 条匹配，#2 元聚薪资最高。\"}'
+        "company-profile pages. Mark `is_seo_article=true` for BOSS 直聘 "
+        "SEO article pages whose title asks or answers questions about a "
+        "role ('是做什么的', '怎么样', '工资多少', '有前途吗', "
+        "'岗位职责是什么', '招聘要求简介') — the server drops those. Real JD "
+        "titles start with 「…招聘」 and end with -BOSS直聘.\n\n"
+        "Also write a short Chinese intro (≤40 字) naming at most two "
+        "standout jobs by index with a reason. Leave intro empty if nothing "
+        "stands out."
     )
-    # Call DeepSeek HTTP API directly. We deliberately bypass LangChain here
-    # because a `ChatDeepSeek.ainvoke` inside a LangGraph tool silently
-    # inherits the parent callback context (Langfuse + SSE stream handlers),
-    # which would leak the rerank LLM's raw JSON content into the chat
-    # assistant's outgoing stream. A plain httpx POST has no such coupling.
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(
-                "https://api.deepseek.com/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {settings.DEEPSEEK_API_KEY}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": "deepseek-chat",
-                    "messages": [{"role": "user", "content": prompt}],
-                    "temperature": 0,
-                },
-            )
-            resp.raise_for_status()
-            content = resp.json()["choices"][0]["message"]["content"] or ""
-        match = _JSON_BLOCK_RE.search(content)
-        if not match:
-            raise ValueError(f"no JSON block in rerank response: {content[:200]!r}")
-        payload = json.loads(match.group(0))
-        picks = payload.get("picks") or []
-        intro = (payload.get("intro") or "").strip()
+        client = _get_rerank_client()
+        response: RerankResult = await client.chat.completions.create(
+            model="deepseek-chat",
+            response_model=RerankResult,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0,
+            max_retries=2,
+        )
     except Exception:
         logger.exception("job_search_rerank_failed", hit_count=len(results))
         return results, ""
+
     kept: list[dict] = []
     kept_indices: list[int] = []
-    for p in picks:
-        if not isinstance(p, dict):
+    dropped_seo: list[int] = []
+    for p in response.picks:
+        if p.is_seo_article:
+            dropped_seo.append(p.index)
             continue
-        idx = p.get("index")
-        if not isinstance(idx, int) or not (0 <= idx < len(results)):
+        if not (0 <= p.index < len(results)):
             continue
-        hit = {**results[idx]}
-        company = (p.get("company") or "").strip()
-        role = (p.get("role") or "").strip()
-        if company:
-            hit["company"] = company
-        if role:
-            hit["role"] = role
+        hit = {**results[p.index]}
+        if p.company:
+            hit["company"] = p.company
+        if p.role:
+            hit["role"] = p.role
         kept.append(hit)
-        kept_indices.append(idx)
+        kept_indices.append(p.index)
     logger.info(
         "job_search_reranked",
         before=len(results),
         after=len(kept),
         kept_indices=kept_indices,
-        intro_len=len(intro),
+        dropped_seo=dropped_seo,
+        intro_len=len(response.intro),
     )
-    return kept, intro
+    return kept, response.intro
 
 
 @tool
