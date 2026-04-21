@@ -20,7 +20,7 @@ from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
 from langgraph.prebuilt.chat_agent_executor import AgentState
-from langgraph.types import Command, RunnableConfig, interrupt
+from langgraph.types import Command, RunnableConfig, Send, interrupt
 from mem0 import AsyncMemory
 from psycopg_pool import AsyncConnectionPool
 
@@ -32,7 +32,8 @@ from app.core.prompts import (
     load_plan_execute_replanner_prompt,
     load_fact_extraction_prompt,
 )
-from app.schemas import Act, Plan, PlanExecuteState, PlanResponse
+from app.core.langgraph.dag import auto_fix_dag, degrade_to_serial, validate_dag
+from app.schemas import Act, Plan, PlanExecuteState, PlanResponse, PlanStep, StepStatus
 from app.services.job_service import job_service
 
 MAX_ITERATIONS = 20
@@ -246,7 +247,98 @@ class PlanExecuteAgent:
             step_count=len(result.steps),
             session_id=config.get("configurable", {}).get("thread_id"),
         )
-        return {"plan": result.steps}
+        return {
+            "plan": result.steps,
+            "step_status": {step.id: StepStatus.PENDING.value for step in result.steps},
+        }
+
+    # ---------- DAG validator node ----------
+
+    async def _dag_validator(self, state: PlanExecuteState, config: RunnableConfig) -> dict:
+        """Validate the DAG plan, auto-fix if possible, degrade to serial as last resort.
+
+        Three-layer defense:
+        1. auto_fix_dag — strips invalid refs, renames duplicate ids, breaks cycles
+        2. LLM retry (up to 2 attempts) — ask the planner to regenerate
+        3. degrade_to_serial — chain all steps linearly
+        """
+        steps = state.plan
+        errors = validate_dag(steps)
+        if not errors:
+            logger.info("pe_dag_valid", step_count=len(steps))
+            return {}
+
+        # Layer 1: auto-fix
+        logger.warning("pe_dag_errors_detected", error_count=len(errors),
+                        errors=[e.detail for e in errors])
+        fixed = auto_fix_dag(steps, errors)
+        recheck = validate_dag(fixed)
+        if not recheck:
+            logger.info("pe_dag_auto_fixed", step_count=len(fixed))
+            return {
+                "plan": fixed,
+                "step_status": {s.id: StepStatus.PENDING.value for s in fixed},
+            }
+
+        # Layer 2: LLM retry (max 2 attempts)
+        for attempt in range(2):
+            logger.warning("pe_dag_llm_retry", attempt=attempt + 1)
+            try:
+                target_ids_str = (
+                    ", ".join(str(i) for i in state.target_application_ids)
+                    if state.target_application_ids
+                    else "（无）"
+                )
+                system_prompt = load_plan_execute_planner_prompt(
+                    input=state.input,
+                    long_term_memory=state.long_term_memory or "（无）",
+                    pending_applications=state.pending_applications or "（无）",
+                    target_application_ids=target_ids_str,
+                )
+                planner_llm = self._structured_llm(Plan)
+                result: Plan = await planner_llm.ainvoke(
+                    [SystemMessage(content=system_prompt)],
+                    config=config,
+                )
+                retry_errors = validate_dag(result.steps)
+                if not retry_errors:
+                    logger.info("pe_dag_llm_retry_success", attempt=attempt + 1,
+                                step_count=len(result.steps))
+                    return {
+                        "plan": result.steps,
+                        "step_status": {s.id: StepStatus.PENDING.value for s in result.steps},
+                    }
+            except Exception:
+                logger.exception("pe_dag_llm_retry_failed", attempt=attempt + 1)
+
+        # Layer 3: degrade to serial
+        logger.warning("pe_dag_degrade_to_serial", step_count=len(steps))
+        serial = degrade_to_serial(steps)
+        return {
+            "plan": serial,
+            "step_status": {s.id: StepStatus.PENDING.value for s in serial},
+        }
+
+    # ---------- scheduler helpers ----------
+
+    def _get_ready_sends(self, state: PlanExecuteState) -> list[Send]:
+        """Return Send objects for all PENDING steps whose deps are satisfied."""
+        ready: list[Send] = []
+        step_status = state.step_status
+        for step in state.plan:
+            if step_status.get(step.id) != StepStatus.PENDING.value:
+                continue
+            deps_met = all(
+                step_status.get(dep) == StepStatus.DONE.value
+                for dep in step.depends_on
+            )
+            if deps_met:
+                ready.append(Send("executor", {
+                    "step": step,
+                    "long_term_memory": state.long_term_memory or "",
+                    "pending_applications": state.pending_applications or "",
+                }))
+        return ready
 
     # ---------- executor node ----------
 
@@ -271,17 +363,20 @@ class PlanExecuteAgent:
             )
         return self._executor
 
-    async def _execute_step(self, state: PlanExecuteState, config: RunnableConfig) -> dict:
-        """Execute the first step in state.plan with a ReAct sub-agent."""
-        if not state.plan:
-            logger.warning("pe_executor_called_with_empty_plan")
-            return {"iterations": state.iterations + 1}
+    async def _execute_step(self, state: dict, config: RunnableConfig) -> dict:
+        """Execute a single plan step dispatched by Send().
 
-        step_text = state.plan[0]
-        step_index = len(state.past_steps)
+        Receives a dict payload: {"step": PlanStep, "long_term_memory": str,
+        "pending_applications": str}. Returns step_results and step_status
+        updates keyed by the step's id.
+        """
+        step: PlanStep = state["step"]
+        long_term_memory: str = state.get("long_term_memory", "")
+        pending_applications: str = state.get("pending_applications", "")
+
         step_prompt = (
-            f"You are executing step {step_index + 1} of a larger plan.\n\n"
-            f"Your task now: {step_text}\n\n"
+            f"You are executing step [{step.id}] of a larger plan.\n\n"
+            f"Your task now: {step.text}\n\n"
             f"HARD RULE — if this step involves saving / persisting / 定制 / 生成 PDF, "
             f"you MUST invoke the corresponding tool (save_*, generate_resume_pdf, etc.) "
             f"with the actual content. Describing the action in your final reply without "
@@ -290,8 +385,8 @@ class PlanExecuteAgent:
             f"LOOP GUARDRAIL — do not invoke the same tool with the same arguments more "
             f"than twice. If a tool returns an error, adjust your args meaningfully or "
             f"give up the step with a brief explanation instead of retrying verbatim.\n\n"
-            f"User profile (use when helpful):\n{state.long_term_memory or '(none)'}\n\n"
-            f"Pending jobs snapshot:\n{state.pending_applications or '(none)'}"
+            f"User profile (use when helpful):\n{long_term_memory or '(none)'}\n\n"
+            f"Pending jobs snapshot:\n{pending_applications or '(none)'}"
         )
 
         # Give the ReAct sub-graph its own bounded recursion budget so a stuck
@@ -299,14 +394,15 @@ class PlanExecuteAgent:
         child_config = dict(config or {})
         child_config["recursion_limit"] = EXECUTOR_RECURSION_LIMIT
 
+        status = StepStatus.DONE.value
         executor = self._get_executor()
         try:
             result = await asyncio.wait_for(
                 executor.ainvoke(
                     {
                         "messages": [HumanMessage(content=step_prompt)],
-                        "long_term_memory": state.long_term_memory or "",
-                        "pending_applications": state.pending_applications or "",
+                        "long_term_memory": long_term_memory,
+                        "pending_applications": pending_applications,
                     },
                     config=child_config,
                 ),
@@ -319,41 +415,44 @@ class PlanExecuteAgent:
                     f"LOOP_DETECTED: 工具 {loop_offender} 在本步中以相同参数被反复调用超过"
                     f" {MAX_REPEATED_TOOL_CALLS} 次，已中止该步骤以避免死循环。"
                 )
+                status = StepStatus.FAILED.value
                 logger.warning(
                     "pe_step_loop_detected",
-                    step_index=step_index,
-                    step_text=step_text,
+                    step_id=step.id,
+                    step_text=step.text,
                     tool_name=loop_offender,
                 )
             else:
                 final_msg = messages[-1] if messages else None
                 if final_msg is None:
                     result_text = "FAILED: executor returned no messages"
+                    status = StepStatus.FAILED.value
                 else:
                     result_text = (
                         final_msg.content
                         if isinstance(final_msg.content, str)
                         else str(final_msg.content)
                     )
-                logger.info("pe_step_executed", step_index=step_index, step_text=step_text)
+                logger.info("pe_step_executed", step_id=step.id, step_text=step.text)
         except asyncio.TimeoutError:
             result_text = (
                 f"TIMEOUT: 该步骤执行超过 {EXECUTOR_STEP_TIMEOUT_SECONDS} 秒未完成，已中止。"
             )
+            status = StepStatus.FAILED.value
             logger.warning(
                 "pe_step_timed_out",
-                step_index=step_index,
-                step_text=step_text,
+                step_id=step.id,
+                step_text=step.text,
                 timeout_seconds=EXECUTOR_STEP_TIMEOUT_SECONDS,
             )
         except Exception as e:
             result_text = f"FAILED: {e!s}"
-            logger.exception("pe_step_failed", step_index=step_index, step_text=step_text)
+            status = StepStatus.FAILED.value
+            logger.exception("pe_step_failed", step_id=step.id, step_text=step.text)
 
         return {
-            "past_steps": state.past_steps + [(step_text, result_text)],
-            "plan": state.plan[1:],
-            "iterations": state.iterations + 1,
+            "step_results": {step.id: result_text},
+            "step_status": {step.id: status},
         }
 
     # ---------- approval gate (HITL) ----------
@@ -385,7 +484,7 @@ class PlanExecuteAgent:
             action=action,
             state_pending_revise=state.pending_revise,
             state_plan_len=len(state.plan),
-            state_past_steps_len=len(state.past_steps),
+            done_count=sum(1 for v in state.step_status.values() if v == StepStatus.DONE.value),
         )
         if action == "cancel":
             logger.info("pe_approval_cancelled", round=next_round)
@@ -404,38 +503,55 @@ class PlanExecuteAgent:
         logger.info("pe_approval_approved", round=next_round)
         return {"approval_round": next_round, "pending_revise": False}
 
-    def _route_after_approval(self, state: PlanExecuteState) -> str:
-        """Edge dispatcher after approval_gate."""
+    def _route_after_approval(self, state: PlanExecuteState) -> str | list[Send]:
+        """Edge dispatcher after approval_gate.
+
+        Returns END, "replanner", or a list of Send() objects to fan-out
+        ready steps to the executor node in parallel.
+        """
         if state.response is not None:
-            decision = END
-        elif state.pending_revise:
-            decision = "replanner"
-        else:
-            decision = "executor"
-        logger.debug(
-            "pe_route_after_approval",
-            decision=decision,
-            pending_revise=state.pending_revise,
-            has_response=state.response is not None,
-            plan_len=len(state.plan),
-            past_steps_len=len(state.past_steps),
-            approval_round=state.approval_round,
-        )
-        return decision
+            logger.debug("pe_route_after_approval", decision=END,
+                         approval_round=state.approval_round)
+            return END
+        if state.pending_revise:
+            logger.debug("pe_route_after_approval", decision="replanner",
+                         approval_round=state.approval_round)
+            return "replanner"
+        # Fan-out: dispatch all steps whose deps are met
+        sends = self._get_ready_sends(state)
+        if sends:
+            logger.debug("pe_route_after_approval", decision="executor_fanout",
+                         send_count=len(sends), approval_round=state.approval_round)
+            return sends
+        # No steps ready (shouldn't happen after planner, but be safe)
+        logger.warning("pe_route_after_approval_no_ready_steps",
+                       approval_round=state.approval_round)
+        return "collector"
 
     # ---------- replanner node ----------
 
     async def _replan(self, state: PlanExecuteState, config: RunnableConfig) -> dict:
         """Decide whether to finish with a Response or continue with a new Plan."""
-        past_steps_text = "\n".join(
-            f"{i + 1}. {step}\n   → {result}" for i, (step, result) in enumerate(state.past_steps)
-        ) or "（尚无）"
-        done_count = len(state.past_steps)
+        # Build executed-steps text from step_results + step_status
+        executed_lines: list[str] = []
+        for step in state.plan:
+            status = state.step_status.get(step.id)
+            if status in (StepStatus.DONE.value, StepStatus.FAILED.value, StepStatus.SKIPPED.value):
+                result = state.step_results.get(step.id, "（无结果）")
+                executed_lines.append(f"- [{step.id}] ({status}) {step.text}\n  → {result}")
+        past_steps_text = "\n".join(executed_lines) or "（尚无）"
+
+        # Original plan text — full DAG
         original_plan_text = "\n".join(
-            f"{i + 1}. {s}" for i, s in enumerate([s for s, _ in state.past_steps] + state.plan)
-        ) if (state.past_steps or state.plan) else "（无）"
+            f"- [{s.id}] {s.text} (depends_on: {s.depends_on})"
+            for s in state.plan
+        ) or "（无）"
+
+        # Remaining = steps still PENDING
+        remaining = [s for s in state.plan if state.step_status.get(s.id) == StepStatus.PENDING.value]
         remaining_plan_text = "\n".join(
-            f"{done_count + i + 1}. {s}" for i, s in enumerate(state.plan)
+            f"- [{s.id}] {s.text} (depends_on: {s.depends_on})"
+            for s in remaining
         ) or "（空 — 所有步骤都已执行完毕）"
 
         system_prompt = load_plan_execute_replanner_prompt(
@@ -445,12 +561,17 @@ class PlanExecuteAgent:
             remaining_plan=remaining_plan_text,
             user_feedback=state.user_feedback,
         )
+        done_count = sum(
+            1 for s in state.plan
+            if state.step_status.get(s.id) in (StepStatus.DONE.value, StepStatus.FAILED.value, StepStatus.SKIPPED.value)
+        )
         logger.debug(
             "pe_replan_entered",
             pending_revise=state.pending_revise,
             has_user_feedback=bool(state.user_feedback),
             plan_len=len(state.plan),
-            past_steps_len=len(state.past_steps),
+            done_count=done_count,
+            remaining_count=len(remaining),
             iterations=state.iterations,
         )
         replanner_llm = self._structured_llm(Act)
@@ -462,7 +583,9 @@ class PlanExecuteAgent:
         except Exception:
             logger.exception("pe_replanner_failed_fallback_to_summary")
             summary = "## 已完成\n" + "\n".join(
-                f"- {s}\n  {r[:200]}" for s, r in state.past_steps
+                f"- [{s.id}] {s.text}\n  {state.step_results.get(s.id, '')[:200]}"
+                for s in state.plan
+                if state.step_status.get(s.id) == StepStatus.DONE.value
             )
             return {"response": summary, "pending_revise": False, "user_feedback": None}
 
@@ -479,48 +602,81 @@ class PlanExecuteAgent:
         )
         if isinstance(act.action, PlanResponse):
             # Hard guardrail — the replanner LLM sometimes ignores the prompt and
-            # returns a Response while plan steps remain (observed: ~17-step
-            # plan terminated after step 11). Force-continue with the remaining
-            # plan so the user's goal actually completes.
-            if state.plan:
+            # returns a Response while plan steps remain. Force-continue with the
+            # remaining plan so the user's goal actually completes.
+            if remaining:
                 logger.warning(
                     "pe_replan_response_rejected_plan_not_empty",
-                    remaining=len(state.plan),
-                    past_steps=len(state.past_steps),
+                    remaining=len(remaining),
+                    done_count=done_count,
                     ignored_content_preview=(act.action.content or "")[:200],
                 )
                 return {
-                    "plan": state.plan,
                     "pending_revise": False,
                     **updates,
                 }
             logger.info("pe_replan_finish", iterations=state.iterations)
             return {"response": act.action.content, "pending_revise": False, **updates}
 
+        # Replanner returned a new Plan — initialize fresh step_status/step_results
+        new_steps = act.action.steps
         logger.info(
             "pe_replan_continue",
-            new_step_count=len(act.action.steps),
+            new_step_count=len(new_steps),
             revise_scenario=state.pending_revise,
         )
+        new_status = {s.id: StepStatus.PENDING.value for s in new_steps}
+        new_results: dict[str, str] = {}
         if state.pending_revise:
             # Revise cycle: the rewritten plan must go BACK to approval_gate
             # so the user can see the revision before execution.
             return {
-                "plan": act.action.steps,
+                "plan": new_steps,
+                "step_status": new_status,
+                "step_results": new_results,
                 "pending_revise": True,
                 **updates,
             }
-        # Normal mid-execution replan: straight to executor.
+        # Normal mid-execution replan: straight to dag_validator then executor.
         return {
-            "plan": act.action.steps,
+            "plan": new_steps,
+            "step_status": new_status,
+            "step_results": new_results,
             "pending_revise": False,
             **updates,
+        }
+
+    # ---------- collector node ----------
+
+    async def _collector(self, state: PlanExecuteState) -> dict:
+        """Cascade-skip: mark PENDING steps whose deps FAILED/SKIPPED as SKIPPED."""
+        skipped_updates: dict[str, str] = {}
+        step_status = dict(state.step_status)  # working copy
+        # Iterate until no more cascades
+        changed = True
+        while changed:
+            changed = False
+            for step in state.plan:
+                if step_status.get(step.id) != StepStatus.PENDING.value:
+                    continue
+                for dep in step.depends_on:
+                    dep_status = step_status.get(dep)
+                    if dep_status in (StepStatus.FAILED.value, StepStatus.SKIPPED.value):
+                        step_status[step.id] = StepStatus.SKIPPED.value
+                        skipped_updates[step.id] = StepStatus.SKIPPED.value
+                        changed = True
+                        break
+        if skipped_updates:
+            logger.info("pe_collector_cascade_skip", skipped_ids=list(skipped_updates.keys()))
+        return {
+            "step_status": skipped_updates,
+            "iterations": state.iterations + 1,
         }
 
     # ---------- routing ----------
 
     def _should_end(self, state: PlanExecuteState) -> str:
-        """Edge: from replanner → approval_gate (revise) / executor / END."""
+        """Edge: from replanner → dag_validator (new plan) / approval_gate (revise) / END."""
         if state.response is not None:
             decision = END
         elif state.pending_revise:
@@ -528,46 +684,86 @@ class PlanExecuteAgent:
         elif state.iterations >= MAX_ITERATIONS:
             logger.warning("pe_max_iterations_reached", iterations=state.iterations)
             decision = END
-        elif not state.plan:
-            decision = END
         else:
-            decision = "executor"
+            # Check if the new plan has any pending steps
+            has_pending = any(
+                state.step_status.get(s.id) == StepStatus.PENDING.value
+                for s in state.plan
+            )
+            decision = "dag_validator" if has_pending else END
         logger.debug(
             "pe_should_end",
             decision=decision,
             pending_revise=state.pending_revise,
             has_response=state.response is not None,
             plan_len=len(state.plan),
-            past_steps_len=len(state.past_steps),
             iterations=state.iterations,
             approval_round=state.approval_round,
         )
         return decision
 
+    def _route_after_collector(self, state: PlanExecuteState) -> str | list[Send]:
+        """Route after collector: fan-out ready steps or go to replanner."""
+        if state.iterations >= MAX_ITERATIONS:
+            logger.warning("pe_max_iterations_after_collector", iterations=state.iterations)
+            return "replanner"
+        sends = self._get_ready_sends(state)
+        if sends:
+            logger.debug("pe_route_after_collector", decision="executor_fanout",
+                         send_count=len(sends))
+            return sends
+        logger.debug("pe_route_after_collector", decision="replanner")
+        return "replanner"
+
     # ---------- graph construction ----------
 
     async def create_graph(self) -> Optional[CompiledStateGraph]:
-        """Build and cache the Plan-Execute StateGraph with checkpointer."""
+        """Build and cache the Plan-Execute StateGraph with checkpointer.
+
+        Topology (DAG parallel):
+          planner → dag_validator → approval_gate →(fan-out)→ executor(s)
+                                                   → collector →(fan-out)→ executor(s)
+                                                   → collector → replanner → END
+                                                                replanner → dag_validator (new plan)
+                                                                replanner → approval_gate (revise)
+        """
         if self._graph is not None:
             return self._graph
 
         builder = StateGraph(PlanExecuteState)
         builder.add_node("planner", self._planner)
+        builder.add_node("dag_validator", self._dag_validator)
         builder.add_node("approval_gate", self._approval_gate)
         builder.add_node("executor", self._execute_step)
+        builder.add_node("collector", self._collector)
         builder.add_node("replanner", self._replan)
+
         builder.set_entry_point("planner")
-        builder.add_edge("planner", "approval_gate")
+        builder.add_edge("planner", "dag_validator")
+        builder.add_edge("dag_validator", "approval_gate")
+
+        # approval_gate → fan-out to executor(s) | replanner | collector | END
         builder.add_conditional_edges(
             "approval_gate",
             self._route_after_approval,
-            ["executor", "replanner", END],
+            ["replanner", "collector", END],
         )
-        builder.add_edge("executor", "replanner")
+
+        # All executor outputs converge at collector
+        builder.add_edge("executor", "collector")
+
+        # collector → fan-out to executor(s) (next wave) | replanner
+        builder.add_conditional_edges(
+            "collector",
+            self._route_after_collector,
+            ["replanner"],
+        )
+
+        # replanner → dag_validator (new plan) | approval_gate (revise) | END
         builder.add_conditional_edges(
             "replanner",
             self._should_end,
-            ["executor", "approval_gate", END],
+            ["dag_validator", "approval_gate", END],
         )
 
         pool = await self._get_connection_pool()
