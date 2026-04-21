@@ -866,8 +866,9 @@ class PlanExecuteAgent:
           Command(resume=payload) on the existing checkpoint.
 
         Events emitted (in order, per stream):
-          plan_created, step_started, step_completed, plan_updated,
-          awaiting_approval (terminal), plan_revised, final_response (terminal),
+          plan_created (with depends_on), wave_started, step_started,
+          step_completed, step_skipped, plan_revised,
+          awaiting_approval (terminal), final_response (terminal),
           error (terminal).
         """
         if self._graph is None:
@@ -921,102 +922,130 @@ class PlanExecuteAgent:
             "recursion_limit": 50,
         }
 
-        def _new_id() -> str:
-            return uuid.uuid4().hex[:12]
-
         emitted_plan = False
         emitted_final = False
-        past_step_ids: list[str] = []
-        pending_ids: list[str] = []
-        current_step_index = -1
         last_pending_revise_state = False
-        # Track the step id whose executor is currently running so we can
-        # attach sub-graph LLM / tool messages to the right card.
-        active_step_id: str | None = None
+        # Track previous step_status to detect transitions across snapshots.
+        prev_step_status: dict[str, str] = {}
+        wave_counter = 0
         # Accumulate tool call args per id across streaming AIMessageChunk
         # fragments. Mirrors the pattern in graph.py::get_stream_response.
         tool_call_args: dict[str, str] = {}
         event: dict = {}
+        # Namespace → step_id mapping for parallel executor streaming.
+        # When _emit_step_event emits step_started for a step, that id is
+        # appended to running_but_unassigned. When the first message from a
+        # new executor namespace arrives, it consumes one id from the list.
+        running_but_unassigned: list[str] = []
+        ns_to_step: dict[tuple, str] = {}
 
         def _emit_step_event(
             values_event: dict,
         ) -> list[str]:
             """Produce SSE payloads from a top-level `values` state snapshot.
 
-            Nonlocal: mutates emitted_plan / pending_ids / past_step_ids /
-            current_step_index / last_pending_revise_state / active_step_id.
-            Returning a list keeps the async-generator yield in one place.
+            Detects step_status transitions by comparing the current snapshot
+            against ``prev_step_status``. Emits plan_created, wave_started,
+            step_started, step_completed, step_skipped, and plan_revised
+            events.
             """
-            nonlocal emitted_plan, pending_ids, past_step_ids
-            nonlocal current_step_index, last_pending_revise_state
-            nonlocal active_step_id
+            nonlocal emitted_plan, prev_step_status, wave_counter
+            nonlocal last_pending_revise_state, running_but_unassigned, ns_to_step
             out: list[str] = []
 
-            new_plan = values_event.get("plan", []) or []
-            past_steps = values_event.get("past_steps", []) or []
+            plan_steps: list[PlanStep] = values_event.get("plan", []) or []
+            current_status: dict[str, str] = values_event.get("step_status", {}) or {}
+            current_results: dict[str, str] = values_event.get("step_results", {}) or {}
             pending_revise_local = values_event.get("pending_revise", False)
 
-            if not emitted_plan and new_plan:
+            # First time seeing a plan → emit plan_created with depends_on.
+            if not emitted_plan and plan_steps:
                 emitted_plan = True
-                pending_ids = [_new_id() for _ in new_plan]
                 out.append(_json.dumps({
                     "type": "plan_created",
                     "steps": [
-                        {"id": sid, "text": t}
-                        for sid, t in zip(pending_ids, new_plan, strict=True)
+                        {"id": s.id, "text": s.text, "depends_on": s.depends_on}
+                        for s in plan_steps
                     ],
                     "done": False,
                 }))
+                # Bootstrap prev_step_status from current or all-PENDING.
+                prev_step_status = {
+                    s.id: current_status.get(s.id, StepStatus.PENDING.value)
+                    for s in plan_steps
+                }
 
-            # Revise-cycle transition: was pending_revise, no longer; this
-            # values event carries the rewritten plan from Replanner.
+            # Revise-cycle transition: was pending_revise, no longer; the
+            # replanner produced a rewritten plan.
             if (
                 last_pending_revise_state
                 and not pending_revise_local
                 and emitted_plan
-                and new_plan
+                and plan_steps
             ):
-                pending_ids = [_new_id() for _ in new_plan]
-                active_step_id = None
+                # Reset tracking for the new plan.
+                running_but_unassigned = []
+                ns_to_step = {}
+                prev_step_status = {
+                    s.id: current_status.get(s.id, StepStatus.PENDING.value)
+                    for s in plan_steps
+                }
                 out.append(_json.dumps({
                     "type": "plan_revised",
                     "plan": [
-                        {"id": sid, "text": t}
-                        for sid, t in zip(pending_ids, new_plan, strict=True)
+                        {"id": s.id, "text": s.text, "depends_on": s.depends_on}
+                        for s in plan_steps
                     ],
                     "reason": "user_feedback",
                     "done": False,
                 }))
             last_pending_revise_state = pending_revise_local
 
-            if len(past_steps) > current_step_index + 1:
-                for i in range(current_step_index + 1, len(past_steps)):
-                    if not pending_ids:
-                        break
-                    sid = pending_ids.pop(0)
-                    past_step_ids.append(sid)
-                    _, result_text = past_steps[i]
+            # Detect status transitions.
+            newly_running: list[str] = []
+            for step_id, new_status in current_status.items():
+                old_status = prev_step_status.get(step_id)
+                if old_status == new_status:
+                    continue
+
+                if new_status == StepStatus.RUNNING.value and old_status != StepStatus.RUNNING.value:
+                    newly_running.append(step_id)
+                elif new_status in (StepStatus.DONE.value, StepStatus.FAILED.value):
+                    result = current_results.get(step_id, "")
                     out.append(_json.dumps({
                         "type": "step_completed",
-                        "id": sid,
-                        "result": result_text,
+                        "id": step_id,
+                        "result": result,
                         "done": False,
                     }))
-                    # The step we were streaming tokens into just finished.
-                    if active_step_id == sid:
-                        active_step_id = None
-                current_step_index = len(past_steps) - 1
-                if pending_ids:
-                    active_step_id = pending_ids[0]
-                    # Authoritative server-side start timestamp so the frontend
-                    # timer is not driven by local clock on refresh — lets the
-                    # UI detect stalled steps after container restarts.
+                elif new_status == StepStatus.SKIPPED.value:
+                    out.append(_json.dumps({
+                        "type": "step_skipped",
+                        "id": step_id,
+                        "reason": "依赖的前置步骤失败",
+                        "done": False,
+                    }))
+
+            # Emit wave_started + step_started for newly running steps.
+            if newly_running:
+                wave_counter += 1
+                out.append(_json.dumps({
+                    "type": "wave_started",
+                    "wave": wave_counter,
+                    "step_ids": newly_running,
+                    "done": False,
+                }))
+                for sid in newly_running:
+                    running_but_unassigned.append(sid)
                     out.append(_json.dumps({
                         "type": "step_started",
-                        "id": active_step_id,
+                        "id": sid,
                         "started_at_utc": datetime.now(timezone.utc).isoformat(),
                         "done": False,
                     }))
+
+            # Update tracking for next comparison.
+            prev_step_status = dict(current_status)
 
             return out
 
@@ -1044,7 +1073,7 @@ class PlanExecuteAgent:
                         idx=event_counter,
                         pe_thread_id=pe_thread_id,
                         plan_len=len(event.get("plan", []) or []),
-                        past_steps_len=len(event.get("past_steps", []) or []),
+                        step_status=event.get("step_status", {}),
                         pending_revise=event.get("pending_revise", False),
                         has_response=event.get("response") is not None,
                         approval_round=event.get("approval_round", 0),
@@ -1072,6 +1101,13 @@ class PlanExecuteAgent:
                     # structured output which doesn't stream tokens.
                     if not ns:
                         continue
+
+                    # Map namespace → step_id. Each Send() creates a unique
+                    # namespace ("executor:<uid>"). We assign the first unseen
+                    # namespace to the oldest running-but-unassigned step_id.
+                    if ns not in ns_to_step and running_but_unassigned:
+                        ns_to_step[ns] = running_but_unassigned.pop(0)
+                    active_step_id = ns_to_step.get(ns)
                     if active_step_id is None:
                         continue
 
@@ -1134,16 +1170,14 @@ class PlanExecuteAgent:
             interrupts = [t for t in tasks if getattr(t, "interrupts", None)]
             if interrupts:
                 snapshot_values = state_snapshot.values or {}
-                plan_texts = snapshot_values.get("plan", []) or []
+                plan_steps: list[PlanStep] = snapshot_values.get("plan", []) or []
                 approval_round = (snapshot_values.get("approval_round") or 0) + 1
-                if len(pending_ids) != len(plan_texts):
-                    pending_ids = [_new_id() for _ in plan_texts]
                 yield _json.dumps({
                     "type": "awaiting_approval",
                     "thread_id": pe_thread_id,
                     "plan": [
-                        {"id": sid, "text": t}
-                        for sid, t in zip(pending_ids, plan_texts, strict=True)
+                        {"id": s.id, "text": s.text, "depends_on": s.depends_on}
+                        for s in plan_steps
                     ],
                     "round": approval_round,
                     "done": True,
@@ -1157,19 +1191,26 @@ class PlanExecuteAgent:
                 # clearly so the user doesn't mistake a forced-END for a
                 # graceful completion.
                 final_state = event if isinstance(event, dict) else {}
-                past = final_state.get("past_steps") or []
-                remaining_plan = final_state.get("plan") or []
-                if past and remaining_plan:
+                f_plan: list[PlanStep] = final_state.get("plan") or []
+                f_status: dict[str, str] = final_state.get("step_status") or {}
+                f_results: dict[str, str] = final_state.get("step_results") or {}
+                done_steps = [s for s in f_plan if f_status.get(s.id) == StepStatus.DONE.value]
+                remaining = [
+                    s for s in f_plan
+                    if f_status.get(s.id) in (StepStatus.PENDING.value, StepStatus.RUNNING.value)
+                ]
+                if done_steps and remaining:
                     summary = (
-                        f"⚠ 已执行 {len(past)} 步，但还有 {len(remaining_plan)} 步未完成就被硬护栏终止"
+                        f"⚠ 已执行 {len(done_steps)} 步，但还有 {len(remaining)} 步未完成就被硬护栏终止"
                         "（可能触及最大迭代次数）。已完成部分的结果已写回对应卡片。\n\n## 已完成\n"
-                        + "\n".join(f"- {s}" for s, _ in past)
+                        + "\n".join(f"- [{s.id}] {s.text}" for s in done_steps)
                         + "\n\n## 未完成\n"
-                        + "\n".join(f"- {s}" for s in remaining_plan)
+                        + "\n".join(f"- [{s.id}] {s.text}" for s in remaining)
                     )
-                elif past:
+                elif done_steps:
                     summary = "## 执行结束\n" + "\n".join(
-                        f"- {s}\n  {(r or '')[:200]}" for s, r in past
+                        f"- [{s.id}] {s.text}\n  {(f_results.get(s.id) or '')[:200]}"
+                        for s in done_steps
                     )
                 else:
                     summary = "执行结束，无可汇报的步骤。"
