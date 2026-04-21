@@ -9,7 +9,7 @@ import {
   resumePlanExecute as apiResumePlanExecute,
   type PlanExecuteResumeArgs,
 } from "@/lib/api"
-import type { ChatMessage, StreamChunk, ToolCallEntry, ThinkingEntry, PlanExecuteView, PlanStep, PlanStreamChunk, PlanLiveToolCall } from "@/lib/types"
+import type { ChatMessage, StreamChunk, ToolCallEntry, ThinkingEntry, PlanExecuteView, PlanStep, PlanStepStatus, PlanStreamChunk, PlanLiveToolCall } from "@/lib/types"
 import { useLanguage } from "@/contexts/LanguageContext"
 import { emitApplicationsInvalidated } from "@/lib/app-events"
 
@@ -66,6 +66,7 @@ function applyPlanChunkToMessage(
       id: s.id,
       text: s.text,
       status: "pending" as const,
+      dependsOn: s.depends_on || [],
     }))
     setMessages((prev) =>
       prev.map((m) =>
@@ -231,6 +232,28 @@ function applyPlanChunkToMessage(
     )
     return
   }
+  if (chunk.type === "wave_started") {
+    return  // Wave info is implicit from parallel step_started events
+  }
+  if (chunk.type === "step_skipped") {
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.id !== assistantId || !m.planExecute) return m
+        return {
+          ...m,
+          planExecute: {
+            ...m.planExecute,
+            steps: m.planExecute.steps.map((s) =>
+              s.id === chunk.id
+                ? { ...s, status: "skipped" as PlanStepStatus, result: chunk.reason }
+                : s,
+            ),
+          },
+        }
+      }),
+    )
+    return
+  }
   if (chunk.type === "awaiting_approval") {
     setMessages((prev) =>
       prev.map((m) => {
@@ -239,6 +262,7 @@ function applyPlanChunkToMessage(
           id: s.id,
           text: s.text,
           status: "pending" as const,
+          dependsOn: s.depends_on || [],
         }))
         return {
           ...m,

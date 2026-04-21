@@ -124,7 +124,7 @@ export interface InterviewQuestion {
 
 // ── Plan-and-Execute ───────────────────────────────────────────────────────
 
-export type PlanStepStatus = "pending" | "running" | "done" | "failed"
+export type PlanStepStatus = "pending" | "running" | "done" | "failed" | "skipped"
 
 export interface PlanLiveToolCall {
   id: string
@@ -147,11 +147,13 @@ export interface PlanStep {
   /** Server-side step start time (ms since epoch). Used by the UI timer so
    *  stall detection survives page reloads. */
   startedAt?: number
+  dependsOn?: string[]
 }
 
 export interface PlanStepDescriptor {
   id: string
   text: string
+  depends_on?: string[]
 }
 
 export type PlanStreamChunk =
@@ -189,3 +191,5 @@ export type PlanStreamChunk =
       content: string
       done: false
     }
+  | { type: "wave_started"; wave: number; step_ids: string[]; done: false }
+  | { type: "step_skipped"; id: string; reason: string; done: false }
