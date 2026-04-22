@@ -110,9 +110,9 @@ function ChatPageInner() {
       {/* Navbar */}
       <div className="px-4 pt-3 pb-2 flex-shrink-0">
         <nav className="glass rounded-full px-5 py-2.5 flex items-center justify-between">
-          <span className="flex-1 font-heading italic text-lg tracking-tight text-[var(--text)]">
+          <a href="/" className="flex-1 font-heading italic text-lg tracking-tight text-[var(--text)] hover:opacity-70 transition-opacity cursor-pointer no-underline">
             Job Hunter ✦
-          </span>
+          </a>
           <div role="tablist" className="flex items-center gap-1">
             {([
               { key: "chat" as Tab, label: t('tab_chat') },
