@@ -27,12 +27,18 @@ function parseResults(entry: ToolCallEntry): { keywords: string; results: JobRes
     const results: JobResult[] = (data.results ?? []).filter(
       (r: JobResult) => r.link && r.link.length > 0,
     )
-    // Backend LLM uses 0-based indices; convert to 1-based for display.
+    // Backend LLM uses 0-based indices in intro text; shift all to 1-based.
     const rawIntro = typeof data.intro_text === "string" ? data.intro_text.trim() : ""
-    const introText = rawIntro.replace(
-      /(?:职位|#)\s*(\d+)/g,
-      (_m: string, n: string) => _m.replace(n, String(Number(n) + 1)),
-    )
+    const maxIdx = (data.results ?? []).length - 1
+    const introText = rawIntro.replace(/(?<=#|职位|第)\s*(\d+)/g, (_m: string, n: string) => {
+      const num = Number(n)
+      return num <= maxIdx ? _m.replace(n, String(num + 1)) : _m
+    }).replace(/(\d+)\s*(?=和|与|、|,)\s*(\d+)/g, (_m: string, a: string, b: string) => {
+      const na = Number(a), nb = Number(b)
+      const fa = na <= maxIdx ? String(na + 1) : a
+      const fb = nb <= maxIdx ? String(nb + 1) : b
+      return _m.replace(a, fa).replace(b, fb)
+    })
     return { keywords, results, introText }
   } catch {
     return { keywords: "", results: [], introText: "" }
