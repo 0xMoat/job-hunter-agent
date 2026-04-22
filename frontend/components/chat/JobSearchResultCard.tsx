@@ -27,7 +27,12 @@ function parseResults(entry: ToolCallEntry): { keywords: string; results: JobRes
     const results: JobResult[] = (data.results ?? []).filter(
       (r: JobResult) => r.link && r.link.length > 0,
     )
-    const introText = typeof data.intro_text === "string" ? data.intro_text.trim() : ""
+    // Backend LLM uses 0-based indices; convert to 1-based for display.
+    const rawIntro = typeof data.intro_text === "string" ? data.intro_text.trim() : ""
+    const introText = rawIntro.replace(
+      /(?:职位|#)\s*(\d+)/g,
+      (_m: string, n: string) => _m.replace(n, String(Number(n) + 1)),
+    )
     return { keywords, results, introText }
   } catch {
     return { keywords: "", results: [], introText: "" }
@@ -155,8 +160,9 @@ export function JobSearchResultCard({ entry, onSaved }: Props) {
                 toggle(idx)
               }}
             >
-              {/* Checkbox */}
-              <div className="pt-0.5 flex-shrink-0">
+              {/* Row number + Checkbox */}
+              <div className="pt-0.5 flex-shrink-0 flex items-center gap-1.5">
+                <span className="font-mono text-[10px] text-zinc-400 w-3 text-right">{idx + 1}</span>
                 {isSaved ? (
                   <span className="flex items-center justify-center w-4 h-4 rounded bg-green-500 text-white text-[10px]">
                     ✓
