@@ -176,7 +176,7 @@ export function MessageBubble({
             Chip clicks fire sendMessage, letting the agent decide whether to
             escalate to Plan-Execute (per system.md §5). */}
         {showFollowups && (
-          <div className="mt-2 flex flex-wrap gap-2">
+          <div className="mt-2 flex flex-col gap-1.5">
             {[
               t("pe_chip_research_and_tailor"),
               t("pe_chip_analyze_match"),
