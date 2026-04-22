@@ -180,7 +180,10 @@ class PlanExecuteAgent:
     async def _get_pending_applications(self, user_id: str) -> str:
         try:
             apps = await job_service.list_applications(int(user_id))
-            pending = [a for a in apps if a.status == "pending"]
+            pending = [
+                a for a in apps
+                if a.status == "pending" and not self._is_fully_processed(a)
+            ]
             if not pending:
                 return ""
             lines = []
@@ -198,11 +201,38 @@ class PlanExecuteAgent:
             logger.exception("pe_pending_apps_failed", user_id=user_id)
             return ""
 
+    @staticmethod
+    def _is_fully_processed(app) -> bool:
+        """Check if a card already has all 5 artifacts populated."""
+        return all([
+            app.company_research_json,
+            app.match_breakdown,
+            app.gap_analysis_text,
+            app.interview_questions_json,
+            app.tailored_resume_text,
+        ])
+
     async def _get_pending_application_ids(self, user_id: str) -> list[int]:
-        """Snapshot pending application ids at PE start. Used as target card list."""
+        """Snapshot pending application ids at PE start.
+
+        Excludes cards that already have all 5 artifacts (research, score,
+        gap, interview, resume) populated — those are fully processed.
+        """
         try:
             apps = await job_service.list_applications(int(user_id))
-            return [a.id for a in apps if a.status == "pending" and a.id is not None]
+            ids = [
+                a.id for a in apps
+                if a.status == "pending"
+                and a.id is not None
+                and not self._is_fully_processed(a)
+            ]
+            logger.info(
+                "pe_pending_ids_filtered",
+                user_id=user_id,
+                total_pending=len([a for a in apps if a.status == "pending"]),
+                unprocessed=len(ids),
+            )
+            return ids
         except Exception:
             logger.exception("pe_pending_ids_failed", user_id=user_id)
             return []
