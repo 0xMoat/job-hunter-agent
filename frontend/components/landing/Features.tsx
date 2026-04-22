@@ -266,25 +266,38 @@ function ExecuteMockup() {
   const { locale } = useLanguage()
   const isZh = locale === "zh-CN"
 
-  const steps = isZh
+  type MockStep = { id: string; s: string; t: string; card: "A" | "B" | "Z"; wave: number }
+  const steps: MockStep[] = isZh
     ? [
-        { s: "done", t: "拉取看板上 3 张待处理卡片" },
-        { s: "done", t: "调研字节跳动（卡片 #12）" },
-        { s: "done", t: "评估卡片 #12 的匹配度" },
-        { s: "done", t: "生成卡片 #12 缺口分析" },
-        { s: "running", t: "为卡片 #12 润色简历" },
-        { s: "pending", t: "生成 PDF（卡片 #12）" },
-        { s: "pending", t: "对卡片 #13 重复研究与润色流程" },
+        { id: "A1", s: "done", t: "调研 字节跳动", card: "A", wave: 1 },
+        { id: "B1", s: "done", t: "调研 阿里巴巴", card: "B", wave: 1 },
+        { id: "A2", s: "done", t: "评分 字节跳动", card: "A", wave: 2 },
+        { id: "A3", s: "done", t: "缺口 字节跳动", card: "A", wave: 2 },
+        { id: "B2", s: "running", t: "评分 阿里巴巴", card: "B", wave: 2 },
+        { id: "B3", s: "running", t: "缺口 阿里巴巴", card: "B", wave: 2 },
+        { id: "A4", s: "pending", t: "简历PDF 字节跳动", card: "A", wave: 3 },
+        { id: "B4", s: "pending", t: "简历PDF 阿里巴巴", card: "B", wave: 3 },
+        { id: "Z", s: "pending", t: "📝 汇总", card: "Z", wave: 4 },
       ]
     : [
-        { s: "done", t: "Fetch 3 pending cards from the kanban" },
-        { s: "done", t: "Research ByteDance (card #12)" },
-        { s: "done", t: "Score match for card #12" },
-        { s: "done", t: "Generate skill gap for card #12" },
-        { s: "running", t: "Tailor resume for card #12" },
-        { s: "pending", t: "Generate PDF (card #12)" },
-        { s: "pending", t: "Repeat research + tailor flow on card #13" },
+        { id: "A1", s: "done", t: "Research ByteDance", card: "A", wave: 1 },
+        { id: "B1", s: "done", t: "Research Alibaba", card: "B", wave: 1 },
+        { id: "A2", s: "done", t: "Score ByteDance", card: "A", wave: 2 },
+        { id: "A3", s: "done", t: "Gap ByteDance", card: "A", wave: 2 },
+        { id: "B2", s: "running", t: "Score Alibaba", card: "B", wave: 2 },
+        { id: "B3", s: "running", t: "Gap Alibaba", card: "B", wave: 2 },
+        { id: "A4", s: "pending", t: "Resume PDF ByteDance", card: "A", wave: 3 },
+        { id: "B4", s: "pending", t: "Resume PDF Alibaba", card: "B", wave: 3 },
+        { id: "Z", s: "pending", t: "📝 Summary", card: "Z", wave: 4 },
       ]
+
+  const CARD_BG: Record<string, string> = {
+    A: "rgba(59,130,246,0.10)",
+    B: "rgba(168,85,247,0.10)",
+    Z: "rgba(100,116,139,0.10)",
+  }
+  const completed = steps.filter((s) => s.s === "done").length
+  const waveNums = [1, 2, 3, 4]
 
   return (
     <div className="w-full rounded-xl bg-white border border-[var(--border)] p-4 shadow-[0_6px_30px_rgba(15,23,42,0.05)]">
@@ -293,70 +306,73 @@ function ExecuteMockup() {
         <div className="flex min-w-0 items-center gap-2">
           <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium bg-indigo-100 text-indigo-700">
             <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-500" />
-            Running
-          </span>
-          <span className="truncate font-body text-[10px] text-zinc-600">
-            <span className="font-mono text-zinc-500">trigger_resume_studio_skill</span>
-            {" · "}Step 5
+            {isZh ? "运行中" : "Running"}
           </span>
         </div>
         <div className="flex shrink-0 items-center gap-1.5 font-mono text-[10px] text-zinc-500">
-          <span>5 / 7</span>
-          <span>·</span>
-          <span>01:42</span>
+          <span>{completed} / {steps.length}</span>
         </div>
       </div>
 
-      {/* Timeline */}
-      <div className="relative">
-        <div className="pointer-events-none absolute bottom-3 left-[5px] top-3 w-px bg-zinc-200" />
-        {steps.map((s, i) => {
-          const isDone = s.s === "done"
-          const isRunning = s.s === "running"
-          const isPending = s.s === "pending"
+      {/* DAG wave timeline */}
+      <div className="flex flex-col gap-1.5">
+        {waveNums.map((w) => {
+          const waveSteps = steps.filter((s) => s.wave === w)
+          const isFullWidth = waveSteps.length === 1 && waveSteps[0].card === "Z"
           return (
-            <div key={i} className="relative flex gap-3 py-1">
-              <div className="relative z-10 mt-[6px] shrink-0">
-                {isDone && (
-                  <span className="block h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white" />
-                )}
-                {isRunning && (
-                  <span className="block h-2 w-2 rounded-full bg-indigo-500 ring-2 ring-white shadow-[0_0_0_4px_rgba(99,102,241,0.18)] animate-pulse" />
-                )}
-                {isPending && (
-                  <span className="block h-2 w-2 rounded-full border-[1.5px] border-zinc-300 bg-white" />
+            <div key={w}>
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <span className="font-mono text-[8px] font-medium uppercase tracking-wider text-zinc-400">
+                  Wave {w}
+                </span>
+                {waveSteps.length > 1 && (
+                  <span className="text-[8px] text-zinc-400">
+                    {waveSteps.length}{isZh ? " 步并行" : " parallel"}
+                  </span>
                 )}
               </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-baseline gap-2">
-                  <span className="w-5 shrink-0 font-mono text-[9px] text-zinc-400">
-                    {String(i + 1).padStart(2, "0")}
-                  </span>
-                  <span
-                    className={`flex-1 text-[11px] leading-relaxed ${
-                      isDone
-                        ? "text-zinc-500"
-                        : isPending
-                          ? "text-zinc-400"
-                          : "font-medium text-zinc-800"
-                    }`}
-                  >
-                    {s.t}
-                  </span>
-                  {isRunning && (
-                    <span className="shrink-0 font-mono text-[9px] text-indigo-600">
-                      01:08 running…
-                    </span>
-                  )}
-                </div>
-                {isRunning && (
-                  <div className="mt-1 ml-7 rounded-md border-l-2 border-indigo-400 bg-zinc-50/80 px-2 py-1 font-mono text-[10px] leading-relaxed text-zinc-600">
-                    <span className="text-indigo-600">→ Resume Studio</span>
-                    <span className="text-zinc-500">
-                      {' {application_id: 12, jd: "AI PM @ ByteDance"…'}
-                    </span>
-                  </div>
-                )}
+              <div
+                className="grid gap-x-1 gap-y-0.5"
+                style={{ gridTemplateColumns: isFullWidth ? "1fr" : "1fr 1fr" }}
+              >
+                {waveSteps.map((s, i) => {
+                  const isDone = s.s === "done"
+                  const isRunning = s.s === "running"
+                  return (
+                    <div
+                      key={s.id}
+                      className="flex items-center gap-1.5 rounded-md px-1.5 py-[3px]"
+                      style={{ backgroundColor: CARD_BG[s.card] }}
+                    >
+                      <div className="shrink-0">
+                        {isDone && (
+                          <span className="block h-2 w-2 rounded-full bg-emerald-500 ring-1 ring-white" />
+                        )}
+                        {isRunning && (
+                          <span className="block h-2 w-2 rounded-full bg-indigo-500 ring-1 ring-white shadow-[0_0_0_3px_rgba(99,102,241,0.18)] animate-pulse" />
+                        )}
+                        {!isDone && !isRunning && (
+                          <span className="block h-2 w-2 rounded-full border border-zinc-300 bg-white" />
+                        )}
+                      </div>
+                      <span className="w-4 shrink-0 font-mono text-[9px] text-zinc-400">
+                        {String(steps.indexOf(s) + 1).padStart(2, "0")}
+                      </span>
+                      <span
+                        className={`flex-1 text-[11px] leading-snug truncate ${
+                          isDone ? "text-zinc-500" : isRunning ? "font-medium text-zinc-800" : "text-zinc-400"
+                        }`}
+                      >
+                        {s.t}
+                      </span>
+                      {isDone && (
+                        <span className="shrink-0 font-mono text-[9px] text-zinc-400">
+                          {s.id === "A1" ? "1:10" : s.id === "B1" ? "0:52" : s.id === "A2" ? "0:18" : "0:21"}
+                        </span>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )
