@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, Suspense } from "react"
+import { useState, useEffect, useRef, useCallback, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { isAuthenticated, clearAuth, getAccessToken, getUser, getSessionToken } from "@/lib/auth"
 import { ChatPanel } from "@/components/chat/ChatPanel"
@@ -56,7 +56,9 @@ function ChatPageInner() {
 
   function handleTabChange(key: Tab) {
     setTab(key)
-    router.replace(`?tab=${key}`, { scroll: false })
+    const sessionParam = searchParams.get("session")
+    const qs = sessionParam ? `?tab=${key}&session=${sessionParam}` : `?tab=${key}`
+    router.replace(qs, { scroll: false })
   }
 
   function handleJumpToCard(id: number) {
@@ -217,14 +219,32 @@ function ChatPageInner() {
   )
 }
 
-export default function ChatPage() {
+function ChatPageShell() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const initialSessionId = searchParams.get("session")
+
+  const handleSessionChange = useCallback(
+    (sessionId: string) => {
+      const tab = searchParams.get("tab") || "chat"
+      router.replace(`?tab=${tab}&session=${sessionId}`, { scroll: false })
+    },
+    [router, searchParams],
+  )
+
   return (
-    <SessionProvider>
+    <SessionProvider initialSessionId={initialSessionId} onSessionChange={handleSessionChange}>
       <TourProvider>
-        <Suspense>
-          <ChatPageInner />
-        </Suspense>
+        <ChatPageInner />
       </TourProvider>
     </SessionProvider>
+  )
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense>
+      <ChatPageShell />
+    </Suspense>
   )
 }

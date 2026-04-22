@@ -30,7 +30,17 @@ interface SessionContextValue {
 
 const SessionContext = createContext<SessionContextValue | null>(null)
 
-export function SessionProvider({ children }: { children: React.ReactNode }) {
+export function SessionProvider({
+  children,
+  initialSessionId,
+  onSessionChange,
+}: {
+  children: React.ReactNode
+  /** URL-provided session id — takes precedence over localStorage on first load. */
+  initialSessionId?: string | null
+  /** Called when the active session changes, so the parent can sync the URL. */
+  onSessionChange?: (sessionId: string) => void
+}) {
   const [sessions, setSessions] = useState<SessionItem[]>([])
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
   const [currentSessionToken, setCurrentSessionToken] = useState<string | null>(null)
@@ -49,8 +59,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     apiGetSessions(accessToken)
       .then((list) => {
         setSessions(list)
-        const storedId = getSessionId()
-        const match = storedId ? list.find((s) => s.session_id === storedId) : list[0]
+        const preferredId = initialSessionId || getSessionId()
+        const match = preferredId ? list.find((s) => s.session_id === preferredId) : list[0]
         if (match) {
           setCurrentSessionId(match.session_id)
           setCurrentSessionToken(match.token.access_token)
@@ -76,8 +86,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setCurrentSessionToken(target.token.access_token)
       setSessionToken(target.token.access_token)
       setSessionId(id)
+      onSessionChange?.(id)
     },
-    [sessions],
+    [sessions, onSessionChange],
   )
 
   const createSession = useCallback(async () => {
@@ -100,10 +111,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setCurrentSessionToken(session.token.access_token)
       setSessionToken(session.token.access_token)
       setSessionId(session.session_id)
+      onSessionChange?.(session.session_id)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [onSessionChange])
 
   const renameSession = useCallback((id: string, name: string) => {
     setSessions((prev) =>
@@ -125,6 +137,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           setCurrentSessionToken(next.token.access_token)
           setSessionToken(next.token.access_token)
           setSessionId(next.session_id)
+          onSessionChange?.(next.session_id)
         } else {
           setCurrentSessionId(null)
           setCurrentSessionToken(null)
