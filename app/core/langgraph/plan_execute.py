@@ -536,30 +536,31 @@ class PlanExecuteAgent:
         logger.info("pe_approval_approved", round=next_round)
         return {"approval_round": next_round, "pending_revise": False}
 
-    def _route_after_approval(self, state: PlanExecuteState) -> str | list[Send]:
-        """Edge dispatcher after approval_gate.
+    def _dispatch_ready_steps(self, state: PlanExecuteState) -> list[Send] | Command | str:
+        """Build Send() fan-out with RUNNING status update via Command."""
+        sends = self._get_ready_sends(state)
+        if not sends:
+            return "collector"
+        # Extract step ids from Send args and mark them RUNNING
+        running_ids = []
+        for s in sends:
+            step = s.arg.get("step") if isinstance(s.arg, dict) else None
+            if step:
+                running_ids.append(step.id if hasattr(step, "id") else str(step))
+        status_update = {sid: StepStatus.RUNNING.value for sid in running_ids}
+        logger.debug("pe_dispatch_ready", running_ids=running_ids)
+        return Command(
+            update={"step_status": status_update},
+            goto=sends,
+        )
 
-        Returns END, "replanner", or a list of Send() objects to fan-out
-        ready steps to the executor node in parallel.
-        """
+    def _route_after_approval(self, state: PlanExecuteState) -> str | list[Send] | Command:
+        """Edge dispatcher after approval_gate."""
         if state.response is not None:
-            logger.debug("pe_route_after_approval", decision=END,
-                         approval_round=state.approval_round)
             return END
         if state.pending_revise:
-            logger.debug("pe_route_after_approval", decision="replanner",
-                         approval_round=state.approval_round)
             return "replanner"
-        # Fan-out: dispatch all steps whose deps are met
-        sends = self._get_ready_sends(state)
-        if sends:
-            logger.debug("pe_route_after_approval", decision="executor_fanout",
-                         send_count=len(sends), approval_round=state.approval_round)
-            return sends
-        # No steps ready (shouldn't happen after planner, but be safe)
-        logger.warning("pe_route_after_approval_no_ready_steps",
-                       approval_round=state.approval_round)
-        return "collector"
+        return self._dispatch_ready_steps(state)
 
     # ---------- replanner node ----------
 
@@ -735,18 +736,12 @@ class PlanExecuteAgent:
         )
         return decision
 
-    def _route_after_collector(self, state: PlanExecuteState) -> str | list[Send]:
+    def _route_after_collector(self, state: PlanExecuteState) -> str | list[Send] | Command:
         """Route after collector: fan-out ready steps or go to replanner."""
         if state.iterations >= MAX_ITERATIONS:
             logger.warning("pe_max_iterations_after_collector", iterations=state.iterations)
             return "replanner"
-        sends = self._get_ready_sends(state)
-        if sends:
-            logger.debug("pe_route_after_collector", decision="executor_fanout",
-                         send_count=len(sends))
-            return sends
-        logger.debug("pe_route_after_collector", decision="replanner")
-        return "replanner"
+        return self._dispatch_ready_steps(state) if self._get_ready_sends(state) else "replanner"
 
     # ---------- graph construction ----------
 

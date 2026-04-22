@@ -33,6 +33,7 @@ def test_route_after_approval_pending_revise_goes_to_replanner():
 
 
 def test_route_after_approval_default_approve_dispatches_sends():
+    from langgraph.graph.state import Command
     from app.schemas import PlanStep
 
     agent = PlanExecuteAgent()
@@ -43,9 +44,9 @@ def test_route_after_approval_default_approve_dispatches_sends():
         pending_revise=False,
     )
     result = agent._route_after_approval(state)
-    # Should return a list of Send objects for fan-out
-    assert isinstance(result, list)
-    assert len(result) == 1
+    # Should return a Command with RUNNING status update + Send fan-out
+    assert isinstance(result, Command)
+    assert result.update["step_status"]["A1"] == "running"
 
 
 # ============================================================================
