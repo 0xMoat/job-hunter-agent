@@ -30,14 +30,9 @@ function parseResults(entry: ToolCallEntry): { keywords: string; results: JobRes
     // Backend LLM uses 0-based indices in intro text; shift all to 1-based.
     const rawIntro = typeof data.intro_text === "string" ? data.intro_text.trim() : ""
     const maxIdx = (data.results ?? []).length - 1
-    const introText = rawIntro.replace(/(?<=#|职位|第)\s*(\d+)/g, (_m: string, n: string) => {
+    const introText = rawIntro.replace(/\d+/g, (n: string) => {
       const num = Number(n)
-      return num <= maxIdx ? _m.replace(n, String(num + 1)) : _m
-    }).replace(/(\d+)\s*(?=和|与|、|,)\s*(\d+)/g, (_m: string, a: string, b: string) => {
-      const na = Number(a), nb = Number(b)
-      const fa = na <= maxIdx ? String(na + 1) : a
-      const fb = nb <= maxIdx ? String(nb + 1) : b
-      return _m.replace(a, fa).replace(b, fb)
+      return num <= maxIdx ? String(num + 1) : n
     })
     return { keywords, results, introText }
   } catch {
