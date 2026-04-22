@@ -1,37 +1,26 @@
 "use client"
 
 import { useState } from "react"
-import type { PlanStep } from "@/lib/types"
-import { pillLabel } from "./PlanStepCard"
-import { computeWaves, buildCardColorMap, stepColor } from "./planUtils"
 import { useLanguage } from "@/contexts/LanguageContext"
 
 interface PlanApprovalCardProps {
   round: number
-  steps?: PlanStep[]
   onApprove: () => void
   onRevise: (feedback: string) => void
   onCancel: () => void
   disabled?: boolean
-  companyById?: Record<number, string>
 }
 
 export function PlanApprovalCard({
   round,
-  steps,
   onApprove,
   onRevise,
   onCancel,
   disabled = false,
-  companyById,
 }: PlanApprovalCardProps) {
   const { t } = useLanguage()
   const [revising, setRevising] = useState(false)
   const [feedback, setFeedback] = useState("")
-
-  const waves = steps ? computeWaves(steps) : []
-  const isMultiWave = waves.length > 1
-  const cardColors = steps ? buildCardColorMap(steps) : new Map()
 
   if (revising) {
     return (
@@ -85,44 +74,7 @@ export function PlanApprovalCard({
         等你确认 · 第 {round} 轮
       </div>
 
-      {/* DAG preview — pill layout per wave */}
-      {isMultiWave && steps && (
-        <div className="mb-3 rounded-md border border-indigo-200 bg-white/60 px-3 py-2">
-          <div className="mb-2 text-[10px] font-medium text-indigo-600">
-            {t("pe_approval_dag_title")} · {steps.length} 步
-          </div>
-          <div className="flex flex-col gap-2">
-            {waves.map((wave, wi) => (
-              <div key={wi}>
-                <div className="mb-1 text-[9px] font-semibold uppercase tracking-wider text-indigo-500">
-                  Wave {wi + 1} · {wave.length > 1 ? "并行" : ""}
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {wave.map((s) => {
-                    const color = stepColor(s.id, cardColors)
-                    return (
-                      <span
-                        key={s.id}
-                        className="rounded-full px-2 py-0.5 text-[10px] font-medium"
-                        style={{
-                          backgroundColor: color.bg,
-                          color: color.text,
-                          border: `1px solid ${color.border}`,
-                        }}
-                      >
-                        {pillLabel(s.text, companyById)}
-                      </span>
-                    )
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="mt-2 text-[9px] text-indigo-400">
-            同一 Wave 内的步骤并行执行
-          </div>
-        </div>
-      )}
+      {/* DAG structure is already visible in the timeline above — no need to repeat */}
 
       <div className="flex flex-wrap justify-end gap-2">
         <button

@@ -203,12 +203,10 @@ export function PlanTimelineView({
       {view.awaitingApproval && onApprove && onRevise && onCancel && (
         <PlanApprovalCard
           round={view.approvalRound}
-          steps={view.steps}
           onApprove={onApprove}
           onRevise={onRevise}
           onCancel={onCancel}
           disabled={actionsDisabled}
-          companyById={companyById}
         />
       )}
 
