@@ -1,7 +1,7 @@
 "use client"
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
-import type { PlanExecuteView, PlanStep } from "@/lib/types"
+import { useEffect, useRef, useState } from "react"
+import type { PlanExecuteView } from "@/lib/types"
 import { PlanStepRow } from "./PlanStepCard"
 import { PlanApprovalCard } from "./PlanApprovalCard"
 import { computeWaves, buildCardColorMap, stepColor } from "./planUtils"
@@ -25,38 +25,6 @@ function fmtDuration(seconds: number): string {
   const m = Math.floor(seconds / 60)
   const s = seconds % 60
   return `${m}:${String(s).padStart(2, "0")}`
-}
-
-// ── SVG edge helpers ────────────────────────────────────────────────────────
-
-interface Edge {
-  from: string
-  to: string
-}
-
-function collectEdges(steps: PlanStep[]): Edge[] {
-  const edges: Edge[] = []
-  for (const s of steps) {
-    for (const dep of s.dependsOn || []) {
-      edges.push({ from: dep, to: s.id })
-    }
-  }
-  return edges
-}
-
-function edgeColor(sourceStep: PlanStep | undefined): {
-  stroke: string
-  dashArray: string
-} {
-  if (!sourceStep) return { stroke: "#475569", dashArray: "4 3" }
-  switch (sourceStep.status) {
-    case "done":
-      return { stroke: "#22c55e", dashArray: "" }
-    case "failed":
-      return { stroke: "#ef4444", dashArray: "4 3" }
-    default:
-      return { stroke: "#475569", dashArray: "4 3" }
-  }
 }
 
 // ── Component ───────────────────────────────────────────────────────────────
@@ -121,65 +89,6 @@ export function PlanTimelineView({
   const isMultiWave = waves.length > 1
   const cardColors = buildCardColorMap(view.steps)
 
-  // ── SVG edge drawing ──────────────────────────────────────────────────────
-  const containerRef = useRef<HTMLDivElement>(null)
-  const stepRefs = useRef<Map<string, HTMLDivElement>>(new Map())
-  const [svgLines, setSvgLines] = useState<
-    { x1: number; y1: number; x2: number; y2: number; stroke: string; dashArray: string }[]
-  >([])
-
-  const setStepRef = useCallback(
-    (id: string) => (el: HTMLDivElement | null) => {
-      if (el) stepRefs.current.set(id, el)
-      else stepRefs.current.delete(id)
-    },
-    [],
-  )
-
-  const stepMap = new Map(view.steps.map((s) => [s.id, s]))
-  const edges = isMultiWave ? collectEdges(view.steps) : []
-
-  // Measure positions and draw edges
-  const measureEdges = useCallback(() => {
-    if (!isMultiWave || edges.length === 0 || !containerRef.current) {
-      setSvgLines([])
-      return
-    }
-    const containerRect = containerRef.current.getBoundingClientRect()
-    const lines: typeof svgLines = []
-    for (const edge of edges) {
-      const fromEl = stepRefs.current.get(edge.from)
-      const toEl = stepRefs.current.get(edge.to)
-      if (!fromEl || !toEl) continue
-      const fromRect = fromEl.getBoundingClientRect()
-      const toRect = toEl.getBoundingClientRect()
-      const { stroke, dashArray } = edgeColor(stepMap.get(edge.from))
-      // From bottom-center of source to top-center of target
-      lines.push({
-        x1: fromRect.left + fromRect.width / 2 - containerRect.left,
-        y1: fromRect.bottom - containerRect.top,
-        x2: toRect.left + toRect.width / 2 - containerRect.left,
-        y2: toRect.top - containerRect.top,
-        stroke,
-        dashArray,
-      })
-    }
-    setSvgLines(lines)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMultiWave, edges.length, view.steps])
-
-  useLayoutEffect(() => {
-    measureEdges()
-  }, [measureEdges])
-
-  // Re-measure on window resize
-  useEffect(() => {
-    if (!isMultiWave) return
-    const handler = () => measureEdges()
-    window.addEventListener("resize", handler)
-    return () => window.removeEventListener("resize", handler)
-  }, [isMultiWave, measureEdges])
-
   // Build a global flat index for step numbering
   const stepNumberMap = new Map<string, number>()
   view.steps.forEach((s, i) => stepNumberMap.set(s.id, i + 1))
@@ -237,87 +146,7 @@ export function PlanTimelineView({
       )}
 
       {total > 0 && (
-        <div className="relative" ref={containerRef}>
-          {/* SVG overlay for dependency edges */}
-          {svgLines.length > 0 && (
-            <svg
-              className="pointer-events-none absolute inset-0 z-0"
-              style={{ width: "100%", height: "100%", overflow: "visible" }}
-            >
-              <defs>
-                <marker
-                  id="arrow-green"
-                  markerWidth="6"
-                  markerHeight="4"
-                  refX="5"
-                  refY="2"
-                  orient="auto"
-                >
-                  <path d="M0,0 L6,2 L0,4" fill="#22c55e" />
-                </marker>
-                <marker
-                  id="arrow-gray"
-                  markerWidth="6"
-                  markerHeight="4"
-                  refX="5"
-                  refY="2"
-                  orient="auto"
-                >
-                  <path d="M0,0 L6,2 L0,4" fill="#475569" />
-                </marker>
-                <marker
-                  id="arrow-red"
-                  markerWidth="6"
-                  markerHeight="4"
-                  refX="5"
-                  refY="2"
-                  orient="auto"
-                >
-                  <path d="M0,0 L6,2 L0,4" fill="#ef4444" />
-                </marker>
-              </defs>
-              {svgLines.map((line, i) => {
-                const markerId =
-                  line.stroke === "#22c55e"
-                    ? "arrow-green"
-                    : line.stroke === "#ef4444"
-                      ? "arrow-red"
-                      : "arrow-gray"
-                // Use a slight bezier curve if horizontal offset is significant
-                const dx = Math.abs(line.x2 - line.x1)
-                const dy = line.y2 - line.y1
-                if (dx > 20 && dy > 10) {
-                  const midY = (line.y1 + line.y2) / 2
-                  return (
-                    <path
-                      key={i}
-                      d={`M${line.x1},${line.y1} C${line.x1},${midY} ${line.x2},${midY} ${line.x2},${line.y2}`}
-                      fill="none"
-                      stroke={line.stroke}
-                      strokeWidth="1.2"
-                      strokeDasharray={line.dashArray}
-                      markerEnd={`url(#${markerId})`}
-                      opacity="0.6"
-                    />
-                  )
-                }
-                return (
-                  <line
-                    key={i}
-                    x1={line.x1}
-                    y1={line.y1}
-                    x2={line.x2}
-                    y2={line.y2}
-                    stroke={line.stroke}
-                    strokeWidth="1.2"
-                    strokeDasharray={line.dashArray}
-                    markerEnd={`url(#${markerId})`}
-                    opacity="0.6"
-                  />
-                )
-              })}
-            </svg>
-          )}
+        <div className="relative">
 
           {isMultiWave ? (
             /* ── Wave-grouped layout ────────────────────────────────────── */
@@ -342,7 +171,6 @@ export function PlanTimelineView({
                       return (
                         <div
                           key={s.id}
-                          ref={setStepRef(s.id)}
                           className="min-w-0 flex-1 basis-60 rounded-md px-1.5 py-0.5"
                           style={{ backgroundColor: color.bg }}
                         >

@@ -31,3 +31,5 @@ evals/reports/
 .claude/
 skills
 skills-lock.json
+
+.omm

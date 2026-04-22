@@ -200,6 +200,7 @@ function applyPlanChunkToMessage(
                     ...s,
                     status: failed ? ("failed" as const) : ("done" as const),
                     result: chunk.result,
+                    durationMs: chunk.duration_ms,
                   }
                 : s,
             ),

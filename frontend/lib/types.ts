@@ -148,6 +148,8 @@ export interface PlanStep {
    *  stall detection survives page reloads. */
   startedAt?: number
   dependsOn?: string[]
+  /** Backend-measured execution duration in milliseconds. Set on completion. */
+  durationMs?: number
 }
 
 export interface PlanStepDescriptor {
@@ -159,7 +161,7 @@ export interface PlanStepDescriptor {
 export type PlanStreamChunk =
   | { type: "plan_created"; steps: PlanStepDescriptor[]; done: false }
   | { type: "step_started"; id: string; started_at_utc?: string; done: false }
-  | { type: "step_completed"; id: string; result: string; done: false }
+  | { type: "step_completed"; id: string; result: string; duration_ms?: number; done: false }
   | { type: "plan_updated"; remaining: PlanStepDescriptor[]; done: false }
   | {
       type: "awaiting_approval"

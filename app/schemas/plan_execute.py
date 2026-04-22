@@ -64,6 +64,9 @@ class PlanExecuteState(BaseModel):
     step_status: Annotated[dict[str, str], _merge_dicts] = Field(
         default_factory=dict, description="step_id → StepStatus value"
     )
+    step_duration_ms: Annotated[dict[str, int], _merge_dicts] = Field(
+        default_factory=dict, description="step_id → execution duration in milliseconds"
+    )
     response: str | None = Field(default=None, description="最终答复，由 Replanner 设置")
     long_term_memory: str = Field(default="", description="mem0 检索的用户画像")
     pending_applications: str = Field(default="", description="进入子图前快照")

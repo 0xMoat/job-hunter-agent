@@ -395,6 +395,7 @@ class PlanExecuteAgent:
         child_config["recursion_limit"] = EXECUTOR_RECURSION_LIMIT
 
         status = StepStatus.DONE.value
+        step_start = time.time()
         executor = self._get_executor()
         try:
             result = await asyncio.wait_for(
@@ -450,9 +451,11 @@ class PlanExecuteAgent:
             status = StepStatus.FAILED.value
             logger.exception("pe_step_failed", step_id=step.id, step_text=step.text)
 
+        duration_ms = int((time.time() - step_start) * 1000)
         return {
             "step_results": {step.id: result_text},
             "step_status": {step.id: status},
+            "step_duration_ms": {step.id: duration_ms},
         }
 
     # ---------- approval gate (HITL) ----------
@@ -1012,12 +1015,17 @@ class PlanExecuteAgent:
                     newly_running.append(step_id)
                 elif new_status in (StepStatus.DONE.value, StepStatus.FAILED.value):
                     result = current_results.get(step_id, "")
-                    out.append(_json.dumps({
+                    current_durations = values_event.get("step_duration_ms", {}) or {}
+                    dur = current_durations.get(step_id)
+                    evt: dict = {
                         "type": "step_completed",
                         "id": step_id,
                         "result": result,
                         "done": False,
-                    }))
+                    }
+                    if dur is not None:
+                        evt["duration_ms"] = dur
+                    out.append(_json.dumps(evt))
                 elif new_status == StepStatus.SKIPPED.value:
                     out.append(_json.dumps({
                         "type": "step_skipped",

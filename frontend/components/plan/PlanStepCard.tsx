@@ -158,7 +158,7 @@ export function PlanStepRow({
                       : "font-medium text-zinc-800"
             }`}
           >
-            {humanizePlanStepText(step.text, companyById)}
+            {pillLabel(step.text, companyById)}
           </span>
           {isSkipped && (
             <span className="shrink-0 font-mono text-[10px] text-amber-600">
@@ -167,7 +167,7 @@ export function PlanStepRow({
           )}
           {isRunning && !isStalled && (
             <span className="shrink-0 font-mono text-[10px] text-indigo-600">
-              {fmtDuration(elapsed)} running…
+              {fmtDuration(elapsed)}
             </span>
           )}
           {isStalled && (
@@ -176,6 +176,11 @@ export function PlanStepRow({
               title="超过 10 分钟无更新，服务可能在该步骤期间重启。请重新发起处理。"
             >
               {fmtDuration(elapsed)} 可能已中断
+            </span>
+          )}
+          {(isDone || isFailed) && step.durationMs != null && (
+            <span className={`shrink-0 font-mono text-[10px] ${isFailed ? "text-rose-500" : "text-zinc-400"}`}>
+              {fmtDuration(Math.round(step.durationMs / 1000))}
             </span>
           )}
           {isDone && hasResult && (
