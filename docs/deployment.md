@@ -34,7 +34,6 @@ Backend project directory: `/home/ubuntu/apps/job-hunter-agent`
 
 Server already runs:
 - PostgreSQL 14 with pgvector extension (host network, port 5432)
-- Redis (Docker container, port 6379)
 - Caddy (reverse proxy with auto HTTPS)
 
 ### Deploy / Update
@@ -115,7 +114,7 @@ Prometheus, cAdvisor, and pgweb basic auth credentials: `admin` / `jobhunter`
 
 ### Docker Architecture
 
-- `network_mode: host` — app container shares host network, connects to PostgreSQL and Redis on localhost
+- `network_mode: host` — app container shares host network, connects to PostgreSQL on localhost
 - Monitoring stack (Prometheus, Grafana, cAdvisor) runs on a `monitoring` bridge network
 - Prometheus reaches the app via `host.docker.internal:8000`
 - All monitoring ports bind to `127.0.0.1` only — public access via Caddy reverse proxy
@@ -140,6 +139,25 @@ docker ps
 # cAdvisor:   https://cadvisor.mintmind.io    (basic auth: admin / jobhunter)
 # pgweb:      https://pgweb.mintmind.io       (basic auth: admin / jobhunter)
 ```
+
+### Image Tags & Automated Maintenance
+
+Every deploy produced by `.github/workflows/deploy.yaml` tags the backend image twice:
+- `job-hunter-agent-app:latest` — what the running container uses
+- `job-hunter-agent-app:sha-<7-char-commit>` — named history for audit / rollback lookup
+
+Rolling back to a prior build without rebuilding:
+
+```bash
+docker tag job-hunter-agent-app:sha-<old-commit> job-hunter-agent-app:latest
+docker compose -f docker-compose.prod.yml up -d app
+```
+
+Server-side cron (`/etc/cron.d/docker-image-cleanup`) runs every Sunday 03:00 UTC:
+- `docker image prune -a -f --filter "until=720h"` — drops images unreferenced for 30d+
+- `docker builder prune -a -f --filter "until=720h"` — reclaims stale build cache
+
+Running containers' images are never touched. Logs: `journalctl -t docker-prune`.
 
 ---
 
