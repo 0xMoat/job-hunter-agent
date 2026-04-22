@@ -177,13 +177,24 @@ class PlanExecuteAgent:
             logger.exception("pe_memory_search_failed", user_id=user_id)
             return ""
 
+    @staticmethod
+    def _artifact_tags(app) -> str:
+        """Return compact artifact status tags for a card (e.g. 'research✓ score✓')."""
+        mapping = [
+            (app.company_research_json, "research"),
+            (app.match_breakdown, "score"),
+            (app.gap_analysis_text, "gap"),
+            (app.interview_questions_json, "interview"),
+            (app.tailored_resume_text, "resume"),
+        ]
+        tags = [f"{name}✓" for val, name in mapping if val]
+        return " ".join(tags)
+
     async def _get_pending_applications(self, user_id: str) -> str:
+        """Build a human-readable list of ALL pending cards with artifact status."""
         try:
             apps = await job_service.list_applications(int(user_id))
-            pending = [
-                a for a in apps
-                if a.status == "pending" and not self._is_fully_processed(a)
-            ]
+            pending = [a for a in apps if a.status == "pending"]
             if not pending:
                 return ""
             lines = []
@@ -193,44 +204,29 @@ class PlanExecuteAgent:
                 # application_id first so the planner wires the correct id into
                 # tool calls — positional numbering caused the executor to try
                 # application_id=1 when the user said "第 1 个".
+                artifact_str = self._artifact_tags(app)
+                suffix = f"  ({artifact_str})" if artifact_str else ""
                 lines.append(
-                    f"- application_id={app.id} · [{app.title}]{company}{url}"
+                    f"- application_id={app.id} · [{app.title}]{company}{url}{suffix}"
                 )
             return "\n".join(lines)
         except Exception:
             logger.exception("pe_pending_apps_failed", user_id=user_id)
             return ""
 
-    @staticmethod
-    def _is_fully_processed(app) -> bool:
-        """Check if a card already has all 5 artifacts populated."""
-        return all([
-            app.company_research_json,
-            app.match_breakdown,
-            app.gap_analysis_text,
-            app.interview_questions_json,
-            app.tailored_resume_text,
-        ])
-
     async def _get_pending_application_ids(self, user_id: str) -> list[int]:
-        """Snapshot pending application ids at PE start.
-
-        Excludes cards that already have all 5 artifacts (research, score,
-        gap, interview, resume) populated — those are fully processed.
-        """
+        """Snapshot ALL pending application ids at PE start."""
         try:
             apps = await job_service.list_applications(int(user_id))
             ids = [
                 a.id for a in apps
                 if a.status == "pending"
                 and a.id is not None
-                and not self._is_fully_processed(a)
             ]
             logger.info(
-                "pe_pending_ids_filtered",
+                "pe_pending_ids",
                 user_id=user_id,
-                total_pending=len([a for a in apps if a.status == "pending"]),
-                unprocessed=len(ids),
+                count=len(ids),
             )
             return ids
         except Exception:
