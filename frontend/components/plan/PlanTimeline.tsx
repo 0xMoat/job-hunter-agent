@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useState } from "react"
 import type { PlanExecuteView } from "@/lib/types"
 import { PlanStepRow } from "./PlanStepCard"
 import { PlanApprovalCard } from "./PlanApprovalCard"
@@ -49,20 +49,19 @@ export function PlanTimelineView({
   const currentToolName =
     runningStep?.toolCalls?.[runningStep.toolCalls.length - 1]?.name
 
-  // Plan-level elapsed timer — starts the first time we see the plan run.
-  const planStartedRef = useRef<number | null>(null)
-  const [now, setNow] = useState(Date.now())
-  if ((view.running || completed > 0) && planStartedRef.current === null) {
-    planStartedRef.current = Date.now()
-  }
-  useEffect(() => {
-    if (!view.running) return
-    const id = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(id)
-  }, [view.running])
-  const elapsed = planStartedRef.current
-    ? Math.floor((now - planStartedRef.current) / 1000)
-    : 0
+  // Total elapsed: sum of max(durationMs) per wave. Only computed when all
+  // steps are done — this is wall-clock time since waves run in parallel.
+  const isFinished = Boolean(view.finalResponse) || Boolean(view.errorMsg) || view.cancelled
+  const totalElapsedMs = (() => {
+    if (!isFinished) return null
+    const ws = computeWaves(view.steps)
+    let sum = 0
+    for (const wave of ws) {
+      const maxMs = Math.max(...wave.map((s) => s.durationMs ?? 0))
+      sum += maxMs
+    }
+    return sum > 0 ? sum : null
+  })()
 
   let pill: { label: string; className: string; dot?: boolean } | null = null
   if (view.errorMsg) {
@@ -136,7 +135,9 @@ export function PlanTimelineView({
                 {completed} / {total}
               </span>
             )}
-            {planStartedRef.current !== null && <span>· {fmtDuration(elapsed)}</span>}
+            {totalElapsedMs != null && (
+              <span>· {fmtDuration(Math.round(totalElapsedMs / 1000))}</span>
+            )}
           </div>
         </div>
       )}
