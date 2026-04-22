@@ -54,7 +54,10 @@ export function SessionSidebar({ streaming }: { streaming: boolean }) {
     try {
       const token = getAccessToken()
       if (!token) return
-      await apiTutorialReplay(token, locale)
+      const result = await apiTutorialReplay(token, locale)
+      // Switch to the tutorial session before reloading so the page
+      // opens on the tutorial, not the previously active session.
+      switchSession(result.session_id)
       localStorage.removeItem("jh_tour_done")
       window.location.reload()
     } finally {
