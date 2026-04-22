@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import type { PlanExecuteView } from "@/lib/types"
 import { PlanStepRow } from "./PlanStepCard"
 import { PlanApprovalCard } from "./PlanApprovalCard"
-import { computeWaves, buildCardColorMap, stepColor } from "./planUtils"
+import { computeWaves, buildCardColorMap, stepColor, extractCardLetter } from "./planUtils"
 import { useLanguage } from "@/contexts/LanguageContext"
 
 interface PlanTimelineViewProps {
@@ -93,6 +93,14 @@ export function PlanTimelineView({
   const stepNumberMap = new Map<string, number>()
   view.steps.forEach((s, i) => stepNumberMap.set(s.id, i + 1))
 
+  // Stable card column order — derived from first wave (which has one step per card)
+  const cardOrder: string[] = []
+  for (const s of view.steps) {
+    const letter = extractCardLetter(s.id)
+    if (letter && !cardOrder.includes(letter)) cardOrder.push(letter)
+  }
+  const numCards = cardOrder.length || 1
+
   return (
     <div className="flex flex-col gap-3" data-tour="pe-timeline">
       {showHeader && (
@@ -149,42 +157,88 @@ export function PlanTimelineView({
         <div className="relative">
 
           {isMultiWave ? (
-            /* ── Wave-grouped layout ────────────────────────────────────── */
-            <div className="flex flex-col gap-4">
-              {waves.map((wave, wi) => (
-                <div key={wi}>
-                  {/* Wave label */}
-                  <div className="mb-1 flex items-center gap-2">
-                    <span className="font-mono text-[10px] font-medium uppercase tracking-wider text-zinc-400">
-                      {t("pe_wave_label", wi + 1)}
-                    </span>
-                    {wave.length > 1 && (
-                      <span className="text-[10px] text-zinc-400">
-                        {t("pe_parallel_steps", wave.length)}
+            /* ── Wave-grouped layout — CSS Grid aligned by card column ── */
+            <div className="flex flex-col gap-3">
+              {waves.map((wave, wi) => {
+                // Group steps in this wave by card letter
+                const stepsByCard = new Map<string, typeof wave>()
+                const noCardSteps: typeof wave = []
+                for (const s of wave) {
+                  const letter = extractCardLetter(s.id)
+                  if (letter) {
+                    const arr = stepsByCard.get(letter) || []
+                    arr.push(s)
+                    stepsByCard.set(letter, arr)
+                  } else {
+                    noCardSteps.push(s)
+                  }
+                }
+                // Non-card steps (e.g. summary) span full width
+                if (noCardSteps.length > 0 && stepsByCard.size === 0) {
+                  return (
+                    <div key={wi}>
+                      <div className="mb-1 flex items-center gap-2">
+                        <span className="font-mono text-[10px] font-medium uppercase tracking-wider text-zinc-400">
+                          {t("pe_wave_label", wi + 1)}
+                        </span>
+                      </div>
+                      {noCardSteps.map((s) => {
+                        const color = stepColor(s.id, cardColors)
+                        return (
+                          <div
+                            key={s.id}
+                            className="rounded-md px-1.5 py-0.5"
+                            style={{ backgroundColor: color.bg }}
+                          >
+                            <PlanStepRow step={s} position={stepNumberMap.get(s.id) ?? 0} companyById={companyById} />
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+                }
+
+                return (
+                  <div key={wi}>
+                    <div className="mb-1 flex items-center gap-2">
+                      <span className="font-mono text-[10px] font-medium uppercase tracking-wider text-zinc-400">
+                        {t("pe_wave_label", wi + 1)}
                       </span>
-                    )}
+                      {wave.length > 1 && (
+                        <span className="text-[10px] text-zinc-400">
+                          {t("pe_parallel_steps", wave.length)}
+                        </span>
+                      )}
+                    </div>
+                    {/* Grid: one column per card, aligned across waves */}
+                    <div
+                      className="grid gap-x-1.5 gap-y-1"
+                      style={{ gridTemplateColumns: `repeat(${numCards}, minmax(0, 1fr))` }}
+                    >
+                      {cardOrder.map((letter) => {
+                        const steps = stepsByCard.get(letter) || []
+                        const color = steps.length > 0 ? stepColor(steps[0].id, cardColors) : undefined
+                        return (
+                          <div
+                            key={letter}
+                            className="flex flex-col gap-0.5 rounded-md px-1.5 py-0.5"
+                            style={{ backgroundColor: color?.bg }}
+                          >
+                            {steps.map((s) => (
+                              <PlanStepRow
+                                key={s.id}
+                                step={s}
+                                position={stepNumberMap.get(s.id) ?? 0}
+                                companyById={companyById}
+                              />
+                            ))}
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
-                  {/* Steps in this wave — horizontal flex-wrap */}
-                  <div className="flex flex-wrap gap-x-1.5 gap-y-1">
-                    {wave.map((s) => {
-                      const color = stepColor(s.id, cardColors)
-                      return (
-                        <div
-                          key={s.id}
-                          className="min-w-0 flex-1 basis-60 rounded-md px-1.5 py-0.5"
-                          style={{ backgroundColor: color.bg }}
-                        >
-                          <PlanStepRow
-                            step={s}
-                            position={stepNumberMap.get(s.id) ?? 0}
-                            companyById={companyById}
-                          />
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           ) : (
             /* ── Flat serial layout (no deps — legacy compat) ──────────── */
