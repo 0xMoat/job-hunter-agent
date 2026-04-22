@@ -319,6 +319,14 @@ function ExecuteMockup() {
         {waveNums.map((w) => {
           const waveSteps = steps.filter((s) => s.wave === w)
           const isFullWidth = waveSteps.length === 1 && waveSteps[0].card === "Z"
+          const cardOrder = ["A", "B"] as const
+          const stepsByCard = new Map<string, MockStep[]>()
+          for (const s of waveSteps) {
+            const arr = stepsByCard.get(s.card) || []
+            arr.push(s)
+            stepsByCard.set(s.card, arr)
+          }
+          const DURATIONS: Record<string, string> = { A1: "1:10", B1: "0:52", A2: "0:18", A3: "0:21" }
           return (
             <div key={w}>
               <div className="flex items-center gap-1.5 mb-0.5">
@@ -331,49 +339,57 @@ function ExecuteMockup() {
                   </span>
                 )}
               </div>
-              <div
-                className="grid gap-x-1 gap-y-0.5"
-                style={{ gridTemplateColumns: isFullWidth ? "1fr" : "1fr 1fr" }}
-              >
-                {waveSteps.map((s, i) => {
-                  const isDone = s.s === "done"
-                  const isRunning = s.s === "running"
-                  return (
-                    <div
-                      key={s.id}
-                      className="flex items-center gap-1.5 rounded-md px-1.5 py-[3px]"
-                      style={{ backgroundColor: CARD_BG[s.card] }}
-                    >
+              {isFullWidth ? (
+                <div>
+                  {waveSteps.map((s) => (
+                    <div key={s.id} className="flex items-center gap-1.5 rounded-md px-1.5 py-[3px]"
+                      style={{ backgroundColor: CARD_BG[s.card] }}>
                       <div className="shrink-0">
-                        {isDone && (
-                          <span className="block h-2 w-2 rounded-full bg-emerald-500 ring-1 ring-white" />
-                        )}
-                        {isRunning && (
-                          <span className="block h-2 w-2 rounded-full bg-indigo-500 ring-1 ring-white shadow-[0_0_0_3px_rgba(99,102,241,0.18)] animate-pulse" />
-                        )}
-                        {!isDone && !isRunning && (
-                          <span className="block h-2 w-2 rounded-full border border-zinc-300 bg-white" />
-                        )}
+                        {s.s === "done"
+                          ? <span className="block h-2 w-2 rounded-full bg-emerald-500 ring-1 ring-white" />
+                          : <span className="block h-2 w-2 rounded-full border border-zinc-300 bg-white" />}
                       </div>
                       <span className="w-4 shrink-0 font-mono text-[9px] text-zinc-400">
                         {String(steps.indexOf(s) + 1).padStart(2, "0")}
                       </span>
-                      <span
-                        className={`flex-1 text-[11px] leading-snug truncate ${
-                          isDone ? "text-zinc-500" : isRunning ? "font-medium text-zinc-800" : "text-zinc-400"
-                        }`}
-                      >
-                        {s.t}
-                      </span>
-                      {isDone && (
-                        <span className="shrink-0 font-mono text-[9px] text-zinc-400">
-                          {s.id === "A1" ? "1:10" : s.id === "B1" ? "0:52" : s.id === "A2" ? "0:18" : "0:21"}
-                        </span>
-                      )}
+                      <span className={`flex-1 text-[11px] leading-snug ${s.s === "done" ? "text-zinc-500" : "text-zinc-400"}`}>{s.t}</span>
                     </div>
-                  )
-                })}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid gap-x-1" style={{ gridTemplateColumns: "1fr 1fr" }}>
+                  {cardOrder.map((card) => {
+                    const cardSteps = stepsByCard.get(card) || []
+                    return (
+                      <div key={card} className="flex flex-col gap-0.5 rounded-md px-1.5 py-[3px]"
+                        style={{ backgroundColor: cardSteps.length > 0 ? CARD_BG[card] : undefined }}>
+                        {cardSteps.map((s) => {
+                          const isDone = s.s === "done"
+                          const isRunning = s.s === "running"
+                          return (
+                            <div key={s.id} className="flex items-center gap-1.5">
+                              <div className="shrink-0">
+                                {isDone && <span className="block h-2 w-2 rounded-full bg-emerald-500 ring-1 ring-white" />}
+                                {isRunning && <span className="block h-2 w-2 rounded-full bg-indigo-500 ring-1 ring-white shadow-[0_0_0_3px_rgba(99,102,241,0.18)] animate-pulse" />}
+                                {!isDone && !isRunning && <span className="block h-2 w-2 rounded-full border border-zinc-300 bg-white" />}
+                              </div>
+                              <span className="w-4 shrink-0 font-mono text-[9px] text-zinc-400">
+                                {String(steps.indexOf(s) + 1).padStart(2, "0")}
+                              </span>
+                              <span className={`flex-1 text-[11px] leading-snug truncate ${
+                                isDone ? "text-zinc-500" : isRunning ? "font-medium text-zinc-800" : "text-zinc-400"
+                              }`}>{s.t}</span>
+                              {isDone && DURATIONS[s.id] && (
+                                <span className="shrink-0 font-mono text-[9px] text-zinc-400">{DURATIONS[s.id]}</span>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )
         })}

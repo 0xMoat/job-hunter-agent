@@ -324,11 +324,19 @@ function MockChat() {
             </div>
           </div>
 
-          {/* Wave-grouped DAG timeline */}
+          {/* Wave-grouped DAG timeline — columns aligned by card */}
           <div className="flex flex-col gap-1.5">
             {waves.map((w) => {
               const waveSteps = planSteps.filter((s) => s.wave === w)
               const isFullWidth = waveSteps.length === 1 && waveSteps[0].card === "Z"
+              // Group by card for column alignment
+              const cardOrder = ["A", "B"] as const
+              const stepsByCard = new Map<string, HeroStep[]>()
+              for (const s of waveSteps) {
+                const arr = stepsByCard.get(s.card) || []
+                arr.push(s)
+                stepsByCard.set(s.card, arr)
+              }
               return (
                 <div key={w}>
                   <div className="flex items-center gap-1.5 mb-0.5">
@@ -341,45 +349,61 @@ function MockChat() {
                       </span>
                     )}
                   </div>
-                  <div
-                    className="grid gap-x-1 gap-y-0.5"
-                    style={{ gridTemplateColumns: isFullWidth ? "1fr" : "1fr 1fr" }}
-                  >
-                    {waveSteps.map((s, i) => {
-                      const status = stepStatus(s)
-                      const isDone = status === "done"
-                      const isRunning = status === "running"
-                      return (
-                        <div
-                          key={s.id}
-                          className="flex items-center gap-1.5 rounded-md px-1.5 py-[2px]"
-                          style={{ backgroundColor: CARD_COLORS[s.card] }}
-                        >
-                          <div className="shrink-0">
-                            {isDone && (
-                              <span className="block h-2 w-2 rounded-full bg-emerald-500 ring-1 ring-white" />
-                            )}
-                            {isRunning && (
-                              <span className="block h-2 w-2 rounded-full bg-indigo-500 ring-1 ring-white shadow-[0_0_0_3px_rgba(99,102,241,0.18)] animate-pulse" />
-                            )}
-                            {!isDone && !isRunning && (
-                              <span className="block h-2 w-2 rounded-full border border-zinc-300 bg-white" />
-                            )}
+                  {isFullWidth ? (
+                    // Summary step — full width
+                    <div>
+                      {waveSteps.map((s) => {
+                        const status = stepStatus(s)
+                        const isDone = status === "done"
+                        return (
+                          <div key={s.id} className="flex items-center gap-1.5 rounded-md px-1.5 py-[2px]"
+                            style={{ backgroundColor: CARD_COLORS[s.card] }}>
+                            <div className="shrink-0">
+                              {isDone
+                                ? <span className="block h-2 w-2 rounded-full bg-emerald-500 ring-1 ring-white" />
+                                : <span className="block h-2 w-2 rounded-full border border-zinc-300 bg-white" />}
+                            </div>
+                            <span className="w-3 shrink-0 font-mono text-[8px] text-zinc-400">
+                              {String(planSteps.indexOf(s) + 1).padStart(2, "0")}
+                            </span>
+                            <span className={`flex-1 text-[10px] leading-snug ${isDone ? "text-zinc-500" : "text-zinc-400"}`}>{s.t}</span>
                           </div>
-                          <span className="w-3 shrink-0 font-mono text-[8px] text-zinc-400">
-                            {String(planSteps.indexOf(s) + 1).padStart(2, "0")}
-                          </span>
-                          <span
-                            className={`flex-1 text-[10px] leading-snug truncate transition-colors duration-300 ${
-                              isDone ? "text-zinc-500" : isRunning ? "font-medium text-zinc-800" : "text-zinc-400"
-                            }`}
-                          >
-                            {s.t}
-                          </span>
-                        </div>
-                      )
-                    })}
-                  </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    // Card-aligned columns
+                    <div className="grid gap-x-1" style={{ gridTemplateColumns: "1fr 1fr" }}>
+                      {cardOrder.map((card) => {
+                        const cardSteps = stepsByCard.get(card) || []
+                        return (
+                          <div key={card} className="flex flex-col gap-0.5 rounded-md px-1.5 py-[2px]"
+                            style={{ backgroundColor: cardSteps.length > 0 ? CARD_COLORS[card] : undefined }}>
+                            {cardSteps.map((s) => {
+                              const status = stepStatus(s)
+                              const isDone = status === "done"
+                              const isRunning = status === "running"
+                              return (
+                                <div key={s.id} className="flex items-center gap-1.5">
+                                  <div className="shrink-0">
+                                    {isDone && <span className="block h-2 w-2 rounded-full bg-emerald-500 ring-1 ring-white" />}
+                                    {isRunning && <span className="block h-2 w-2 rounded-full bg-indigo-500 ring-1 ring-white shadow-[0_0_0_3px_rgba(99,102,241,0.18)] animate-pulse" />}
+                                    {!isDone && !isRunning && <span className="block h-2 w-2 rounded-full border border-zinc-300 bg-white" />}
+                                  </div>
+                                  <span className="w-3 shrink-0 font-mono text-[8px] text-zinc-400">
+                                    {String(planSteps.indexOf(s) + 1).padStart(2, "0")}
+                                  </span>
+                                  <span className={`flex-1 text-[10px] leading-snug truncate transition-colors duration-300 ${
+                                    isDone ? "text-zinc-500" : isRunning ? "font-medium text-zinc-800" : "text-zinc-400"
+                                  }`}>{s.t}</span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
               )
             })}
