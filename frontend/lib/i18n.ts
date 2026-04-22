@@ -264,6 +264,17 @@ const zh: Dict = {
   tut_pe_plan_4: '生成面试问题',
   tut_pe_plan_5: '定制并保存简历、生成 PDF',
   tut_pe_plan_6: '汇总本次处理结果',
+  tut_pe_step_a1: '调研 示例科技',
+  tut_pe_step_b1: '调研 样本网络',
+  tut_pe_step_a2: '评分 示例科技',
+  tut_pe_step_a3: '缺口 示例科技',
+  tut_pe_step_a4: '面试 示例科技',
+  tut_pe_step_b2: '评分 样本网络',
+  tut_pe_step_b3: '缺口 样本网络',
+  tut_pe_step_b4: '面试 样本网络',
+  tut_pe_step_a5: '简历PDF 示例科技',
+  tut_pe_step_b5: '简历PDF 样本网络',
+  tut_pe_step_z: '📝 汇总',
   tut_pe_final_md: `✅ **已为所选公司完成全流程处理：**
 
 1. ✅ 公司调研 — 已完成可利邦的深度调研并保存
@@ -575,6 +586,17 @@ const en: Dict = {
   tut_pe_plan_4: 'Generate interview questions',
   tut_pe_plan_5: 'Tailor resume + export PDF',
   tut_pe_plan_6: 'Summarize all processed results',
+  tut_pe_step_a1: 'Research Demo Corp',
+  tut_pe_step_b1: 'Research Sample Labs',
+  tut_pe_step_a2: 'Score Demo Corp',
+  tut_pe_step_a3: 'Gap Demo Corp',
+  tut_pe_step_a4: 'Interview Demo Corp',
+  tut_pe_step_b2: 'Score Sample Labs',
+  tut_pe_step_b3: 'Gap Sample Labs',
+  tut_pe_step_b4: 'Interview Sample Labs',
+  tut_pe_step_a5: 'Resume PDF Demo Corp',
+  tut_pe_step_b5: 'Resume PDF Sample Labs',
+  tut_pe_step_z: '📝 Summary',
   tut_pe_final_md: `✅ **Full pipeline complete for the selected companies:**
 
 1. ✅ Company research — deep-dive profiles saved

@@ -77,12 +77,21 @@ function buildPlanExecuteToolCall(t: (k: string, ...a: unknown[]) => string): To
 function buildPlanView(t: (k: string, ...a: unknown[]) => string): PlanExecuteView {
   return {
     steps: [
-      { id: "tut-s1", text: t("tut_pe_plan_1"), status: "done" },
-      { id: "tut-s2", text: t("tut_pe_plan_2"), status: "done" },
-      { id: "tut-s3", text: t("tut_pe_plan_3"), status: "done" },
-      { id: "tut-s4", text: t("tut_pe_plan_4"), status: "done" },
-      { id: "tut-s5", text: t("tut_pe_plan_5"), status: "done" },
-      { id: "tut-s6", text: t("tut_pe_plan_6"), status: "done" },
+      // Wave 1: research (2 cards parallel)
+      { id: "A1", text: t("tut_pe_step_a1"), status: "done", dependsOn: [], durationMs: 52000 },
+      { id: "B1", text: t("tut_pe_step_b1"), status: "done", dependsOn: [], durationMs: 48000 },
+      // Wave 2: analysis (6 steps parallel)
+      { id: "A2", text: t("tut_pe_step_a2"), status: "done", dependsOn: ["A1"], durationMs: 15000 },
+      { id: "A3", text: t("tut_pe_step_a3"), status: "done", dependsOn: ["A1"], durationMs: 18000 },
+      { id: "A4", text: t("tut_pe_step_a4"), status: "done", dependsOn: ["A1"], durationMs: 22000 },
+      { id: "B2", text: t("tut_pe_step_b2"), status: "done", dependsOn: ["B1"], durationMs: 14000 },
+      { id: "B3", text: t("tut_pe_step_b3"), status: "done", dependsOn: ["B1"], durationMs: 17000 },
+      { id: "B4", text: t("tut_pe_step_b4"), status: "done", dependsOn: ["B1"], durationMs: 20000 },
+      // Wave 3: resume (2 cards parallel)
+      { id: "A5", text: t("tut_pe_step_a5"), status: "done", dependsOn: ["A2", "A3", "A4"], durationMs: 95000 },
+      { id: "B5", text: t("tut_pe_step_b5"), status: "done", dependsOn: ["B2", "B3", "B4"], durationMs: 88000 },
+      // Wave 4: summary
+      { id: "Z", text: t("tut_pe_step_z"), status: "done", dependsOn: ["A5", "B5"], durationMs: 12000 },
     ],
     finalResponse: t("tut_pe_final_md"),
     errorMsg: null,

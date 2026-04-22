@@ -52,13 +52,12 @@ function MockChat() {
       450,  // 7: CTA flips to "已入库 ✓"
       700,  // 8: assistant plan bubble
       600,  // 9: user2
-      500,  // 10: plan timeline mounts, step 1 running
-      700,  // 11: step 1 done, step 2 running
-      700,  // 12: step 2 done, step 3 running
-      700,  // 13: step 3 done, step 4 running
-      900,  // 14: step 4 done, step 5 running
-      700,  // 15: all done
-      500,  // 16: kanban card
+      600,  // 10: wave 1 running (research parallel)
+      800,  // 11: wave 1 done, wave 2 running (score/gap parallel)
+      800,  // 12: wave 2 done, wave 3 running (resume parallel)
+      900,  // 13: wave 3 done, wave 4 running (summary)
+      700,  // 14: all done
+      500,  // 15: kanban card
     ]
     const timers: ReturnType<typeof setTimeout>[] = []
     let cum = 0
@@ -81,48 +80,63 @@ function MockChat() {
         { company: "Alibaba", title: "Senior PM - AI" },
       ]
 
-  const planSteps = isZh
+  // DAG plan steps: 2 cards × 3 waves + summary
+  type HeroStep = { id: string; t: string; card: "A" | "B" | "Z"; wave: number }
+  const planSteps: HeroStep[] = isZh
     ? [
-        { t: "调研字节跳动", tool: "Company Research" },
-        { t: "评估匹配度（90 / 100）", tool: "Score JD Match" },
-        { t: "生成缺口分析 + 面试问题", tool: "Analyze Gap" },
-        { t: "为卡片 #12 润色简历", tool: "Resume Studio" },
-        { t: "生成带签名链接的 PDF", tool: "Generate PDF" },
+        // Wave 1
+        { id: "A1", t: "调研 字节跳动", card: "A", wave: 1 },
+        { id: "B1", t: "调研 阿里巴巴", card: "B", wave: 1 },
+        // Wave 2
+        { id: "A2", t: "评分 字节跳动", card: "A", wave: 2 },
+        { id: "A3", t: "缺口 字节跳动", card: "A", wave: 2 },
+        { id: "B2", t: "评分 阿里巴巴", card: "B", wave: 2 },
+        { id: "B3", t: "缺口 阿里巴巴", card: "B", wave: 2 },
+        // Wave 3
+        { id: "A4", t: "简历PDF 字节跳动", card: "A", wave: 3 },
+        { id: "B4", t: "简历PDF 阿里巴巴", card: "B", wave: 3 },
+        // Wave 4
+        { id: "Z", t: "📝 汇总", card: "Z", wave: 4 },
       ]
     : [
-        { t: "Research ByteDance", tool: "Company Research" },
-        { t: "Score JD match (90 / 100)", tool: "Score JD Match" },
-        { t: "Generate skill gap + interview prep", tool: "Analyze Gap" },
-        { t: "Tailor resume for card #12", tool: "Resume Studio" },
-        { t: "Produce signed-URL PDF", tool: "Generate PDF" },
+        { id: "A1", t: "Research ByteDance", card: "A", wave: 1 },
+        { id: "B1", t: "Research Alibaba", card: "B", wave: 1 },
+        { id: "A2", t: "Score ByteDance", card: "A", wave: 2 },
+        { id: "A3", t: "Gap ByteDance", card: "A", wave: 2 },
+        { id: "B2", t: "Score Alibaba", card: "B", wave: 2 },
+        { id: "B3", t: "Gap Alibaba", card: "B", wave: 2 },
+        { id: "A4", t: "Resume PDF ByteDance", card: "A", wave: 3 },
+        { id: "B4", t: "Resume PDF Alibaba", card: "B", wave: 3 },
+        { id: "Z", t: "📝 Summary", card: "Z", wave: 4 },
       ]
+
+  const CARD_COLORS: Record<string, string> = {
+    A: "rgba(59,130,246,0.10)",
+    B: "rgba(168,85,247,0.10)",
+    Z: "rgba(100,116,139,0.10)",
+  }
 
   const artifactBadges = isZh
     ? ["公司调研", "知识缺口", "面试问题", "润色简历", "简历 PDF"]
     : ["Research", "Skill gap", "Interview Q", "Tailored resume", "Resume PDF"]
 
+  // Animation: each wave completes in one phase
+  // Phase 10 = wave 1 running, 11 = wave 1 done + wave 2 running, etc.
   const PE_START = 10
-  const PE_DONE = 15
-  const stepStatus = (i: number): "done" | "running" | "pending" => {
+  const PE_DONE = 14 // phase 14 = all 4 waves done
+  const waveOfPhase = (p: number): number => Math.max(0, p - PE_START + 1) // 1-based wave
+  const currentWave = waveOfPhase(phase)
+
+  const stepStatus = (s: HeroStep): "done" | "running" | "pending" => {
     if (phase < PE_START) return "pending"
-    const active = phase - PE_START
-    if (active >= 5) return "done"
-    if (i < active) return "done"
-    if (i === active) return "running"
+    if (s.wave < currentWave) return "done"
+    if (s.wave === currentWave) return phase >= PE_DONE ? "done" : "running"
     return "pending"
   }
 
-  const planCompleted = Math.min(
-    5,
-    Math.max(0, phase - PE_START) + (phase >= PE_DONE ? 1 : 0),
-  )
+  const planCompleted = planSteps.filter((s) => stepStatus(s) === "done").length
   const allDone = phase >= PE_DONE
-  const runningIdx =
-    phase >= PE_START && phase < PE_DONE ? phase - PE_START : -1
-  const runningTool =
-    runningIdx >= 0 && runningIdx < planSteps.length
-      ? planSteps[runningIdx].tool
-      : null
+  const waves = [1, 2, 3, 4]
 
   // Shape-preserving reveal — elements always occupy layout space so the
   // outer card's height stays fixed from mount; phase flips toggle
@@ -290,6 +304,7 @@ function MockChat() {
         className="bg-white rounded-xl border border-[var(--border)] p-3"
         style={fade(phase >= PE_START)}
       >
+          {/* Header */}
           <div className="flex items-center justify-between gap-2 border-b border-[var(--border)] pb-1.5 mb-1.5">
             <div className="flex min-w-0 items-center gap-2">
               {allDone ? (
@@ -302,83 +317,72 @@ function MockChat() {
                   {isZh ? "执行中" : "Running"}
                 </span>
               )}
-              {runningTool && (
-                <span className="truncate font-body text-[10px] text-zinc-600">
-                  <span className="font-mono text-zinc-500">{runningTool}</span>
-                  {" · "}Step {runningIdx + 1}
-                </span>
-              )}
             </div>
             <div className="flex shrink-0 items-center gap-1 font-mono text-[10px] text-zinc-500">
-              <span>{planCompleted} / 5</span>
+              <span>{planCompleted} / {planSteps.length}</span>
+              {allDone && <span>· 2:48</span>}
             </div>
           </div>
 
-          <div className="relative">
-            <div className="pointer-events-none absolute bottom-2 left-[4px] top-2 w-px bg-zinc-200" />
-            {planSteps.map((s, i) => {
-              const status = stepStatus(i)
-              const isDone = status === "done"
-              const isRunning = status === "running"
-              const isPending = status === "pending"
+          {/* Wave-grouped DAG timeline */}
+          <div className="flex flex-col gap-1.5">
+            {waves.map((w) => {
+              const waveSteps = planSteps.filter((s) => s.wave === w)
+              const isFullWidth = waveSteps.length === 1 && waveSteps[0].card === "Z"
               return (
-                <div key={i} className="relative flex gap-2.5 py-[1.5px]">
-                  <div className="relative z-10 mt-[6px] shrink-0">
-                    {isDone && (
-                      <span className="block h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white" />
-                    )}
-                    {isRunning && (
-                      <span className="block h-2 w-2 rounded-full bg-indigo-500 ring-2 ring-white shadow-[0_0_0_4px_rgba(99,102,241,0.18)] animate-pulse" />
-                    )}
-                    {isPending && (
-                      <span className="block h-2 w-2 rounded-full border-[1.5px] border-zinc-300 bg-white" />
+                <div key={w}>
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <span className="font-mono text-[8px] font-medium uppercase tracking-wider text-zinc-400">
+                      Wave {w}
+                    </span>
+                    {waveSteps.length > 1 && (
+                      <span className="text-[8px] text-zinc-400">
+                        {waveSteps.length}{isZh ? " 步并行" : " parallel"}
+                      </span>
                     )}
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline gap-2">
-                      <span className="w-4 shrink-0 font-mono text-[9px] text-zinc-400">
-                        {String(i + 1).padStart(2, "0")}
-                      </span>
-                      <span
-                        className={`flex-1 text-[11px] leading-snug transition-colors duration-300 ${
-                          isDone
-                            ? "text-zinc-500"
-                            : isPending
-                              ? "text-zinc-400"
-                              : "font-medium text-zinc-800"
-                        }`}
-                      >
-                        {s.t}
-                      </span>
-                      {isRunning && (
-                        <span className="shrink-0 font-mono text-[9px] text-indigo-600 animate-pulse">
-                          {isZh ? "运行中…" : "running…"}
-                        </span>
-                      )}
-                    </div>
+                  <div
+                    className="grid gap-x-1 gap-y-0.5"
+                    style={{ gridTemplateColumns: isFullWidth ? "1fr" : "1fr 1fr" }}
+                  >
+                    {waveSteps.map((s, i) => {
+                      const status = stepStatus(s)
+                      const isDone = status === "done"
+                      const isRunning = status === "running"
+                      return (
+                        <div
+                          key={s.id}
+                          className="flex items-center gap-1.5 rounded-md px-1.5 py-[2px]"
+                          style={{ backgroundColor: CARD_COLORS[s.card] }}
+                        >
+                          <div className="shrink-0">
+                            {isDone && (
+                              <span className="block h-2 w-2 rounded-full bg-emerald-500 ring-1 ring-white" />
+                            )}
+                            {isRunning && (
+                              <span className="block h-2 w-2 rounded-full bg-indigo-500 ring-1 ring-white shadow-[0_0_0_3px_rgba(99,102,241,0.18)] animate-pulse" />
+                            )}
+                            {!isDone && !isRunning && (
+                              <span className="block h-2 w-2 rounded-full border border-zinc-300 bg-white" />
+                            )}
+                          </div>
+                          <span className="w-3 shrink-0 font-mono text-[8px] text-zinc-400">
+                            {String(planSteps.indexOf(s) + 1).padStart(2, "0")}
+                          </span>
+                          <span
+                            className={`flex-1 text-[10px] leading-snug truncate transition-colors duration-300 ${
+                              isDone ? "text-zinc-500" : isRunning ? "font-medium text-zinc-800" : "text-zinc-400"
+                            }`}
+                          >
+                            {s.t}
+                          </span>
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               )
             })}
-          </div>
-
-          {/* Terminal preview — a single always-on log row so the timeline's
-              height stays fixed; contents swap by phase. */}
-          <div
-            className="mt-1.5 rounded-md border-l-2 border-indigo-400 bg-zinc-50/80 px-2 py-1 font-mono text-[10px] leading-relaxed text-zinc-600 transition-opacity duration-300"
-            style={{ opacity: phase >= PE_START ? 1 : 0 }}
-          >
-            {allDone ? (
-              <span className="text-emerald-600">
-                ✓ {isZh ? "全部完成 — 产物已回写看板" : "all done — artifacts written to kanban"}
-              </span>
-            ) : runningTool ? (
-              <span className="text-indigo-600">→ {runningTool}</span>
-            ) : (
-              <span className="text-zinc-400">
-                {isZh ? "(等待规划器输出)" : "(waiting for planner)"}
-              </span>
-            )}
           </div>
         </div>
 
@@ -386,7 +390,7 @@ function MockChat() {
           mock inside one viewport */}
       <div
         className="bg-white rounded-xl px-3 py-2 border border-[var(--border)] shadow-sm"
-        style={fade(phase >= 16)}
+        style={fade(phase >= 15)}
       >
         <div className="flex items-center justify-between gap-2 mb-1.5">
           <div className="flex items-baseline gap-1.5 min-w-0">
