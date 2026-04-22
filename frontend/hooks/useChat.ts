@@ -38,13 +38,20 @@ function loadPlanExecuteCache(sessionId: string): ChatMessage[] {
 
 function savePlanExecuteCache(sessionId: string, messages: ChatMessage[]): void {
   if (typeof window === "undefined") return
-  const toCache = messages.filter((m) => {
-    // Completed / awaiting P&E bubbles
-    if (m.planExecute && !m.planExecute.running) return true
-    // Non-dismissed suggestion bubbles (dismissed ones shouldn't survive refresh)
-    if (m.planExecuteSuggestion && !m.planExecuteSuggestion.dismissed) return true
-    return false
-  })
+  const toCache = messages
+    .filter((m) => {
+      if (m.planExecute) return true
+      if (m.planExecuteSuggestion && !m.planExecuteSuggestion.dismissed) return true
+      return false
+    })
+    .map((m) => {
+      // If PE is still running, snapshot it as non-running so a refresh shows
+      // the last known state without attempting to reconnect the SSE stream.
+      if (m.planExecute?.running) {
+        return { ...m, planExecute: { ...m.planExecute, running: false } }
+      }
+      return m
+    })
   try {
     if (toCache.length === 0) {
       localStorage.removeItem(PE_CACHE_PREFIX + sessionId)
