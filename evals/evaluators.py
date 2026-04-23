@@ -161,25 +161,34 @@ async def replan_decision_evaluator(*, input, output, metadata, **kwargs) -> Eva
 def tool_appropriateness_evaluator(*, output, metadata, **kwargs) -> Evaluation | None:
     """Deterministic evaluator: compare actual tool calls against expected.
 
-    Returns None for P&E items where tool calls happen inside the sub-graph
-    and aren't surfaced at the runner output level.
+    Uses Jaccard similarity for ReAct items (penalizes extra calls) and
+    recall (expected ⊆ actual) for P&E items (tolerates extra tools from
+    dynamic plan execution).
     """
-    if metadata.get("category") == "plan_execute":
-        return None
     expected = set(metadata.get("expected_tools", []))
     actual_calls = output.get("tool_calls", []) if isinstance(output, dict) else []
     actual = set(actual_calls)
+    is_pe = metadata.get("category") == "plan_execute"
 
-    if expected == actual:
+    if not expected and not actual:
         score = 1.0
-        comment = f"Perfect match: {sorted(expected) if expected else 'no tools (correct)'}"
+        comment = "No tools expected or called (correct)"
     elif not expected and actual:
         score = 0.0
         comment = f"Should not call tools but called: {sorted(actual)}"
     elif expected and not actual:
         score = 0.0
         comment = f"Should call {sorted(expected)} but called nothing"
+    elif is_pe:
+        # P&E: recall — did all must-have tools get called?
+        missing = expected - actual
+        score = round(1.0 - len(missing) / len(expected), 2)
+        comment = (
+            f"Expected (must-have): {sorted(expected)}, "
+            f"Actual: {sorted(actual)}, Missing: {sorted(missing)}"
+        )
     else:
+        # ReAct: Jaccard — penalizes both missing and extra calls
         intersection = expected & actual
         union = expected | actual
         score = round(len(intersection) / len(union), 2)
