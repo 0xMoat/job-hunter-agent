@@ -62,9 +62,10 @@ def upload_dataset(langfuse):
 
 
 def run_experiment_sync(langfuse):
-    """Run the experiment: agent_task on each dataset item, scored by 4 evaluators."""
+    """Run the experiment: agent_task on each dataset item, scored by all evaluators."""
     from evals.agent_runner import agent_task
     from evals.evaluators import (
+        hallucination_evaluator,
         helpfulness_evaluator,
         plan_quality_evaluator,
         relevancy_evaluator,
@@ -79,7 +80,10 @@ def run_experiment_sync(langfuse):
 
     print(f"Running experiment '{experiment_name}' on {len(dataset.items)} items...")
     print(f"Model: {settings.DEFAULT_LLM_MODEL}")
-    print("Evaluators: relevancy, helpfulness, task_completion, tool_appropriateness, plan_quality, replan_decision")
+    print(
+        "Evaluators: relevancy, helpfulness, task_completion, hallucination, "
+        "tool_appropriateness, plan_quality, replan_decision"
+    )
 
     result = langfuse.run_experiment(
         name=experiment_name,
@@ -89,6 +93,7 @@ def run_experiment_sync(langfuse):
             relevancy_evaluator,
             helpfulness_evaluator,
             task_completion_evaluator,
+            hallucination_evaluator,
             tool_appropriateness_evaluator,
             plan_quality_evaluator,
             replan_decision_evaluator,

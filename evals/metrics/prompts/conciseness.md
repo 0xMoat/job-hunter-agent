@@ -1,3 +1,20 @@
+<!--
+UNUSED: Not registered in evals/experiment.py; no evaluator function exists
+for it in evals/evaluators.py. Kept as a template reference only.
+
+Why we don't run it:
+Job Hunter Agent's replies are intentionally long in many categories — a JD
+match analysis lists 7+ jobs with scores and gaps; a resume tailoring reply
+enumerates edits; a plan-and-execute flow returns multi-step summaries.
+Scoring these as "not concise" would penalise correct behaviour and mislead
+regression tracking. A single conciseness score across mixed categories
+produces more noise than signal.
+
+When to revisit: if we later split the golden dataset by reply-length
+expectation (e.g. simple chitchat vs. structured report), this metric could
+be enabled *only* for the short-reply subset.
+-->
+
 Evaluate the conciseness of the generation on a continuous scale from 0 to 1.
 
 ## Scoring Criteria
