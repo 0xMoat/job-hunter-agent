@@ -206,9 +206,7 @@ class PlanExecuteAgent:
                 # application_id=1 when the user said "第 1 个".
                 artifact_str = self._artifact_tags(app)
                 suffix = f"  ({artifact_str})" if artifact_str else ""
-                lines.append(
-                    f"- application_id={app.id} · [{app.title}]{company}{url}{suffix}"
-                )
+                lines.append(f"- application_id={app.id} · [{app.title}]{company}{url}{suffix}")
             return "\n".join(lines)
         except Exception:
             logger.exception("pe_pending_apps_failed", user_id=user_id)
@@ -218,11 +216,7 @@ class PlanExecuteAgent:
         """Snapshot ALL pending application ids at PE start."""
         try:
             apps = await job_service.list_applications(int(user_id))
-            ids = [
-                a.id for a in apps
-                if a.status == "pending"
-                and a.id is not None
-            ]
+            ids = [a.id for a in apps if a.status == "pending" and a.id is not None]
             logger.info(
                 "pe_pending_ids",
                 user_id=user_id,
@@ -253,9 +247,7 @@ class PlanExecuteAgent:
     async def _planner(self, state: PlanExecuteState, config: RunnableConfig) -> dict:
         """Generate the initial plan using structured output."""
         target_ids_str = (
-            ", ".join(str(i) for i in state.target_application_ids)
-            if state.target_application_ids
-            else "（无）"
+            ", ".join(str(i) for i in state.target_application_ids) if state.target_application_ids else "（无）"
         )
         system_prompt = load_plan_execute_planner_prompt(
             input=state.input,
@@ -295,8 +287,7 @@ class PlanExecuteAgent:
             return {}
 
         # Layer 1: auto-fix
-        logger.warning("pe_dag_errors_detected", error_count=len(errors),
-                        errors=[e.detail for e in errors])
+        logger.warning("pe_dag_errors_detected", error_count=len(errors), errors=[e.detail for e in errors])
         fixed = auto_fix_dag(steps, errors)
         recheck = validate_dag(fixed)
         if not recheck:
@@ -328,8 +319,7 @@ class PlanExecuteAgent:
                 )
                 retry_errors = validate_dag(result.steps)
                 if not retry_errors:
-                    logger.info("pe_dag_llm_retry_success", attempt=attempt + 1,
-                                step_count=len(result.steps))
+                    logger.info("pe_dag_llm_retry_success", attempt=attempt + 1, step_count=len(result.steps))
                     return {
                         "plan": result.steps,
                         "step_status": {s.id: StepStatus.PENDING.value for s in result.steps},
@@ -354,16 +344,18 @@ class PlanExecuteAgent:
         for step in state.plan:
             if step_status.get(step.id) != StepStatus.PENDING.value:
                 continue
-            deps_met = all(
-                step_status.get(dep) == StepStatus.DONE.value
-                for dep in step.depends_on
-            )
+            deps_met = all(step_status.get(dep) == StepStatus.DONE.value for dep in step.depends_on)
             if deps_met:
-                ready.append(Send("executor", {
-                    "step": step,
-                    "long_term_memory": state.long_term_memory or "",
-                    "pending_applications": state.pending_applications or "",
-                }))
+                ready.append(
+                    Send(
+                        "executor",
+                        {
+                            "step": step,
+                            "long_term_memory": state.long_term_memory or "",
+                            "pending_applications": state.pending_applications or "",
+                        },
+                    )
+                )
         return ready
 
     # ---------- executor node ----------
@@ -455,16 +447,10 @@ class PlanExecuteAgent:
                     result_text = "FAILED: executor returned no messages"
                     status = StepStatus.FAILED.value
                 else:
-                    result_text = (
-                        final_msg.content
-                        if isinstance(final_msg.content, str)
-                        else str(final_msg.content)
-                    )
+                    result_text = final_msg.content if isinstance(final_msg.content, str) else str(final_msg.content)
                 logger.info("pe_step_executed", step_id=step.id, step_text=step.text)
         except asyncio.TimeoutError:
-            result_text = (
-                f"TIMEOUT: 该步骤执行超过 {EXECUTOR_STEP_TIMEOUT_SECONDS} 秒未完成，已中止。"
-            )
+            result_text = f"TIMEOUT: 该步骤执行超过 {EXECUTOR_STEP_TIMEOUT_SECONDS} 秒未完成，已中止。"
             status = StepStatus.FAILED.value
             logger.warning(
                 "pe_step_timed_out",
@@ -493,8 +479,16 @@ class PlanExecuteAgent:
         current plan and bumps approval_round; when the user resumes with
         Command(resume={action, feedback}) LangGraph injects the payload
         as interrupt() return value.
+
+        In eval mode (pipeline=plan_execute_eval), skip the interrupt and
+        auto-approve so the graph runs straight through.
         """
         next_round = state.approval_round + 1
+        metadata = config.get("metadata") or {}
+        if metadata.get("pipeline") == "plan_execute_eval":
+            logger.info("pe_approval_auto_approved_eval", round=next_round)
+            return {"approval_round": next_round, "pending_revise": False}
+
         payload = interrupt(
             {
                 "round": next_round,
@@ -532,7 +526,9 @@ class PlanExecuteAgent:
         logger.info("pe_approval_approved", round=next_round)
         return {"approval_round": next_round, "pending_revise": False}
 
-    def _dispatch_ready_steps(self, state: PlanExecuteState) -> list[Send] | Command | str:
+    def _dispatch_ready_steps(
+        self, state: PlanExecuteState, config: RunnableConfig | None = None
+    ) -> list[Send] | Command | str:
         """Build Send() fan-out with RUNNING status update via Command."""
         sends = self._get_ready_sends(state)
         if not sends:
@@ -545,18 +541,24 @@ class PlanExecuteAgent:
                 running_ids.append(step.id if hasattr(step, "id") else str(step))
         status_update = {sid: StepStatus.RUNNING.value for sid in running_ids}
         logger.debug("pe_dispatch_ready", running_ids=running_ids)
+        # LangGraph 1.x conditional edges don't support Command returns in
+        # non-interrupt paths.  In eval mode the approval_gate skips interrupt(),
+        # so the routing runs inside a single astream — return plain Send list.
+        metadata = (config.get("metadata") or {}) if config else {}
+        if metadata.get("pipeline") == "plan_execute_eval":
+            return sends
         return Command(
             update={"step_status": status_update},
             goto=sends,
         )
 
-    def _route_after_approval(self, state: PlanExecuteState) -> str | list[Send] | Command:
+    def _route_after_approval(self, state: PlanExecuteState, config: RunnableConfig) -> str | list[Send] | Command:
         """Edge dispatcher after approval_gate."""
         if state.response is not None:
             return END
         if state.pending_revise:
             return "replanner"
-        return self._dispatch_ready_steps(state)
+        return self._dispatch_ready_steps(state, config)
 
     # ---------- replanner node ----------
 
@@ -572,17 +574,16 @@ class PlanExecuteAgent:
         past_steps_text = "\n".join(executed_lines) or "（尚无）"
 
         # Original plan text — full DAG
-        original_plan_text = "\n".join(
-            f"- [{s.id}] {s.text} (depends_on: {s.depends_on})"
-            for s in state.plan
-        ) or "（无）"
+        original_plan_text = (
+            "\n".join(f"- [{s.id}] {s.text} (depends_on: {s.depends_on})" for s in state.plan) or "（无）"
+        )
 
         # Remaining = steps still PENDING
         remaining = [s for s in state.plan if state.step_status.get(s.id) == StepStatus.PENDING.value]
-        remaining_plan_text = "\n".join(
-            f"- [{s.id}] {s.text} (depends_on: {s.depends_on})"
-            for s in remaining
-        ) or "（空 — 所有步骤都已执行完毕）"
+        remaining_plan_text = (
+            "\n".join(f"- [{s.id}] {s.text} (depends_on: {s.depends_on})" for s in remaining)
+            or "（空 — 所有步骤都已执行完毕）"
+        )
 
         system_prompt = load_plan_execute_replanner_prompt(
             input=state.input,
@@ -592,8 +593,10 @@ class PlanExecuteAgent:
             user_feedback=state.user_feedback,
         )
         done_count = sum(
-            1 for s in state.plan
-            if state.step_status.get(s.id) in (StepStatus.DONE.value, StepStatus.FAILED.value, StepStatus.SKIPPED.value)
+            1
+            for s in state.plan
+            if state.step_status.get(s.id)
+            in (StepStatus.DONE.value, StepStatus.FAILED.value, StepStatus.SKIPPED.value)
         )
         logger.debug(
             "pe_replan_entered",
@@ -716,10 +719,7 @@ class PlanExecuteAgent:
             decision = END
         else:
             # Check if the new plan has any pending steps
-            has_pending = any(
-                state.step_status.get(s.id) == StepStatus.PENDING.value
-                for s in state.plan
-            )
+            has_pending = any(state.step_status.get(s.id) == StepStatus.PENDING.value for s in state.plan)
             decision = "dag_validator" if has_pending else END
         logger.debug(
             "pe_should_end",
@@ -732,12 +732,12 @@ class PlanExecuteAgent:
         )
         return decision
 
-    def _route_after_collector(self, state: PlanExecuteState) -> str | list[Send] | Command:
+    def _route_after_collector(self, state: PlanExecuteState, config: RunnableConfig) -> str | list[Send] | Command:
         """Route after collector: fan-out ready steps or go to replanner."""
         if state.iterations >= MAX_ITERATIONS:
             logger.warning("pe_max_iterations_after_collector", iterations=state.iterations)
             return "replanner"
-        return self._dispatch_ready_steps(state) if self._get_ready_sends(state) else "replanner"
+        return self._dispatch_ready_steps(state, config) if self._get_ready_sends(state) else "replanner"
 
     # ---------- graph construction ----------
 
@@ -905,11 +905,13 @@ class PlanExecuteAgent:
                 self._get_pending_application_ids(user_id),
             )
             if not pending:
-                yield _json.dumps({
-                    "type": "final_response",
-                    "content": "暂无待处理的职位。请先在看板中添加职位后再运行一键处理。",
-                    "done": True,
-                })
+                yield _json.dumps(
+                    {
+                        "type": "final_response",
+                        "content": "暂无待处理的职位。请先在看板中添加职位后再运行一键处理。",
+                        "done": True,
+                    }
+                )
                 return
             pe_thread_id = f"pe_{session_id}_{uuid.uuid4().hex[:8]}"
             graph_input: Any = {
@@ -985,44 +987,35 @@ class PlanExecuteAgent:
             # First time seeing a plan → emit plan_created with depends_on.
             if not emitted_plan and plan_steps:
                 emitted_plan = True
-                out.append(_json.dumps({
-                    "type": "plan_created",
-                    "steps": [
-                        {"id": s.id, "text": s.text, "depends_on": s.depends_on}
-                        for s in plan_steps
-                    ],
-                    "done": False,
-                }))
+                out.append(
+                    _json.dumps(
+                        {
+                            "type": "plan_created",
+                            "steps": [{"id": s.id, "text": s.text, "depends_on": s.depends_on} for s in plan_steps],
+                            "done": False,
+                        }
+                    )
+                )
                 # Bootstrap prev_step_status from current or all-PENDING.
-                prev_step_status = {
-                    s.id: current_status.get(s.id, StepStatus.PENDING.value)
-                    for s in plan_steps
-                }
+                prev_step_status = {s.id: current_status.get(s.id, StepStatus.PENDING.value) for s in plan_steps}
 
             # Revise-cycle transition: was pending_revise, no longer; the
             # replanner produced a rewritten plan.
-            if (
-                last_pending_revise_state
-                and not pending_revise_local
-                and emitted_plan
-                and plan_steps
-            ):
+            if last_pending_revise_state and not pending_revise_local and emitted_plan and plan_steps:
                 # Reset tracking for the new plan.
                 running_but_unassigned = []
                 ns_to_step = {}
-                prev_step_status = {
-                    s.id: current_status.get(s.id, StepStatus.PENDING.value)
-                    for s in plan_steps
-                }
-                out.append(_json.dumps({
-                    "type": "plan_revised",
-                    "plan": [
-                        {"id": s.id, "text": s.text, "depends_on": s.depends_on}
-                        for s in plan_steps
-                    ],
-                    "reason": "user_feedback",
-                    "done": False,
-                }))
+                prev_step_status = {s.id: current_status.get(s.id, StepStatus.PENDING.value) for s in plan_steps}
+                out.append(
+                    _json.dumps(
+                        {
+                            "type": "plan_revised",
+                            "plan": [{"id": s.id, "text": s.text, "depends_on": s.depends_on} for s in plan_steps],
+                            "reason": "user_feedback",
+                            "done": False,
+                        }
+                    )
+                )
             last_pending_revise_state = pending_revise_local
 
             # Detect status transitions.
@@ -1048,30 +1041,42 @@ class PlanExecuteAgent:
                         evt["duration_ms"] = dur
                     out.append(_json.dumps(evt))
                 elif new_status == StepStatus.SKIPPED.value:
-                    out.append(_json.dumps({
-                        "type": "step_skipped",
-                        "id": step_id,
-                        "reason": "依赖的前置步骤失败",
-                        "done": False,
-                    }))
+                    out.append(
+                        _json.dumps(
+                            {
+                                "type": "step_skipped",
+                                "id": step_id,
+                                "reason": "依赖的前置步骤失败",
+                                "done": False,
+                            }
+                        )
+                    )
 
             # Emit wave_started + step_started for newly running steps.
             if newly_running:
                 wave_counter += 1
-                out.append(_json.dumps({
-                    "type": "wave_started",
-                    "wave": wave_counter,
-                    "step_ids": newly_running,
-                    "done": False,
-                }))
+                out.append(
+                    _json.dumps(
+                        {
+                            "type": "wave_started",
+                            "wave": wave_counter,
+                            "step_ids": newly_running,
+                            "done": False,
+                        }
+                    )
+                )
                 for sid in newly_running:
                     running_but_unassigned.append(sid)
-                    out.append(_json.dumps({
-                        "type": "step_started",
-                        "id": sid,
-                        "started_at_utc": datetime.now(timezone.utc).isoformat(),
-                        "done": False,
-                    }))
+                    out.append(
+                        _json.dumps(
+                            {
+                                "type": "step_started",
+                                "id": sid,
+                                "started_at_utc": datetime.now(timezone.utc).isoformat(),
+                                "done": False,
+                            }
+                        )
+                    )
 
             # Update tracking for next comparison.
             prev_step_status = dict(current_status)
@@ -1114,11 +1119,13 @@ class PlanExecuteAgent:
 
                     response = event.get("response")
                     if response:
-                        yield _json.dumps({
-                            "type": "final_response",
-                            "content": response,
-                            "done": True,
-                        })
+                        yield _json.dumps(
+                            {
+                                "type": "final_response",
+                                "content": response,
+                                "done": True,
+                            }
+                        )
                         emitted_final = True
                         return
                     continue
@@ -1150,25 +1157,29 @@ class PlanExecuteAgent:
                                 tc_id = tc.get("id") or ""
                                 if tc.get("name"):
                                     tool_call_args[tc_id] = tc.get("args", "") or ""
-                                    yield _json.dumps({
-                                        "type": "step_tool_call",
-                                        "step_id": active_step_id,
-                                        "tool_call_id": tc_id,
-                                        "tool_name": tc["name"],
-                                        "args_delta": tc.get("args", "") or "",
-                                        "done": False,
-                                    })
+                                    yield _json.dumps(
+                                        {
+                                            "type": "step_tool_call",
+                                            "step_id": active_step_id,
+                                            "tool_call_id": tc_id,
+                                            "tool_name": tc["name"],
+                                            "args_delta": tc.get("args", "") or "",
+                                            "done": False,
+                                        }
+                                    )
                                 elif tc_id in tool_call_args:
                                     tool_call_args[tc_id] += tc.get("args", "") or ""
                                     # Forward deltas so the UI can show args
                                     # streaming in; harmless if UI ignores.
-                                    yield _json.dumps({
-                                        "type": "step_tool_call",
-                                        "step_id": active_step_id,
-                                        "tool_call_id": tc_id,
-                                        "args_delta": tc.get("args", "") or "",
-                                        "done": False,
-                                    })
+                                    yield _json.dumps(
+                                        {
+                                            "type": "step_tool_call",
+                                            "step_id": active_step_id,
+                                            "tool_call_id": tc_id,
+                                            "args_delta": tc.get("args", "") or "",
+                                            "done": False,
+                                        }
+                                    )
                         elif token.content:
                             # Plain text delta — the ReAct agent's final
                             # answer for this step, streamed character by
@@ -1176,21 +1187,25 @@ class PlanExecuteAgent:
                             content = token.content
                             if not isinstance(content, str):
                                 content = str(content)
-                            yield _json.dumps({
-                                "type": "step_text_delta",
-                                "step_id": active_step_id,
-                                "delta": content,
-                                "done": False,
-                            })
+                            yield _json.dumps(
+                                {
+                                    "type": "step_text_delta",
+                                    "step_id": active_step_id,
+                                    "delta": content,
+                                    "done": False,
+                                }
+                            )
                     elif isinstance(token, ToolMessage):
-                        yield _json.dumps({
-                            "type": "step_tool_result",
-                            "step_id": active_step_id,
-                            "tool_call_id": token.tool_call_id,
-                            "tool_name": token.name,
-                            "content": str(token.content),
-                            "done": False,
-                        })
+                        yield _json.dumps(
+                            {
+                                "type": "step_tool_result",
+                                "step_id": active_step_id,
+                                "tool_call_id": token.tool_call_id,
+                                "tool_name": token.name,
+                                "content": str(token.content),
+                                "done": False,
+                            }
+                        )
                     continue
 
             # Stream loop ended — inspect the graph state to detect an interrupt.
@@ -1201,16 +1216,15 @@ class PlanExecuteAgent:
                 snapshot_values = state_snapshot.values or {}
                 plan_steps: list[PlanStep] = snapshot_values.get("plan", []) or []
                 approval_round = (snapshot_values.get("approval_round") or 0) + 1
-                yield _json.dumps({
-                    "type": "awaiting_approval",
-                    "thread_id": pe_thread_id,
-                    "plan": [
-                        {"id": s.id, "text": s.text, "depends_on": s.depends_on}
-                        for s in plan_steps
-                    ],
-                    "round": approval_round,
-                    "done": True,
-                })
+                yield _json.dumps(
+                    {
+                        "type": "awaiting_approval",
+                        "thread_id": pe_thread_id,
+                        "plan": [{"id": s.id, "text": s.text, "depends_on": s.depends_on} for s in plan_steps],
+                        "round": approval_round,
+                        "done": True,
+                    }
+                )
                 return
 
             if not emitted_final:
@@ -1225,8 +1239,7 @@ class PlanExecuteAgent:
                 f_results: dict[str, str] = final_state.get("step_results") or {}
                 done_steps = [s for s in f_plan if f_status.get(s.id) == StepStatus.DONE.value]
                 remaining = [
-                    s for s in f_plan
-                    if f_status.get(s.id) in (StepStatus.PENDING.value, StepStatus.RUNNING.value)
+                    s for s in f_plan if f_status.get(s.id) in (StepStatus.PENDING.value, StepStatus.RUNNING.value)
                 ]
                 if done_steps and remaining:
                     summary = (
@@ -1238,16 +1251,17 @@ class PlanExecuteAgent:
                     )
                 elif done_steps:
                     summary = "## 执行结束\n" + "\n".join(
-                        f"- [{s.id}] {s.text}\n  {(f_results.get(s.id) or '')[:200]}"
-                        for s in done_steps
+                        f"- [{s.id}] {s.text}\n  {(f_results.get(s.id) or '')[:200]}" for s in done_steps
                     )
                 else:
                     summary = "执行结束，无可汇报的步骤。"
-                yield _json.dumps({
-                    "type": "final_response",
-                    "content": summary,
-                    "done": True,
-                })
+                yield _json.dumps(
+                    {
+                        "type": "final_response",
+                        "content": summary,
+                        "done": True,
+                    }
+                )
         except asyncio.CancelledError:
             # Container is shutting down (SIGTERM) or the client disconnected
             # mid-stream. Emit a tombstone so the UI can transition the in-
@@ -1259,21 +1273,25 @@ class PlanExecuteAgent:
                 pe_thread_id=pe_thread_id,
             )
             try:
-                yield _json.dumps({
-                    "type": "interrupted",
-                    "message": "服务正在重启或连接已断开，本次处理已中止。请稍后重新发起。",
-                    "done": True,
-                })
+                yield _json.dumps(
+                    {
+                        "type": "interrupted",
+                        "message": "服务正在重启或连接已断开，本次处理已中止。请稍后重新发起。",
+                        "done": True,
+                    }
+                )
             except Exception:
                 pass
             raise
         except Exception as e:
             logger.exception("pe_astream_failed", session_id=session_id)
-            yield _json.dumps({
-                "type": "error",
-                "message": str(e),
-                "done": True,
-            })
+            yield _json.dumps(
+                {
+                    "type": "error",
+                    "message": str(e),
+                    "done": True,
+                }
+            )
         finally:
             ACTIVE_PE_THREADS.discard(pe_thread_id)
             langfuse_handler.client.flush()
