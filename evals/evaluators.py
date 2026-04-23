@@ -60,6 +60,22 @@ def _load_metric_prompt(filename: str) -> str:
         return f.read()
 
 
+def _format_output_text(output) -> str:
+    """Build evaluator-visible text from agent output.
+
+    When the agent calls tools, content is often empty — append tool call
+    info so the LLM judge knows what action the agent took.
+    """
+    if not isinstance(output, dict):
+        return str(output)
+    text = output.get("text", "") or ""
+    tool_calls = output.get("tool_calls", [])
+    if tool_calls:
+        tools_str = ", ".join(tool_calls)
+        text = f"{text}\n[Tool calls: {tools_str}]".strip()
+    return text or "(no output)"
+
+
 _RELEVANCY_PROMPT = None
 _HELPFULNESS_PROMPT = None
 _TASK_COMPLETION_PROMPT = """Evaluate whether the AI assistant successfully completed the user's job-hunting task on a continuous scale from 0 to 1.
@@ -92,7 +108,7 @@ async def relevancy_evaluator(*, input, output, **kwargs) -> Evaluation:
     global _RELEVANCY_PROMPT
     if _RELEVANCY_PROMPT is None:
         _RELEVANCY_PROMPT = _load_metric_prompt("relevancy.md")
-    output_text = output["text"] if isinstance(output, dict) else str(output)
+    output_text = _format_output_text(output)
     input_text = input["input"] if isinstance(input, dict) else str(input)
     return await _llm_judge("relevancy", _RELEVANCY_PROMPT, input_text, output_text)
 
@@ -102,7 +118,7 @@ async def helpfulness_evaluator(*, input, output, expected_output, **kwargs) -> 
     global _HELPFULNESS_PROMPT
     if _HELPFULNESS_PROMPT is None:
         _HELPFULNESS_PROMPT = _load_metric_prompt("helpfulness.md")
-    output_text = output["text"] if isinstance(output, dict) else str(output)
+    output_text = _format_output_text(output)
     input_text = input["input"] if isinstance(input, dict) else str(input)
     expected = expected_output if isinstance(expected_output, str) else str(expected_output)
     prompt = _HELPFULNESS_PROMPT + f"\n\nExpected outcome: {expected}"
@@ -111,7 +127,7 @@ async def helpfulness_evaluator(*, input, output, expected_output, **kwargs) -> 
 
 async def task_completion_evaluator(*, input, output, expected_output, **kwargs) -> Evaluation:
     """Evaluate whether the agent completed the user's specific job-hunting task."""
-    output_text = output["text"] if isinstance(output, dict) else str(output)
+    output_text = _format_output_text(output)
     input_text = input["input"] if isinstance(input, dict) else str(input)
     expected = expected_output if isinstance(expected_output, str) else str(expected_output)
     prompt = _TASK_COMPLETION_PROMPT.format(expected_output=expected)
