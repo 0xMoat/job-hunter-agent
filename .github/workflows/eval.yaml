@@ -1,0 +1,68 @@
+name: Evaluation
+
+on:
+  push:
+    paths:
+      - 'app/core/prompts/**'
+      - 'app/core/langgraph/**'
+      - 'evals/**'
+    branches: [master]
+  pull_request:
+    paths:
+      - 'app/core/prompts/**'
+      - 'app/core/langgraph/**'
+      - 'evals/**'
+  workflow_dispatch:
+
+jobs:
+  eval-golden:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: myuser
+          POSTGRES_PASSWORD: mypassword
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U myuser"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Upload dataset & run experiment
+        env:
+          APP_ENV: test
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          EVALUATION_LLM: ${{ vars.EVALUATION_LLM || 'gpt-4o-mini' }}
+          EVALUATION_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+          LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
+          LANGFUSE_HOST: ${{ vars.LANGFUSE_HOST || 'https://cloud.langfuse.com' }}
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: "5432"
+          POSTGRES_DB: jha_test
+          POSTGRES_USER: myuser
+          POSTGRES_PASSWORD: mypassword
+          JWT_SECRET_KEY: test-secret-do-not-use-in-prod
+          GOOGLE_CLIENT_ID: test-client-id.apps.googleusercontent.com
+          DEFAULT_LLM_TEMPERATURE: "0.0"
+          MAX_TOKENS: "2000"
+          LOG_LEVEL: WARNING
+        run: uv run python -m evals.experiment
