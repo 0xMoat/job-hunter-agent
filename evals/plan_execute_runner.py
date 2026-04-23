@@ -62,7 +62,7 @@ async def plan_execute_task(*, item, **kwargs) -> dict:
     config = {
         "configurable": {
             "thread_id": f"pe_eval_{uuid.uuid4().hex[:8]}",
-            "user_id": "eval",
+            "user_id": "0",  # valid integer avoids DB type-cast crash; tools return "not found" gracefully
         },
         "metadata": {"pipeline": "plan_execute_eval"},
         "recursion_limit": 50,
