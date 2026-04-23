@@ -1,7 +1,8 @@
 """Evaluator functions for Langfuse Experiments.
 
-Three LLM-based judges (relevancy, helpfulness, task_completion) and
-one deterministic evaluator (tool_appropriateness).
+LLM-based judges (relevancy, helpfulness, task_completion, hallucination,
+plan_quality, replan_decision) and one deterministic evaluator
+(tool_appropriateness).
 """
 
 import json
@@ -78,29 +79,7 @@ def _format_output_text(output) -> str:
 
 _RELEVANCY_PROMPT = None
 _HELPFULNESS_PROMPT = None
-_TASK_COMPLETION_PROMPT = """Evaluate whether the AI assistant successfully completed the user's job-hunting task on a continuous scale from 0 to 1.
-
-## Scoring Criteria
-
-Score 1.0 if the assistant:
-- Correctly identified what the user wanted (job search, cover letter, company research, etc.)
-- Took the appropriate action (called the right tool or provided relevant advice)
-- Delivered a complete response that fulfills the user's request
-
-Score 0.5 if the assistant:
-- Identified the task correctly but only partially addressed it
-- Called the right tool but the response was incomplete
-
-Score 0.0 if the assistant:
-- Misunderstood the user's request
-- Failed to take any relevant action
-- Provided generic or irrelevant information
-
-## Context
-The expected outcome for this task is: {expected_output}
-
-## Instructions
-Compare the actual generation against the expected outcome. Think step by step."""
+_TASK_COMPLETION_PROMPT = None
 
 
 async def relevancy_evaluator(*, input, output, **kwargs) -> Evaluation:
@@ -127,11 +106,33 @@ async def helpfulness_evaluator(*, input, output, expected_output, **kwargs) -> 
 
 async def task_completion_evaluator(*, input, output, expected_output, **kwargs) -> Evaluation:
     """Evaluate whether the agent completed the user's specific job-hunting task."""
+    global _TASK_COMPLETION_PROMPT
+    if _TASK_COMPLETION_PROMPT is None:
+        _TASK_COMPLETION_PROMPT = _load_metric_prompt("task_completion.md")
     output_text = _format_output_text(output)
     input_text = input["input"] if isinstance(input, dict) else str(input)
     expected = expected_output if isinstance(expected_output, str) else str(expected_output)
-    prompt = _TASK_COMPLETION_PROMPT.format(expected_output=expected)
+    prompt = _TASK_COMPLETION_PROMPT + f"\n\nExpected outcome: {expected}"
     return await _llm_judge("task_completion", prompt, input_text, output_text)
+
+
+_HALLUCINATION_PROMPT: str | None = None
+
+
+async def hallucination_evaluator(*, input, output, expected_output, **kwargs) -> Evaluation:
+    """Detect fabricated content (invented tool results, made-up IDs, fictional companies).
+
+    The golden dataset's expected_output is injected as a reference anchor so the
+    judge can flag fabrications against the known-correct answer.
+    """
+    global _HALLUCINATION_PROMPT
+    if _HALLUCINATION_PROMPT is None:
+        _HALLUCINATION_PROMPT = _load_metric_prompt("hallucination.md")
+    output_text = _format_output_text(output)
+    input_text = input["input"] if isinstance(input, dict) else str(input)
+    expected = expected_output if isinstance(expected_output, str) else str(expected_output)
+    prompt = _HALLUCINATION_PROMPT + f"\n\nReference (known-correct answer): {expected}"
+    return await _llm_judge("hallucination", prompt, input_text, output_text)
 
 
 _PLAN_QUALITY_PROMPT: str | None = None
