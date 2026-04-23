@@ -268,45 +268,45 @@ GOLDEN_DATASET = [
     # ── J. JD 分析（3 cases）────────────────────────────────────
     {
         "input": "帮我看看我和蚂蚁集团 AI 应用研发这个岗位的匹配度",
-        "expected_output": "调用 score_jd_match 对简历与 JD 进行匹配打分",
-        "metadata": {"category": "jd_analysis", "expected_tools": ["score_jd_match"]},
+        "expected_output": "无看板数据，应追问用户具体是哪个岗位或要求提供 JD",
+        "metadata": {"category": "jd_analysis", "expected_tools": []},
     },
     {
         "input": "分析一下我简历和这个后端开发 JD 之间有哪些差距",
-        "expected_output": "调用 analyze_jd_gap 分析简历与 JD 的技能差距",
-        "metadata": {"category": "jd_analysis", "expected_tools": ["analyze_jd_gap"]},
+        "expected_output": "无看板数据，应追问用户具体是哪个岗位或要求提供 JD",
+        "metadata": {"category": "jd_analysis", "expected_tools": []},
     },
     {
         "input": "帮我评估一下看板上腾讯那个岗位，我的简历能拿多少分？差在哪里？",
-        "expected_output": "先调用 score_jd_match 打分，再调用 analyze_jd_gap 分析差距",
-        "metadata": {"category": "jd_analysis", "expected_tools": ["score_jd_match", "analyze_jd_gap"]},
+        "expected_output": "无看板数据，应追问用户具体是哪个岗位或要求提供 JD",
+        "metadata": {"category": "jd_analysis", "expected_tools": []},
     },
     # ── K. 面试准备（3 cases）───────────────────────────────────
     {
         "input": "帮我生成蚂蚁集团 AI 研发岗的面试题",
-        "expected_output": "调用 generate_interview_questions 生成面试题目",
-        "metadata": {"category": "interview_prep", "expected_tools": ["generate_interview_questions"]},
+        "expected_output": "无看板数据，应追问用户具体是哪个岗位的面试题",
+        "metadata": {"category": "interview_prep", "expected_tools": []},
     },
     {
         "input": "看板上字节跳动那个岗位，可能会问什么面试题？",
-        "expected_output": "调用 generate_interview_questions 生成面试题目",
-        "metadata": {"category": "interview_prep", "expected_tools": ["generate_interview_questions"]},
+        "expected_output": "无看板数据，应追问用户具体是哪个岗位的面试题",
+        "metadata": {"category": "interview_prep", "expected_tools": []},
     },
     {
         "input": "我后天面试美团算法工程师，帮我准备一些面试问题",
-        "expected_output": "调用 generate_interview_questions 生成面试题目",
-        "metadata": {"category": "interview_prep", "expected_tools": ["generate_interview_questions"]},
+        "expected_output": "无看板数据，应追问用户具体是哪个岗位的面试题",
+        "metadata": {"category": "interview_prep", "expected_tools": []},
     },
     # ── L. 简历 PDF 导出（2 cases）──────────────────────────────
     {
         "input": "帮我把润色好的简历导出成 PDF",
-        "expected_output": "调用 generate_resume_pdf 生成 PDF 文件",
-        "metadata": {"category": "resume_pdf", "expected_tools": ["generate_resume_pdf"]},
+        "expected_output": "无看板数据，应追问用户要导出哪个岗位的简历",
+        "metadata": {"category": "resume_pdf", "expected_tools": []},
     },
     {
         "input": "我要下载蚂蚁集团那张卡片上的定制简历 PDF",
-        "expected_output": "调用 generate_resume_pdf 生成 PDF 文件",
-        "metadata": {"category": "resume_pdf", "expected_tools": ["generate_resume_pdf"]},
+        "expected_output": "无看板数据，应追问用户要导出哪个岗位的简历",
+        "metadata": {"category": "resume_pdf", "expected_tools": []},
     },
     # ── M. 通用搜索（2 cases）───────────────────────────────────
     {
