@@ -2,8 +2,8 @@
 
 Drives the compiled PlanExecuteAgent graph with an injected pending list
 (bypassing the DB-backed _get_pending_applications), captures each values
-event, and returns a structured output suitable for plan_quality and
-replan_decision evaluators.
+event and executor sub-graph tool calls, and returns a structured output
+suitable for plan_quality, replan_decision, and tool_appropriateness evaluators.
 """
 
 import os
@@ -69,17 +69,34 @@ async def plan_execute_task(*, item, **kwargs) -> dict:
     past_steps: list[tuple[str, str]] = []
     final_response: str = ""
     plan_snapshots: list[list[str]] = []
+    tool_calls_seen: set[str] = set()
 
-    async for event in graph.astream(initial_state, config, stream_mode="values"):
-        plan = list(event.get("plan") or [])
-        past_steps = list(event.get("past_steps") or [])
-        response = event.get("response")
-        if plan and not initial_plan:
-            initial_plan = list(plan)
-        plan_snapshots.append(plan)
-        if response:
-            final_response = response
-            break
+    async for stream_event in graph.astream(
+        initial_state,
+        config,
+        stream_mode=["values", "messages"],
+        subgraphs=True,
+    ):
+        ns, event_mode, payload = stream_event
+
+        if event_mode == "values" and not ns:
+            # Outer graph state snapshots (original logic preserved)
+            event = payload
+            plan = list(event.get("plan") or [])
+            past_steps = list(event.get("past_steps") or [])
+            if plan and not initial_plan:
+                initial_plan = list(plan)
+            plan_snapshots.append(plan)
+            response = event.get("response")
+            if response:
+                final_response = response
+
+        elif event_mode == "messages" and ns:
+            # Executor sub-graph messages — extract tool call names
+            token, _metadata = payload
+            if hasattr(token, "tool_calls") and token.tool_calls:
+                for tc in token.tool_calls:
+                    tool_calls_seen.add(tc["name"])
 
     # Count genuine replanner rewrites: the head of current plan no longer
     # matches what we'd expect from a simple pop-from-front of the previous.
@@ -99,4 +116,5 @@ async def plan_execute_task(*, item, **kwargs) -> dict:
         "past_steps": past_steps,
         "final_response": final_response,
         "replan_count": replan_count,
+        "tool_calls": sorted(tool_calls_seen),
     }
