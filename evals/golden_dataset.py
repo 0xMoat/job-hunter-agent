@@ -191,6 +191,64 @@ GOLDEN_DATASET = [
             ],
         },
     },
+    {
+        "input": "处理看板上所有 pending 的职位",
+        "expected_output": "Planner 识别到无 pending 职位，直接返回说明无需处理",
+        "metadata": {
+            "category": "plan_execute",
+            "pending_applications": [],
+            "expected_tools": [],
+        },
+    },
+    {
+        "input": "逐一处理看板上的待投递职位：研究公司、定制简历、更新看板",
+        "expected_output": (
+            "Planner 为 3 条 pending 分别规划：公司调研 → 保存调研 → 定制简历 → "
+            "保存简历 → 更新看板状态；最后汇总。"
+        ),
+        "metadata": {
+            "category": "plan_execute",
+            "pending_applications": [
+                {"company": "阿里巴巴", "title": "高级后端开发工程师"},
+                {"company": "小红书", "title": "推荐算法工程师"},
+                {"company": "Anthropic", "title": "Applied AI Engineer"},
+            ],
+            "expected_tools": [
+                "company_research_tool", "save_company_research",
+                "trigger_resume_studio_skill", "save_tailored_resume",
+                "application_tracker_tool",
+            ],
+        },
+    },
+    {
+        "input": "帮我调研看板上所有 pending 职位的公司背景，保存到对应卡片",
+        "expected_output": (
+            "Planner 为每条 pending 规划公司调研 → 保存结果；不涉及简历和求职信。"
+        ),
+        "metadata": {
+            "category": "plan_execute",
+            "pending_applications": [
+                {"company": "美团", "title": "Agent 平台工程师"},
+                {"company": "字节跳动", "title": "LLM Infra Engineer"},
+            ],
+            "expected_tools": ["company_research_tool", "save_company_research"],
+        },
+    },
+    {
+        "input": "处理看板上所有待投递岗位",
+        "expected_output": (
+            "Planner 应对信息完整的职位正常处理，对缺失 title 的职位跳过或提示；"
+            "不应崩溃。"
+        ),
+        "metadata": {
+            "category": "plan_execute",
+            "pending_applications": [
+                {"company": "腾讯", "title": "大模型应用开发"},
+                {"company": "未知公司", "title": ""},
+            ],
+            "expected_tools": ["company_research_tool"],
+        },
+    },
     # ── J. JD 分析（3 cases）────────────────────────────────────
     {
         "input": "帮我看看我和蚂蚁集团 AI 应用研发这个岗位的匹配度",
