@@ -41,7 +41,13 @@ from app.core.config import (
 )
 from app.core.langgraph.tools import tools
 from app.core.logging import logger
-from app.core.metrics import llm_inference_duration_seconds
+from app.core.metrics import (
+    llm_inference_duration_seconds,
+    mem0_operation_duration_seconds,
+    mem0_operation_errors_total,
+    tool_call_duration_seconds,
+    tool_call_total,
+)
 from app.core.prompts import load_fact_extraction_prompt, load_system_prompt
 from app.schemas import (
     GraphState,
@@ -186,17 +192,22 @@ class LangGraphAgent:
             "mem0_search",
             attributes={"mem0.user_id": str(user_id), "mem0.query": query},
         ) as span:
+            start = time.monotonic()
             try:
-                memory = await self._long_term_memory()
-                results = await memory.search(user_id=str(user_id), query=query)
-                result_text = "\n".join([f"* {result['memory']}" for result in results["results"]])
-                span.set_attribute("mem0.result_count", len(results["results"]))
-                return result_text
-            except Exception as e:
-                span.set_status(trace.StatusCode.ERROR, str(e))
-                span.record_exception(e)
-                logger.error("failed_to_get_relevant_memory", error=str(e), user_id=user_id, query=query)
-                return ""
+                try:
+                    memory = await self._long_term_memory()
+                    results = await memory.search(user_id=str(user_id), query=query)
+                    result_text = "\n".join([f"* {result['memory']}" for result in results["results"]])
+                    span.set_attribute("mem0.result_count", len(results["results"]))
+                    return result_text
+                except Exception as e:
+                    mem0_operation_errors_total.labels(operation="search").inc()
+                    span.set_status(trace.StatusCode.ERROR, str(e))
+                    span.record_exception(e)
+                    logger.error("failed_to_get_relevant_memory", error=str(e), user_id=user_id, query=query)
+                    return ""
+            finally:
+                mem0_operation_duration_seconds.labels(operation="search").observe(time.monotonic() - start)
 
     @staticmethod
     def _get_recent_rounds(messages: list[BaseMessage], num_rounds: int = 3) -> list[BaseMessage]:
@@ -223,19 +234,24 @@ class LangGraphAgent:
             "mem0_add",
             attributes={"mem0.user_id": str(user_id), "mem0.message_count": len(messages)},
         ) as span:
+            start = time.monotonic()
             try:
-                memory = await self._long_term_memory()
-                result = await memory.add(messages, user_id=str(user_id), metadata=metadata)
-                span.set_attribute("mem0.result", str(result))
-                logger.info("long_term_memory_updated_successfully", user_id=user_id)
-            except Exception as e:
-                span.set_status(trace.StatusCode.ERROR, str(e))
-                span.record_exception(e)
-                logger.exception(
-                    "failed_to_update_long_term_memory",
-                    user_id=user_id,
-                    error=str(e),
-                )
+                try:
+                    memory = await self._long_term_memory()
+                    result = await memory.add(messages, user_id=str(user_id), metadata=metadata)
+                    span.set_attribute("mem0.result", str(result))
+                    logger.info("long_term_memory_updated_successfully", user_id=user_id)
+                except Exception as e:
+                    mem0_operation_errors_total.labels(operation="add").inc()
+                    span.set_status(trace.StatusCode.ERROR, str(e))
+                    span.record_exception(e)
+                    logger.exception(
+                        "failed_to_update_long_term_memory",
+                        user_id=user_id,
+                        error=str(e),
+                    )
+            finally:
+                mem0_operation_duration_seconds.labels(operation="add").observe(time.monotonic() - start)
 
     async def _get_pending_applications(self, user_id: str) -> str:
         """Get pending applications for injection into the system prompt.
@@ -360,6 +376,7 @@ class LangGraphAgent:
             tool_name = tool_call["name"]
             if tool_name not in self.tools_by_name:
                 logger.warning("unknown_tool_called", tool_name=tool_name)
+                tool_call_total.labels(tool_name=tool_name, status="error").inc()
                 outputs.append(
                     ToolMessage(
                         content=f"Tool '{tool_name}' not found.",
@@ -371,11 +388,20 @@ class LangGraphAgent:
             logger.info(
                 "tool_dispatch", tool_name=tool_name, session_id=config.get("configurable", {}).get("thread_id")
             )
+            tool_start = time.monotonic()
             try:
                 tool_result = await self.tools_by_name[tool_name].ainvoke(tool_call["args"], config=config)
             except Exception:
+                tool_call_duration_seconds.labels(tool_name=tool_name, status="error").observe(
+                    time.monotonic() - tool_start
+                )
+                tool_call_total.labels(tool_name=tool_name, status="error").inc()
                 logger.exception("tool_invocation_failed", tool_name=tool_name)
                 raise
+            tool_call_duration_seconds.labels(tool_name=tool_name, status="success").observe(
+                time.monotonic() - tool_start
+            )
+            tool_call_total.labels(tool_name=tool_name, status="success").inc()
             logger.info(
                 "tool_completed", tool_name=tool_name, session_id=config.get("configurable", {}).get("thread_id")
             )

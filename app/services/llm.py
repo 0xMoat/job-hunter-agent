@@ -31,6 +31,10 @@ from app.core.config import (
     settings,
 )
 from app.core.logging import logger
+from app.core.metrics import (
+    llm_all_models_failed_total,
+    llm_fallback_total,
+)
 
 
 class LLMRegistry:
@@ -345,12 +349,18 @@ class LLMService:
                         models_tried=models_tried,
                         starting_model=LLMRegistry.LLMS[starting_index]["name"],
                     )
+                    llm_all_models_failed_total.inc()
                     break
 
                 # Switch to next model in circular fashion
                 if not self._switch_to_next_model():
                     logger.error("failed_to_switch_to_next_model")
+                    llm_all_models_failed_total.inc()
                     break
+
+                from_model = current_model_name
+                to_model = LLMRegistry.LLMS[self._current_model_index]["name"]
+                llm_fallback_total.labels(from_model=from_model, to_model=to_model).inc()
 
                 # Continue loop to try next model
 

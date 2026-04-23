@@ -5,6 +5,7 @@ streaming chat, message history management, and chat history clearing.
 """
 
 import json as _json
+import time
 from typing import Literal
 
 from fastapi import (
@@ -22,7 +23,13 @@ from app.core.langgraph.graph import LangGraphAgent
 from app.core.langgraph.plan_execute import ACTIVE_PE_THREADS, PlanExecuteAgent
 from app.core.limiter import limiter
 from app.core.logging import logger
-from app.core.metrics import llm_stream_duration_seconds
+from app.core.metrics import (
+    active_streams,
+    llm_e2e_latency_seconds,
+    llm_stream_duration_seconds,
+    llm_tpot_seconds,
+    llm_ttft_seconds,
+)
 from app.models.session import Session
 from app.schemas.chat import (
     ChatRequest,
@@ -90,6 +97,10 @@ async def chat_stream(
             Raises:
                 Exception: If there's an error during streaming.
             """
+            active_streams.labels(agent="web_assistant").inc()
+            start = time.monotonic()
+            first_token_time: float | None = None
+            output_chars: int = 0
             try:
                 user = await db_service.get_user(session.user_id)
                 custom_prompt = user.system_prompt if user else None
@@ -100,6 +111,15 @@ async def chat_stream(
                         user_id=session.user_id,
                         custom_system_prompt=custom_prompt,
                     ):
+                        try:
+                            parsed = _json.loads(chunk)
+                            if parsed.get("type") == "text" and parsed.get("content"):
+                                if first_token_time is None:
+                                    first_token_time = time.monotonic()
+                                    llm_ttft_seconds.labels(agent="web_assistant").observe(first_token_time - start)
+                                output_chars += len(parsed["content"])
+                        except Exception:
+                            pass
                         yield f"data: {chunk}\n\n"
 
                 yield f"data: {_json.dumps({'type': 'done', 'content': '', 'done': True})}\n\n"
@@ -110,6 +130,14 @@ async def chat_stream(
                     session_id=session.id,
                 )
                 yield f"data: {_json.dumps({'type': 'done', 'content': str(e), 'done': True})}\n\n"
+            finally:
+                e2e = time.monotonic() - start
+                llm_e2e_latency_seconds.labels(agent="web_assistant").observe(e2e)
+                if first_token_time is not None and output_chars > 0:
+                    decode_time = time.monotonic() - first_token_time
+                    est_tokens = max(output_chars / 4.0, 1.0)
+                    llm_tpot_seconds.labels(agent="web_assistant").observe(decode_time / est_tokens)
+                active_streams.labels(agent="web_assistant").dec()
 
         return StreamingResponse(event_generator(), media_type="text/event-stream")
 
@@ -192,6 +220,10 @@ async def plan_execute(
     )
 
     async def event_generator():
+        active_streams.labels(agent="plan_execute").inc()
+        start = time.monotonic()
+        first_token_time: float | None = None
+        output_chars: int = 0
         try:
             resume_payload = None
             if is_resume:
@@ -205,10 +237,27 @@ async def plan_execute(
                 resume_thread_id=body.thread_id,
                 resume_payload=resume_payload,
             ):
+                try:
+                    parsed = _json.loads(chunk)
+                    if parsed.get("type") == "text" and parsed.get("content"):
+                        if first_token_time is None:
+                            first_token_time = time.monotonic()
+                            llm_ttft_seconds.labels(agent="plan_execute").observe(first_token_time - start)
+                        output_chars += len(parsed["content"])
+                except Exception:
+                    pass
                 yield f"data: {chunk}\n\n"
         except Exception as e:
             logger.exception("plan_execute_stream_failed", session_id=session.id)
             yield f"data: {_json.dumps({'type': 'error', 'message': str(e), 'done': True})}\n\n"
+        finally:
+            e2e = time.monotonic() - start
+            llm_e2e_latency_seconds.labels(agent="plan_execute").observe(e2e)
+            if first_token_time is not None and output_chars > 0:
+                decode_time = time.monotonic() - first_token_time
+                est_tokens = max(output_chars / 4.0, 1.0)
+                llm_tpot_seconds.labels(agent="plan_execute").observe(decode_time / est_tokens)
+            active_streams.labels(agent="plan_execute").dec()
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 

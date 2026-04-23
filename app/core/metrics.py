@@ -35,6 +35,75 @@ llm_stream_duration_seconds = Histogram(
     buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0]
 )
 
+# --- LLM latency (per-agent) ---
+llm_ttft_seconds = Histogram(
+    "llm_ttft_seconds",
+    "Time to first token of the LLM stream response",
+    ["agent"],
+    buckets=[0.1, 0.3, 0.5, 1.0, 2.0, 5.0, 10.0],
+)
+
+llm_tpot_seconds = Histogram(
+    "llm_tpot_seconds",
+    "Estimated time per output token during decode phase",
+    ["agent"],
+    buckets=[0.01, 0.05, 0.1, 0.2, 0.5, 1.0],
+)
+
+llm_e2e_latency_seconds = Histogram(
+    "llm_e2e_latency_seconds",
+    "End-to-end LLM stream latency from request start to stream completion",
+    ["agent"],
+    buckets=[0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0],
+)
+
+# --- LLM fallback ---
+llm_fallback_total = Counter(
+    "llm_fallback_total",
+    "LLM model fallback events in circular fallback chain",
+    ["from_model", "to_model"],
+)
+
+llm_all_models_failed_total = Counter(
+    "llm_all_models_failed_total",
+    "Count of requests where every LLM model in the registry failed",
+)
+
+# --- mem0 (long-term memory) ---
+mem0_operation_duration_seconds = Histogram(
+    "mem0_operation_duration_seconds",
+    "Duration of mem0 memory operations (search / add)",
+    ["operation"],
+    buckets=[0.05, 0.1, 0.3, 0.5, 1.0, 2.0, 5.0],
+)
+
+mem0_operation_errors_total = Counter(
+    "mem0_operation_errors_total",
+    "Count of failed mem0 memory operations",
+    ["operation"],
+)
+
+# --- Tool calls ---
+tool_call_duration_seconds = Histogram(
+    "tool_call_duration_seconds",
+    "Duration of LangGraph tool invocations",
+    ["tool_name", "status"],
+    buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0],
+)
+
+tool_call_total = Counter(
+    "tool_call_total",
+    "Count of LangGraph tool invocations",
+    ["tool_name", "status"],
+)
+
+# --- Concurrency ---
+active_streams = Gauge(
+    "active_streams",
+    "Number of in-flight SSE stream responses",
+    ["agent"],
+)
+
 
 def setup_metrics(app):
     """Set up Prometheus metrics middleware and endpoints.

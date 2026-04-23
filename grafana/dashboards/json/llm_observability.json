@@ -1,0 +1,205 @@
+{
+  "id": null,
+  "uid": "llm-observability",
+  "title": "LLM Observability (Agent / mem0 / Tools)",
+  "tags": ["llm", "agent", "observability"],
+  "timezone": "browser",
+  "schemaVersion": 30,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Active Streams",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum by (agent) (active_streams)",
+          "legendFormat": "{{agent}}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "value"
+      },
+      "gridPos": { "x": 0, "y": 0, "w": 8, "h": 6 }
+    },
+    {
+      "type": "graph",
+      "title": "Stream Request Rate (per agent, per sec)",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum by (agent) (rate(llm_e2e_latency_seconds_count[1m]))",
+          "legendFormat": "{{agent}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": { "x": 8, "y": 0, "w": 16, "h": 6 }
+    },
+
+    {
+      "type": "graph",
+      "title": "TTFT — Time to First Token (P50/P95/P99)",
+      "datasource": "Prometheus",
+      "yaxes": [{ "format": "s", "label": "seconds" }, { "format": "short" }],
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le, agent) (rate(llm_ttft_seconds_bucket[5m])))",
+          "legendFormat": "{{agent}} p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, agent) (rate(llm_ttft_seconds_bucket[5m])))",
+          "legendFormat": "{{agent}} p95",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le, agent) (rate(llm_ttft_seconds_bucket[5m])))",
+          "legendFormat": "{{agent}} p99",
+          "refId": "C"
+        }
+      ],
+      "gridPos": { "x": 0, "y": 6, "w": 12, "h": 9 }
+    },
+    {
+      "type": "graph",
+      "title": "TPOT — Time per Output Token (P50/P95/P99, char/4 est.)",
+      "datasource": "Prometheus",
+      "yaxes": [{ "format": "s", "label": "sec/token (est)" }, { "format": "short" }],
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le, agent) (rate(llm_tpot_seconds_bucket[5m])))",
+          "legendFormat": "{{agent}} p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, agent) (rate(llm_tpot_seconds_bucket[5m])))",
+          "legendFormat": "{{agent}} p95",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le, agent) (rate(llm_tpot_seconds_bucket[5m])))",
+          "legendFormat": "{{agent}} p99",
+          "refId": "C"
+        }
+      ],
+      "gridPos": { "x": 12, "y": 6, "w": 12, "h": 9 }
+    },
+
+    {
+      "type": "graph",
+      "title": "E2E Stream Latency (P50/P95/P99)",
+      "datasource": "Prometheus",
+      "yaxes": [{ "format": "s", "label": "seconds" }, { "format": "short" }],
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le, agent) (rate(llm_e2e_latency_seconds_bucket[5m])))",
+          "legendFormat": "{{agent}} p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, agent) (rate(llm_e2e_latency_seconds_bucket[5m])))",
+          "legendFormat": "{{agent}} p95",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le, agent) (rate(llm_e2e_latency_seconds_bucket[5m])))",
+          "legendFormat": "{{agent}} p99",
+          "refId": "C"
+        }
+      ],
+      "gridPos": { "x": 0, "y": 15, "w": 24, "h": 9 }
+    },
+
+    {
+      "type": "graph",
+      "title": "LLM Fallback Events (rate/5m)",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum by (from_model, to_model) (rate(llm_fallback_total[5m]))",
+          "legendFormat": "{{from_model}} → {{to_model}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": { "x": 0, "y": 24, "w": 12, "h": 9 }
+    },
+    {
+      "type": "graph",
+      "title": "All-Models-Failed Rate (per min)",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(rate(llm_all_models_failed_total[5m])) * 60",
+          "legendFormat": "failures/min",
+          "refId": "A"
+        }
+      ],
+      "gridPos": { "x": 12, "y": 24, "w": 12, "h": 9 }
+    },
+
+    {
+      "type": "graph",
+      "title": "mem0 Operation Latency (P95)",
+      "datasource": "Prometheus",
+      "yaxes": [{ "format": "s" }, { "format": "short" }],
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, operation) (rate(mem0_operation_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{operation}} p95",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.50, sum by (le, operation) (rate(mem0_operation_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{operation}} p50",
+          "refId": "B"
+        }
+      ],
+      "gridPos": { "x": 0, "y": 33, "w": 12, "h": 9 }
+    },
+    {
+      "type": "graph",
+      "title": "mem0 Error Rate (per min)",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum by (operation) (rate(mem0_operation_errors_total[5m])) * 60",
+          "legendFormat": "{{operation}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": { "x": 12, "y": 33, "w": 12, "h": 9 }
+    },
+
+    {
+      "type": "graph",
+      "title": "Tool Call Rate (by tool × status, per sec)",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum by (tool_name, status) (rate(tool_call_total[5m]))",
+          "legendFormat": "{{tool_name}} / {{status}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": { "x": 0, "y": 42, "w": 12, "h": 9 }
+    },
+    {
+      "type": "graph",
+      "title": "Tool Call Duration (P95, success only)",
+      "datasource": "Prometheus",
+      "yaxes": [{ "format": "s" }, { "format": "short" }],
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, tool_name) (rate(tool_call_duration_seconds_bucket{status=\"success\"}[5m])))",
+          "legendFormat": "{{tool_name}} p95",
+          "refId": "A"
+        }
+      ],
+      "gridPos": { "x": 12, "y": 42, "w": 12, "h": 9 }
+    }
+  ]
+}
