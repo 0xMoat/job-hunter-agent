@@ -17,8 +17,9 @@ from app.core.logging import logger
 DATASET_NAME = "job-hunter-golden"
 DATASET_DESCRIPTION = (
     "Golden dataset for Job Hunter Agent regression testing. "
-    "30 test cases across 8 categories: chitchat, job_search, company_research, "
-    "resume_tailor, application_tracking, resume, strategy, preferences."
+    "50 test cases across 14 categories: chitchat, job_search, company_research, "
+    "resume_tailor, application_tracking, resume, strategy, preferences, "
+    "plan_execute, jd_analysis, interview_prep, resume_pdf, general_search, pe_routing."
 )
 
 

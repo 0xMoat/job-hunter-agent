@@ -191,4 +191,69 @@ GOLDEN_DATASET = [
             ],
         },
     },
+    # ── J. JD 分析（3 cases）────────────────────────────────────
+    {
+        "input": "帮我看看我和蚂蚁集团 AI 应用研发这个岗位的匹配度",
+        "expected_output": "调用 score_jd_match 对简历与 JD 进行匹配打分",
+        "metadata": {"category": "jd_analysis", "expected_tools": ["score_jd_match"]},
+    },
+    {
+        "input": "分析一下我简历和这个后端开发 JD 之间有哪些差距",
+        "expected_output": "调用 analyze_jd_gap 分析简历与 JD 的技能差距",
+        "metadata": {"category": "jd_analysis", "expected_tools": ["analyze_jd_gap"]},
+    },
+    {
+        "input": "帮我评估一下看板上腾讯那个岗位，我的简历能拿多少分？差在哪里？",
+        "expected_output": "先调用 score_jd_match 打分，再调用 analyze_jd_gap 分析差距",
+        "metadata": {"category": "jd_analysis", "expected_tools": ["score_jd_match", "analyze_jd_gap"]},
+    },
+    # ── K. 面试准备（3 cases）───────────────────────────────────
+    {
+        "input": "帮我生成蚂蚁集团 AI 研发岗的面试题",
+        "expected_output": "调用 generate_interview_questions 生成面试题目",
+        "metadata": {"category": "interview_prep", "expected_tools": ["generate_interview_questions"]},
+    },
+    {
+        "input": "看板上字节跳动那个岗位，可能会问什么面试题？",
+        "expected_output": "调用 generate_interview_questions 生成面试题目",
+        "metadata": {"category": "interview_prep", "expected_tools": ["generate_interview_questions"]},
+    },
+    {
+        "input": "我后天面试美团算法工程师，帮我准备一些面试问题",
+        "expected_output": "调用 generate_interview_questions 生成面试题目",
+        "metadata": {"category": "interview_prep", "expected_tools": ["generate_interview_questions"]},
+    },
+    # ── L. 简历 PDF 导出（2 cases）──────────────────────────────
+    {
+        "input": "帮我把润色好的简历导出成 PDF",
+        "expected_output": "调用 generate_resume_pdf 生成 PDF 文件",
+        "metadata": {"category": "resume_pdf", "expected_tools": ["generate_resume_pdf"]},
+    },
+    {
+        "input": "我要下载蚂蚁集团那张卡片上的定制简历 PDF",
+        "expected_output": "调用 generate_resume_pdf 生成 PDF 文件",
+        "metadata": {"category": "resume_pdf", "expected_tools": ["generate_resume_pdf"]},
+    },
+    # ── M. 通用搜索（2 cases）───────────────────────────────────
+    {
+        "input": "2026 年互联网行业就业趋势怎么样？",
+        "expected_output": "调用 duckduckgo_search_tool 搜索行业趋势信息",
+        "metadata": {"category": "general_search", "expected_tools": ["duckduckgo_search_tool"]},
+    },
+    {
+        "input": "LLM Agent 工程师的平均薪资是多少？",
+        "expected_output": "调用 duckduckgo_search_tool 搜索薪资数据",
+        "metadata": {"category": "general_search", "expected_tools": ["duckduckgo_search_tool"]},
+    },
+    # ── N. P&E 路由（2 cases）───────────────────────────────────
+    {
+        "input": "帮我把看板上所有待投递的岗位都处理一遍：调研公司、写求职信、更新状态",
+        "expected_output": "调用 start_plan_execute 将多步任务交给 Plan-and-Execute agent",
+        "metadata": {"category": "pe_routing", "expected_tools": ["start_plan_execute"]},
+    },
+    {
+        "input": "自动帮我处理所有 pending 的申请，每个都要调研公司和定制简历",
+        "expected_output": "调用 start_plan_execute 将多步任务交给 Plan-and-Execute agent",
+        "metadata": {"category": "pe_routing", "expected_tools": ["start_plan_execute"]},
+    },
 ]
