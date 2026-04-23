@@ -40,6 +40,9 @@ async def plan_execute_task(*, item, **kwargs) -> dict:
     pendings = metadata.get("pending_applications") or []
     pending_text = _format_pending(pendings) or "（无 pending 职位）"
 
+    from langgraph.checkpoint.memory import MemorySaver
+    from langgraph.types import Command
+
     agent = _get_agent()
     graph = await agent.create_graph()
     if graph is None:
@@ -50,6 +53,15 @@ async def plan_execute_task(*, item, **kwargs) -> dict:
             "final_response": "",
             "replan_count": 0,
         }
+
+    # interrupt() requires a checkpointer to persist state between stream calls.
+    # The production graph uses AsyncPostgresSaver, which may not be available in
+    # eval context. Recompile with MemorySaver when the checkpointer is absent.
+    if graph.checkpointer is None:
+        graph = graph.builder.compile(
+            checkpointer=MemorySaver(),
+            name=graph.name,
+        )
 
     initial_state = {
         "input": goal,
@@ -71,32 +83,45 @@ async def plan_execute_task(*, item, **kwargs) -> dict:
     plan_snapshots: list[list[str]] = []
     tool_calls_seen: set[str] = set()
 
-    async for stream_event in graph.astream(
-        initial_state,
-        config,
-        stream_mode=["values", "messages"],
-        subgraphs=True,
-    ):
-        ns, event_mode, payload = stream_event
+    # The P&E graph uses interrupt() for HITL approval. In eval mode we
+    # auto-approve by looping: stream → detect interrupt → resume.
+    graph_input = initial_state
+    max_approval_rounds = 10  # safety cap
 
-        if event_mode == "values" and not ns:
-            # Outer graph state snapshots (original logic preserved)
-            event = payload
-            plan = list(event.get("plan") or [])
-            past_steps = list(event.get("past_steps") or [])
-            if plan and not initial_plan:
-                initial_plan = list(plan)
-            plan_snapshots.append(plan)
-            response = event.get("response")
-            if response:
-                final_response = response
+    for _round in range(max_approval_rounds):
+        async for stream_event in graph.astream(
+            graph_input,
+            config,
+            stream_mode=["values", "messages"],
+            subgraphs=True,
+        ):
+            ns, event_mode, payload = stream_event
 
-        elif event_mode == "messages" and ns:
-            # Executor sub-graph messages — extract tool call names
-            token, _metadata = payload
-            if hasattr(token, "tool_calls") and token.tool_calls:
-                for tc in token.tool_calls:
-                    tool_calls_seen.add(tc["name"])
+            if event_mode == "values" and not ns:
+                # Outer graph state snapshots
+                event = payload
+                plan = list(event.get("plan") or [])
+                past_steps = list(event.get("past_steps") or [])
+                if plan and not initial_plan:
+                    initial_plan = list(plan)
+                plan_snapshots.append(plan)
+                response = event.get("response")
+                if response:
+                    final_response = response
+
+            elif event_mode == "messages" and ns:
+                # Executor sub-graph messages — extract tool call names
+                token, _metadata = payload
+                if hasattr(token, "tool_calls") and token.tool_calls:
+                    for tc in token.tool_calls:
+                        tool_calls_seen.add(tc["name"])
+
+        # If we got a final_response, the graph completed normally
+        if final_response:
+            break
+
+        # Otherwise the graph was interrupted at approval_gate. Auto-approve and resume.
+        graph_input = Command(resume={"action": "approve"})
 
     # Count genuine replanner rewrites: the head of current plan no longer
     # matches what we'd expect from a simple pop-from-front of the previous.
