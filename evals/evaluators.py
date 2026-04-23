@@ -32,7 +32,7 @@ def _get_eval_client():
 async def _llm_judge(metric_name: str, prompt: str, input_text: str, output_text: str) -> Evaluation:
     """Shared LLM judge logic for all LLM-based evaluators."""
     json_instruction = (
-        '\n\nRespond with a JSON object containing exactly two fields:\n'
+        "\n\nRespond with a JSON object containing exactly two fields:\n"
         '{"score": <float between 0 and 1>, "reasoning": "<one sentence>"}'
     )
     try:
@@ -143,9 +143,10 @@ async def replan_decision_evaluator(*, input, output, metadata, **kwargs) -> Eva
     if _REPLAN_DECISION_PROMPT is None:
         _REPLAN_DECISION_PROMPT = _load_metric_prompt("replan_decision.md")
     past = output.get("past_steps", []) if isinstance(output, dict) else []
-    past_text = "\n".join(
-        f"{i + 1}. {step}\n   → {(result or '')[:200]}" for i, (step, result) in enumerate(past)
-    ) or "（尚无已执行步骤）"
+    past_text = (
+        "\n".join(f"{i + 1}. {step}\n   → {(result or '')[:200]}" for i, (step, result) in enumerate(past))
+        or "（尚无已执行步骤）"
+    )
     replan_count = output.get("replan_count", 0) if isinstance(output, dict) else 0
     final = output.get("final_response", "") if isinstance(output, dict) else ""
     goal = input["input"] if isinstance(input, dict) else str(input)
@@ -183,10 +184,7 @@ def tool_appropriateness_evaluator(*, output, metadata, **kwargs) -> Evaluation 
         # P&E: recall — did all must-have tools get called?
         missing = expected - actual
         score = round(1.0 - len(missing) / len(expected), 2)
-        comment = (
-            f"Expected (must-have): {sorted(expected)}, "
-            f"Actual: {sorted(actual)}, Missing: {sorted(missing)}"
-        )
+        comment = f"Expected (must-have): {sorted(expected)}, Actual: {sorted(actual)}, Missing: {sorted(missing)}"
     else:
         # ReAct: Jaccard — penalizes both missing and extra calls
         intersection = expected & actual

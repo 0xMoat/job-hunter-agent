@@ -223,8 +223,7 @@ GOLDEN_DATASET = [
     {
         "input": "逐一处理看板上的待投递职位：研究公司、定制简历、更新看板",
         "expected_output": (
-            "Planner 为 3 条 pending 分别规划：公司调研 → 保存调研 → 定制简历 → "
-            "保存简历 → 更新看板状态；最后汇总。"
+            "Planner 为 3 条 pending 分别规划：公司调研 → 保存调研 → 定制简历 → 保存简历 → 更新看板状态；最后汇总。"
         ),
         "metadata": {
             "category": "plan_execute",
@@ -234,17 +233,17 @@ GOLDEN_DATASET = [
                 {"company": "Anthropic", "title": "Applied AI Engineer"},
             ],
             "expected_tools": [
-                "company_research_tool", "save_company_research",
-                "trigger_resume_studio_skill", "save_tailored_resume",
+                "company_research_tool",
+                "save_company_research",
+                "trigger_resume_studio_skill",
+                "save_tailored_resume",
                 "application_tracker_tool",
             ],
         },
     },
     {
         "input": "帮我调研看板上所有 pending 职位的公司背景，保存到对应卡片",
-        "expected_output": (
-            "Planner 为每条 pending 规划公司调研 → 保存结果；不涉及简历和求职信。"
-        ),
+        "expected_output": ("Planner 为每条 pending 规划公司调研 → 保存结果；不涉及简历和求职信。"),
         "metadata": {
             "category": "plan_execute",
             "pending_applications": [
@@ -256,10 +255,7 @@ GOLDEN_DATASET = [
     },
     {
         "input": "处理看板上所有待投递岗位",
-        "expected_output": (
-            "Planner 应对信息完整的职位正常处理，对缺失 title 的职位跳过或提示；"
-            "不应崩溃。"
-        ),
+        "expected_output": ("Planner 应对信息完整的职位正常处理，对缺失 title 的职位跳过或提示；不应崩溃。"),
         "metadata": {
             "category": "plan_execute",
             "pending_applications": [

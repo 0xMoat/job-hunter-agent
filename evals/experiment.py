@@ -79,10 +79,7 @@ def run_experiment_sync(langfuse):
 
     print(f"Running experiment '{experiment_name}' on {len(dataset.items)} items...")
     print(f"Model: {settings.DEFAULT_LLM_MODEL}")
-    print(
-        "Evaluators: relevancy, helpfulness, task_completion, tool_appropriateness, "
-        "plan_quality, replan_decision"
-    )
+    print("Evaluators: relevancy, helpfulness, task_completion, tool_appropriateness, plan_quality, replan_decision")
 
     result = langfuse.run_experiment(
         name=experiment_name,
