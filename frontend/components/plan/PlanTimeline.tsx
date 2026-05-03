@@ -149,8 +149,20 @@ export function PlanTimelineView({
       )}
 
       {view.errorMsg && (
-        <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-1.5 text-[11px] text-rose-700">
-          {t("pe_error_prefix")}: {view.errorMsg}
+        <div className="flex items-center justify-between gap-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-1.5 text-[11px] text-rose-700">
+          <span className="min-w-0 break-words">
+            {t("pe_error_prefix")}: {view.errorMsg}
+          </span>
+          {onApprove && (
+            <button
+              type="button"
+              onClick={onApprove}
+              disabled={actionsDisabled}
+              className="shrink-0 rounded-full border border-rose-300 bg-white px-2.5 py-0.5 text-[11px] font-medium text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {t("pe_retry")}
+            </button>
+          )}
         </div>
       )}
 
