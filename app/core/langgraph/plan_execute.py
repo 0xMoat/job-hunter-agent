@@ -485,9 +485,37 @@ class PlanExecuteAgent:
         """
         next_round = state.approval_round + 1
         metadata = config.get("metadata") or {}
-        if metadata.get("pipeline") == "plan_execute_eval":
-            logger.info("pe_approval_auto_approved_eval", round=next_round)
-            return {"approval_round": next_round, "pending_revise": False}
+
+        # Cases where we skip the user-facing interrupt entirely:
+        #   - Eval pipeline (no human in the loop).
+        #   - Continuation re-entry: user already approved the initial DAG and
+        #     this is just the replanner's next iteration. Asking again would
+        #     defeat the "approve once, run to completion" UX.
+        # Revise re-entry (state.pending_revise) still goes through interrupt
+        # so the user can confirm the rewritten plan.
+        is_eval = metadata.get("pipeline") == "plan_execute_eval"
+        is_continuation = state.approval_round > 0 and not state.pending_revise
+        if is_eval or is_continuation:
+            logger.info(
+                "pe_approval_auto_approved",
+                round=next_round,
+                reason="eval" if is_eval else "continuation",
+            )
+            ready_sends = self._get_ready_sends(state)
+            running_ids: list[str] = []
+            for s in ready_sends:
+                step = s.arg.get("step") if isinstance(s.arg, dict) else None
+                if step:
+                    running_ids.append(step.id if hasattr(step, "id") else str(step))
+            status_update = {
+                **state.step_status,
+                **{sid: StepStatus.RUNNING.value for sid in running_ids},
+            }
+            return {
+                "approval_round": next_round,
+                "pending_revise": False,
+                "step_status": status_update,
+            }
 
         payload = interrupt(
             {
