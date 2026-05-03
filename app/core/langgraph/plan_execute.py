@@ -522,35 +522,32 @@ class PlanExecuteAgent:
                 "approval_round": next_round,
                 "pending_revise": True,
             }
-        # default: user approved
+        # default: user approved — also pre-mark ready steps as RUNNING in the
+        # node return (conditional edges in LangGraph 1.x can't carry state
+        # updates, so we do it here).
         logger.info("pe_approval_approved", round=next_round)
-        return {"approval_round": next_round, "pending_revise": False}
-
-    def _dispatch_ready_steps(
-        self, state: PlanExecuteState, config: RunnableConfig | None = None
-    ) -> list[Send] | Command | str:
-        """Build Send() fan-out with RUNNING status update via Command."""
-        sends = self._get_ready_sends(state)
-        if not sends:
-            return "collector"
-        # Extract step ids from Send args and mark them RUNNING
-        running_ids = []
-        for s in sends:
+        ready_sends = self._get_ready_sends(state)
+        running_ids: list[str] = []
+        for s in ready_sends:
             step = s.arg.get("step") if isinstance(s.arg, dict) else None
             if step:
                 running_ids.append(step.id if hasattr(step, "id") else str(step))
-        status_update = {sid: StepStatus.RUNNING.value for sid in running_ids}
-        logger.debug("pe_dispatch_ready", running_ids=running_ids)
-        # LangGraph 1.x conditional edges don't support Command returns in
-        # non-interrupt paths.  In eval mode the approval_gate skips interrupt(),
-        # so the routing runs inside a single astream — return plain Send list.
-        metadata = (config.get("metadata") or {}) if config else {}
-        if metadata.get("pipeline") == "plan_execute_eval":
-            return sends
-        return Command(
-            update={"step_status": status_update},
-            goto=sends,
-        )
+        status_update = {**state.step_status, **{sid: StepStatus.RUNNING.value for sid in running_ids}}
+        return {
+            "approval_round": next_round,
+            "pending_revise": False,
+            "step_status": status_update,
+        }
+
+    def _dispatch_ready_steps(
+        self, state: PlanExecuteState, config: RunnableConfig | None = None
+    ) -> list[Send] | str:
+        """Build Send() fan-out for parallel executor dispatch."""
+        sends = self._get_ready_sends(state)
+        if not sends:
+            return "collector"
+        logger.debug("pe_dispatch_ready", count=len(sends))
+        return sends
 
     def _route_after_approval(self, state: PlanExecuteState, config: RunnableConfig) -> str | list[Send] | Command:
         """Edge dispatcher after approval_gate."""
