@@ -239,10 +239,11 @@ async def plan_execute(
             ):
                 try:
                     parsed = _json.loads(chunk)
-                    if parsed.get("type") == "text" and parsed.get("content"):
-                        if first_token_time is None:
-                            first_token_time = time.monotonic()
-                            llm_ttft_seconds.labels(agent="plan_execute").observe(first_token_time - start)
+                    chunk_type = parsed.get("type")
+                    if chunk_type in ("plan_created", "step_text_delta") and first_token_time is None:
+                        first_token_time = time.monotonic()
+                        llm_ttft_seconds.labels(agent="plan_execute").observe(first_token_time - start)
+                    if chunk_type == "step_text_delta" and parsed.get("content"):
                         output_chars += len(parsed["content"])
                 except Exception:
                     pass

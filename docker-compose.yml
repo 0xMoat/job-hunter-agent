@@ -55,9 +55,12 @@ services:
     ports:
       - "9091:9090"
     volumes:
+      - prometheus-data:/prometheus
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
     networks:
       - monitoring
     restart: always
@@ -100,3 +103,4 @@ networks:
 volumes:
   grafana-storage:
   postgres-data:
+  prometheus-data:
