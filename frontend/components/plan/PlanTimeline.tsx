@@ -85,7 +85,7 @@ export function PlanTimelineView({
 
   const showHeader = pill !== null || total > 0
   const waves = computeWaves(view.steps)
-  const isMultiWave = waves.length > 1
+  const showWaveLabels = waves.length > 1
   const cardColors = buildCardColorMap(view.steps)
 
   // Build a global flat index for step numbering
@@ -168,51 +168,52 @@ export function PlanTimelineView({
 
       {total > 0 && (
         <div className="relative">
-
-          {isMultiWave ? (
-            /* ── Wave-grouped layout — CSS Grid aligned by card column ── */
-            <div className="flex flex-col gap-3">
-              {waves.map((wave, wi) => {
-                // Group steps in this wave by card letter
-                const stepsByCard = new Map<string, typeof wave>()
-                const noCardSteps: typeof wave = []
-                for (const s of wave) {
-                  const letter = extractCardLetter(s.id)
-                  if (letter) {
-                    const arr = stepsByCard.get(letter) || []
-                    arr.push(s)
-                    stepsByCard.set(letter, arr)
-                  } else {
-                    noCardSteps.push(s)
-                  }
+          {/* ── Wave-grouped layout — CSS Grid aligned by card column ── */}
+          <div className="flex flex-col gap-3">
+            {waves.map((wave, wi) => {
+              // Group steps in this wave by card letter
+              const stepsByCard = new Map<string, typeof wave>()
+              const noCardSteps: typeof wave = []
+              for (const s of wave) {
+                const letter = extractCardLetter(s.id)
+                if (letter) {
+                  const arr = stepsByCard.get(letter) || []
+                  arr.push(s)
+                  stepsByCard.set(letter, arr)
+                } else {
+                  noCardSteps.push(s)
                 }
-                // Non-card steps (e.g. summary) span full width
-                if (noCardSteps.length > 0 && stepsByCard.size === 0) {
-                  return (
-                    <div key={wi}>
+              }
+              // Non-card steps (e.g. summary) span full width
+              if (noCardSteps.length > 0 && stepsByCard.size === 0) {
+                return (
+                  <div key={wi}>
+                    {showWaveLabels && (
                       <div className="mb-1 flex items-center gap-2">
                         <span className="font-mono text-[10px] font-medium uppercase tracking-wider text-zinc-400">
                           {t("pe_wave_label", wi + 1)}
                         </span>
                       </div>
-                      {noCardSteps.map((s) => {
-                        const color = stepColor(s.id, cardColors)
-                        return (
-                          <div
-                            key={s.id}
-                            className="rounded-md px-1.5 py-0.5"
-                            style={{ backgroundColor: color.bg }}
-                          >
-                            <PlanStepRow step={s} position={stepNumberMap.get(s.id) ?? 0} companyById={companyById} />
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )
-                }
+                    )}
+                    {noCardSteps.map((s) => {
+                      const color = stepColor(s.id, cardColors)
+                      return (
+                        <div
+                          key={s.id}
+                          className="rounded-md px-1.5 py-0.5"
+                          style={{ backgroundColor: color.bg }}
+                        >
+                          <PlanStepRow step={s} position={stepNumberMap.get(s.id) ?? 0} companyById={companyById} />
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              }
 
-                return (
-                  <div key={wi}>
+              return (
+                <div key={wi}>
+                  {showWaveLabels && (
                     <div className="mb-1 flex items-center gap-2">
                       <span className="font-mono text-[10px] font-medium uppercase tracking-wider text-zinc-400">
                         {t("pe_wave_label", wi + 1)}
@@ -223,47 +224,37 @@ export function PlanTimelineView({
                         </span>
                       )}
                     </div>
-                    {/* Grid: one column per card, aligned across waves */}
-                    <div
-                      className="grid gap-x-1.5 gap-y-1"
-                      style={{ gridTemplateColumns: `repeat(${numCards}, minmax(0, 1fr))` }}
-                    >
-                      {cardOrder.map((letter) => {
-                        const steps = stepsByCard.get(letter) || []
-                        const color = steps.length > 0 ? stepColor(steps[0].id, cardColors) : undefined
-                        return (
-                          <div
-                            key={letter}
-                            className="flex flex-col gap-0.5 rounded-md px-1.5 py-0.5"
-                            style={{ backgroundColor: color?.bg }}
-                          >
-                            {steps.map((s) => (
-                              <PlanStepRow
-                                key={s.id}
-                                step={s}
-                                position={stepNumberMap.get(s.id) ?? 0}
-                                companyById={companyById}
-                              />
-                            ))}
-                          </div>
-                        )
-                      })}
-                    </div>
+                  )}
+                  {/* Grid: one column per card, aligned across waves */}
+                  <div
+                    className="grid gap-x-1.5 gap-y-1"
+                    style={{ gridTemplateColumns: `repeat(${numCards}, minmax(0, 1fr))` }}
+                  >
+                    {cardOrder.map((letter) => {
+                      const steps = stepsByCard.get(letter) || []
+                      const color = steps.length > 0 ? stepColor(steps[0].id, cardColors) : undefined
+                      return (
+                        <div
+                          key={letter}
+                          className="flex flex-col gap-0.5 rounded-md px-1.5 py-0.5"
+                          style={{ backgroundColor: color?.bg }}
+                        >
+                          {steps.map((s) => (
+                            <PlanStepRow
+                              key={s.id}
+                              step={s}
+                              position={stepNumberMap.get(s.id) ?? 0}
+                              companyById={companyById}
+                            />
+                          ))}
+                        </div>
+                      )
+                    })}
                   </div>
-                )
-              })}
-            </div>
-          ) : (
-            /* ── Flat serial layout (no deps — legacy compat) ──────────── */
-            <div className="relative">
-              {total > 1 && (
-                <div className="pointer-events-none absolute bottom-3 left-[5px] top-3 w-px bg-zinc-200" />
-              )}
-              {view.steps.map((s, i) => (
-                <PlanStepRow key={s.id} step={s} position={i + 1} companyById={companyById} />
-              ))}
-            </div>
-          )}
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
 

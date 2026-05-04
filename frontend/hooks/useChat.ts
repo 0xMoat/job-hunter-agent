@@ -295,6 +295,7 @@ function applyPlanChunkToMessage(
           id: s.id,
           text: s.text,
           status: "pending" as const,
+          dependsOn: s.depends_on || [],
         }))
         return {
           ...m,
