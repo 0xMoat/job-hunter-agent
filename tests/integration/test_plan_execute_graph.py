@@ -187,7 +187,7 @@ class TestRouteAfterCollector:
             step_status={"A1": StepStatus.DONE.value, "A2": StepStatus.DONE.value},
             iterations=1,
         )
-        result = agent._route_after_collector(state)
+        result = agent._route_after_collector(state, config={"configurable": {"thread_id": "t1"}})
         assert result == "replanner", f"expected 'replanner', got {result!r}"
 
     def test_routes_to_replanner_when_iterations_exceed_max(self):
@@ -203,7 +203,7 @@ class TestRouteAfterCollector:
             step_status={"A1": StepStatus.PENDING.value},
             iterations=MAX_ITERATIONS,
         )
-        result = agent._route_after_collector(state)
+        result = agent._route_after_collector(state, config={"configurable": {"thread_id": "t1"}})
         assert result == "replanner", f"should route to replanner at MAX_ITERATIONS, got {result!r}"
 
     def test_dispatches_sends_for_ready_pending_steps(self):
@@ -220,7 +220,7 @@ class TestRouteAfterCollector:
             step_status={"A1": StepStatus.DONE.value, "A2": StepStatus.PENDING.value},
             iterations=0,
         )
-        result = agent._route_after_collector(state)
+        result = agent._route_after_collector(state, config={"configurable": {"thread_id": "t1"}})
         assert isinstance(result, list), f"expected list of Send objects, got {type(result)}"
         assert len(result) == 1
         assert isinstance(result[0], Send)

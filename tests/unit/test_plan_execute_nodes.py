@@ -23,17 +23,17 @@ def _make_state(**overrides) -> PlanExecuteState:
 def test_route_after_approval_with_response_set_ends():
     agent = PlanExecuteAgent()
     state = _make_state(response="cancelled by user")
-    assert agent._route_after_approval(state) == END
+    assert agent._route_after_approval(state, config={"configurable": {"thread_id": "t1"}}) == END
 
 
 def test_route_after_approval_pending_revise_goes_to_replanner():
     agent = PlanExecuteAgent()
     state = _make_state(pending_revise=True, user_feedback="change step 2")
-    assert agent._route_after_approval(state) == "replanner"
+    assert agent._route_after_approval(state, config={"configurable": {"thread_id": "t1"}}) == "replanner"
 
 
 def test_route_after_approval_default_approve_dispatches_sends():
-    from langgraph.graph.state import Command
+    from langgraph.types import Send
     from app.schemas import PlanStep
 
     agent = PlanExecuteAgent()
@@ -43,10 +43,14 @@ def test_route_after_approval_default_approve_dispatches_sends():
         step_status={"A1": "pending"},
         pending_revise=False,
     )
-    result = agent._route_after_approval(state)
-    # Should return a Command with RUNNING status update + Send fan-out
-    assert isinstance(result, Command)
-    assert result.update["step_status"]["A1"] == "running"
+    result = agent._route_after_approval(state, config={"configurable": {"thread_id": "t1"}})
+    # LangGraph 1.x conditional edges can't carry state updates; the RUNNING
+    # pre-mark moved into _approval_gate's node return. Routing now returns a
+    # plain Send list. (See commit 9949bde.)
+    assert isinstance(result, list)
+    assert len(result) == 1
+    assert isinstance(result[0], Send)
+    assert result[0].node == "executor"
 
 
 # ============================================================================
