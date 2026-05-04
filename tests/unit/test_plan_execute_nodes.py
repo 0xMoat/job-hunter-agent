@@ -181,3 +181,145 @@ def test_detect_repeated_tool_call_arg_order_insensitive():
         _fake_ai_msg([{"name": "save_tailored_resume", "args": {"b": 2, "a": 1}}]),
     ]
     assert _detect_repeated_tool_call(msgs) == "save_tailored_resume"
+
+
+# ============================================================================
+# Part 4: artifact-prune helpers + node
+# ============================================================================
+
+import pytest
+
+from app.core.langgraph.plan_execute import (
+    _classify_step_artifact,
+    _extract_application_id,
+)
+from app.schemas import PlanStep
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("company_research(card=10) 并 save_company_research(application_id=10, content=...)", "research"),
+        ("score_jd_match(application_id=10)", "score"),
+        ("analyze_jd_gap(application_id=10)", "gap"),
+        ("generate_interview_questions(application_id=10)", "interview"),
+        ("为 application_id=10 定制简历+PDF", "resume"),
+        ("trigger_resume_studio_skill 然后 save_tailored_resume(application_id=10)", "resume"),
+        ("汇总本次处理结果并提交最终回复", None),
+        ("duckduckgo_search('site:example.com')", None),
+    ],
+)
+def test_classify_step_artifact(text, expected):
+    assert _classify_step_artifact(text) == expected
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("score_jd_match(application_id=42)", 42),
+        ("score_jd_match(application_id = 42)", 42),
+        ("company_research(card=7) 并 save_company_research(application_id=7)", 7),
+        ("company_research(card=15)", 15),
+        ("汇总本次处理结果", None),
+    ],
+)
+def test_extract_application_id(text, expected):
+    assert _extract_application_id(text) == expected
+
+
+async def test_prune_satisfied_steps_marks_redundant_done(monkeypatch):
+    """Steps recreating an existing artifact get flipped PENDING→DONE."""
+    from types import SimpleNamespace
+
+    agent = PlanExecuteAgent()
+    plan = [
+        PlanStep(id="A1", text="company_research(card=10) 并 save_company_research(application_id=10, content=...)", depends_on=[]),
+        PlanStep(id="A2", text="score_jd_match(application_id=10)", depends_on=["A1"]),
+        PlanStep(id="A3", text="analyze_jd_gap(application_id=10)", depends_on=["A1"]),
+        PlanStep(id="B1", text="company_research(card=11) 并 save_company_research(application_id=11, content=...)", depends_on=[]),
+        PlanStep(id="Z", text="汇总本次处理结果", depends_on=["A2", "A3", "B1"]),
+    ]
+    state = _make_state(
+        plan=plan,
+        step_status={s.id: "pending" for s in plan},
+    )
+
+    # app 10 has research+score saved → A1 + A2 should prune; A3 (gap) and B1 stay
+    fake_apps = [
+        SimpleNamespace(
+            id=10,
+            company_research_json="{...}",
+            match_breakdown="{...}",
+            gap_analysis_text=None,
+            interview_questions_json=None,
+            tailored_resume_text=None,
+        ),
+        SimpleNamespace(
+            id=11,
+            company_research_json=None,
+            match_breakdown=None,
+            gap_analysis_text=None,
+            interview_questions_json=None,
+            tailored_resume_text=None,
+        ),
+    ]
+
+    async def _fake_list(user_id):
+        return fake_apps
+
+    monkeypatch.setattr(
+        "app.core.langgraph.plan_execute.job_service.list_applications",
+        _fake_list,
+    )
+
+    result = await agent._prune_satisfied_steps(
+        state, config={"configurable": {"user_id": "1", "thread_id": "t1"}}
+    )
+
+    assert result["step_status"] == {"A1": "done", "A2": "done"}
+    assert "A1" in result["step_results"]
+    assert "research" in result["step_results"]["A1"]
+    assert "score" in result["step_results"]["A2"]
+    # Untouched steps not present (so the dict-merge reducer won't overwrite them)
+    assert "A3" not in result["step_status"]
+    assert "B1" not in result["step_status"]
+    assert "Z" not in result["step_status"]
+
+
+async def test_prune_satisfied_steps_noop_when_nothing_to_prune(monkeypatch):
+    """Returns empty dict when no PENDING step matches a saved artifact."""
+    from types import SimpleNamespace
+
+    agent = PlanExecuteAgent()
+    plan = [PlanStep(id="A1", text="score_jd_match(application_id=10)", depends_on=[])]
+    state = _make_state(plan=plan, step_status={"A1": "pending"})
+
+    async def _fake_list(user_id):
+        return [
+            SimpleNamespace(
+                id=10,
+                company_research_json=None,
+                match_breakdown=None,
+                gap_analysis_text=None,
+                interview_questions_json=None,
+                tailored_resume_text=None,
+            )
+        ]
+
+    monkeypatch.setattr(
+        "app.core.langgraph.plan_execute.job_service.list_applications",
+        _fake_list,
+    )
+
+    result = await agent._prune_satisfied_steps(
+        state, config={"configurable": {"user_id": "1", "thread_id": "t1"}}
+    )
+    assert result == {}
+
+
+async def test_prune_satisfied_steps_handles_missing_user_id():
+    """No user_id in config → return {} silently (defensive)."""
+    agent = PlanExecuteAgent()
+    state = _make_state(plan=[], step_status={})
+    result = await agent._prune_satisfied_steps(state, config={"configurable": {}})
+    assert result == {}

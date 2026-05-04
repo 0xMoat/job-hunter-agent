@@ -6,6 +6,7 @@ planner → executor → replanner loop with structured LLM outputs.
 
 import asyncio
 import json as _json
+import re
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -58,6 +59,42 @@ MAX_REPEATED_TOOL_CALLS = 3
 # drain cleanly before restarting the container, and used by the graceful
 # shutdown path to emit `interrupted` SSE events on SIGTERM.
 ACTIVE_PE_THREADS: set[str] = set()
+
+
+# Match the artifact-producing tool keyword in a plan step's text. Order
+# matters — `tailored_resume` is checked first so a resume step's "+ score"
+# mention can't be misclassified as a score step. Resume bundles three tool
+# names in one step (trigger_resume_studio_skill / save_tailored_resume /
+# generate_resume_pdf — see plan_execute_planner.md), so we match the bundle
+# token "定制简历" too.
+_ARTIFACT_KIND_PATTERNS: list[tuple[str, re.Pattern]] = [
+    ("resume", re.compile(r"trigger_resume_studio_skill|save_tailored_resume|generate_resume_pdf|定制简历", re.I)),
+    ("interview", re.compile(r"generate_interview_questions", re.I)),
+    ("gap", re.compile(r"analyze_jd_gap", re.I)),
+    ("score", re.compile(r"score_jd_match", re.I)),
+    ("research", re.compile(r"company_research|save_company_research", re.I)),
+]
+
+_APP_ID_RE = re.compile(r"application_id\s*[=:]\s*(\d+)")
+_CARD_ID_RE = re.compile(r"card\s*[=:]\s*(\d+)")
+
+
+def _classify_step_artifact(text: str) -> Optional[str]:
+    """Return which artifact kind a plan step produces, or None if unrelated.
+
+    Matches by tool-name keyword in the step text. The summary step ("Z" /
+    "汇总…") matches no kind, so it is never pruned.
+    """
+    for kind, pattern in _ARTIFACT_KIND_PATTERNS:
+        if pattern.search(text):
+            return kind
+    return None
+
+
+def _extract_application_id(text: str) -> Optional[int]:
+    """Pull the target application_id out of a step's natural-language text."""
+    m = _APP_ID_RE.search(text) or _CARD_ID_RE.search(text)
+    return int(m.group(1)) if m else None
 
 
 def _detect_repeated_tool_call(messages: list) -> Optional[str]:
@@ -334,6 +371,64 @@ class PlanExecuteAgent:
             "plan": serial,
             "step_status": {s.id: StepStatus.PENDING.value for s in serial},
         }
+
+    # ---------- artifact-prune node ----------
+
+    async def _prune_satisfied_steps(
+        self, state: PlanExecuteState, config: RunnableConfig
+    ) -> dict:
+        """Mark plan steps that recreate already-saved artifacts as DONE.
+
+        The planner prompt instructs the LLM to skip steps whose artifact is
+        already present (e.g. a card tagged ``research✓`` shouldn't get a new
+        ``company_research`` step). DeepSeek doesn't reliably honor this, so
+        we apply the same rule deterministically here. Each pruned step is
+        flipped from PENDING to DONE so downstream depends_on resolves and
+        the step never reaches the executor.
+        """
+        user_id = config.get("configurable", {}).get("user_id")
+        if not user_id:
+            return {}
+        try:
+            apps = await job_service.list_applications(int(user_id))
+        except Exception:
+            logger.exception("pe_artifact_prune_list_failed", user_id=user_id)
+            return {}
+
+        artifacts = {
+            a.id: {
+                "research": bool(a.company_research_json),
+                "score": bool(a.match_breakdown),
+                "gap": bool(a.gap_analysis_text),
+                "interview": bool(a.interview_questions_json),
+                "resume": bool(a.tailored_resume_text),
+            }
+            for a in apps
+            if a.id is not None
+        }
+
+        new_status: dict[str, str] = {}
+        new_results: dict[str, str] = {}
+        for step in state.plan:
+            if state.step_status.get(step.id) != StepStatus.PENDING.value:
+                continue
+            kind = _classify_step_artifact(step.text)
+            app_id = _extract_application_id(step.text)
+            if kind is None or app_id is None:
+                continue
+            flags = artifacts.get(app_id)
+            if flags and flags.get(kind):
+                new_status[step.id] = StepStatus.DONE.value
+                new_results[step.id] = f"(已存在 {kind} artifact，跳过执行)"
+
+        if new_status:
+            logger.info(
+                "pe_artifact_prune_applied",
+                pruned_count=len(new_status),
+                step_ids=list(new_status.keys()),
+            )
+            return {"step_status": new_status, "step_results": new_results}
+        return {}
 
     # ---------- scheduler helpers ----------
 
@@ -781,11 +876,11 @@ class PlanExecuteAgent:
         """Build and cache the Plan-Execute StateGraph with checkpointer.
 
         Topology (DAG parallel):
-          planner → dag_validator → approval_gate →(fan-out)→ executor(s)
-                                                   → collector →(fan-out)→ executor(s)
-                                                   → collector → replanner → END
-                                                                replanner → dag_validator (new plan)
-                                                                replanner → approval_gate (revise)
+          planner → dag_validator → artifact_prune → approval_gate →(fan-out)→ executor(s)
+                                                                    → collector →(fan-out)→ executor(s)
+                                                                    → collector → replanner → END
+                                                                                  replanner → dag_validator (new plan)
+                                                                                  replanner → approval_gate (revise)
         """
         if self._graph is not None:
             return self._graph
@@ -793,6 +888,7 @@ class PlanExecuteAgent:
         builder = StateGraph(PlanExecuteState)
         builder.add_node("planner", self._planner)
         builder.add_node("dag_validator", self._dag_validator)
+        builder.add_node("artifact_prune", self._prune_satisfied_steps)
         builder.add_node("approval_gate", self._approval_gate)
         builder.add_node("executor", self._execute_step)
         builder.add_node("collector", self._collector)
@@ -800,7 +896,8 @@ class PlanExecuteAgent:
 
         builder.set_entry_point("planner")
         builder.add_edge("planner", "dag_validator")
-        builder.add_edge("dag_validator", "approval_gate")
+        builder.add_edge("dag_validator", "artifact_prune")
+        builder.add_edge("artifact_prune", "approval_gate")
 
         # approval_gate → fan-out to executor(s) | replanner | collector | END
         builder.add_conditional_edges(
