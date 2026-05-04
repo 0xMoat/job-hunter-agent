@@ -176,11 +176,12 @@
 
     {
       "type": "graph",
-      "title": "Tool Call Rate (by tool × status, per sec)",
+      "title": "Tool Calls (count over last 5m, by tool × status)",
       "datasource": "Prometheus",
+      "yaxes": [{ "format": "short", "label": "calls / 5m", "min": 0, "decimals": 0 }, { "format": "short" }],
       "targets": [
         {
-          "expr": "sum by (tool_name, status) (rate(tool_call_total[5m]))",
+          "expr": "sum by (tool_name, status) (increase(tool_call_total[5m]))",
           "legendFormat": "{{tool_name}} / {{status}}",
           "refId": "A"
         }
