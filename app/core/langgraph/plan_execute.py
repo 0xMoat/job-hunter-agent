@@ -640,10 +640,15 @@ class PlanExecuteAgent:
         )
         replanner_llm = self._structured_llm(Act)
         try:
-            act: Act = await replanner_llm.ainvoke(
+            act: Act | None = await replanner_llm.ainvoke(
                 [SystemMessage(content=system_prompt)],
                 config=config,
             )
+            # with_structured_output silently returns None when the LLM
+            # produces output that fails schema parsing; treat that the
+            # same as a thrown exception so we fall through to summary.
+            if act is None or act.action is None:
+                raise ValueError(f"replanner produced invalid structured output: act={act!r}")
         except Exception:
             logger.exception("pe_replanner_failed_fallback_to_summary")
             summary = "## 已完成\n" + "\n".join(
