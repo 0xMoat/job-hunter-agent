@@ -24,147 +24,122 @@
 
 ---
 
-## Tech Stack
+## 🚀 Tech Stack
 
-### Backend
-
-| Category | Technology |
+| Module | Tech Stack |
 |---|---|
-| Runtime | Python 3.13, uvloop |
-| Web Framework | FastAPI |
-| AI Orchestration | LangGraph (StateGraph + AsyncPostgresSaver, nested plan-execute subgraph with HITL `interrupt()`) |
-| LLM Models | DeepSeek Chat (primary) → Llama 3.3 70B (Groq) → Gemini 2.5/2.0/2.0-lite Flash (circular fallback) |
-| Long-Term Memory | mem0ai + pgvector |
-| Web Search | LangChain DuckDuckGoSearchResults |
-| PDF Generation | weasyprint + Jinja2 |
-| Database / ORM | PostgreSQL, SQLModel (asyncpg) |
-| Observability | Langfuse (LLM tracing), structlog (structured logs) |
-| Metrics | Prometheus + Grafana |
-| Scheduling | APScheduler (AsyncIOScheduler) |
-| Resilience | tenacity (exponential backoff retries) |
-| Rate Limiting | slowapi |
-| Auth | JWT (python-jose) + Google OAuth 2.0 |
-| Testing | pytest 8 + pytest-asyncio + httpx ASGI client (49 tests, see [Testing](#testing)) |
-
-### Frontend
-
-| Category | Technology |
-|---|---|
-| Framework | Next.js 16, React 19, TypeScript |
-| Styling | Tailwind CSS 4 |
-| Kanban | @dnd-kit (drag-and-drop) |
-| Onboarding Tour | driver.js |
-| i18n | Custom LanguageContext + `lib/i18n.ts` dictionaries (zh-CN / en) |
-| Markdown | react-markdown + remark-gfm |
-| Testing | Vitest + React Testing Library + jsdom (6 tests) |
+| **Backend** | ![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white) ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white) ![uvloop](https://img.shields.io/badge/uvloop-async-2C5BB4) |
+| **Frontend** | ![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white) ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black) ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white) ![Tailwind](https://img.shields.io/badge/Tailwind-4-06B6D4?logo=tailwindcss&logoColor=white) |
+| **AI Orchestration** | ![LangGraph](https://img.shields.io/badge/LangGraph-StateGraph-1C3C3C) ![LangChain](https://img.shields.io/badge/LangChain-tools-1C3C3C?logo=langchain&logoColor=white) ![HITL](https://img.shields.io/badge/HITL-interrupt-purple) |
+| **LLM Models** | ![DeepSeek](https://img.shields.io/badge/DeepSeek-Chat-4D6BFE) ![Groq](https://img.shields.io/badge/Groq-Llama_3.3_70B-F55036) ![Gemini](https://img.shields.io/badge/Gemini-2.5/2.0_Flash-4285F4?logo=googlegemini&logoColor=white) |
+| **Data Storage** | ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white) ![pgvector](https://img.shields.io/badge/pgvector-mem0-336791) ![SQLModel](https://img.shields.io/badge/SQLModel-asyncpg-009688) |
+| **Observability** | ![Langfuse](https://img.shields.io/badge/Langfuse-Tracing-000000) ![Prometheus](https://img.shields.io/badge/Prometheus-Metrics-E6522C?logo=prometheus&logoColor=white) ![Grafana](https://img.shields.io/badge/Grafana-Dashboard-F46800?logo=grafana&logoColor=white) ![structlog](https://img.shields.io/badge/structlog-JSON-2C3E50) |
+| **Auth & Security** | ![Google](https://img.shields.io/badge/Google_OAuth-2.0-4285F4?logo=google&logoColor=white) ![JWT](https://img.shields.io/badge/JWT-python--jose-000000?logo=jsonwebtokens&logoColor=white) ![slowapi](https://img.shields.io/badge/slowapi-RateLimit-009688) |
+| **Resilience & Jobs** | ![tenacity](https://img.shields.io/badge/tenacity-Retry-2C5BB4) ![APScheduler](https://img.shields.io/badge/APScheduler-Cron-blue) |
+| **PDF & Docs** | ![weasyprint](https://img.shields.io/badge/weasyprint-PDF-FF6F00) ![Jinja2](https://img.shields.io/badge/Jinja2-Template-B41717?logo=jinja&logoColor=white) |
+| **Testing** | ![pytest](https://img.shields.io/badge/pytest-8-0A9EDC?logo=pytest&logoColor=white) ![Vitest](https://img.shields.io/badge/Vitest-RTL-6E9F18?logo=vitest&logoColor=white) ![httpx](https://img.shields.io/badge/httpx-ASGI-2C3E50) |
 
 ---
 
 ## Architecture
 
-### Backend Request Flow
+### System Overview
+
+> 5-minute system-design view — top-down tiers (client → API → application → data → externals), with protocols labeled and observability on the side rail.
 
 ```mermaid
-flowchart TD
-    Client["Frontend\n(Next.js 16)"]
-
-    subgraph FastAPI["FastAPI Application"]
-        direction TB
-        MW["Middleware Stack\nCORS · LoggingContext · Metrics · RateLimit"]
-
-        subgraph Routes["/api/v1 Routes"]
-            Auth["auth\nregister · login · session CRUD"]
-            Chat["chatbot\nchat · stream (SSE) · history"]
-            Pref["preferences\njob search config"]
-            List["listings\ntoday's picks"]
-            App["applications\ntracker CRUD"]
-            Sett["settings\nsystem prompt editor"]
-        end
+flowchart TB
+    subgraph Client["Client Tier"]
+        Web["Next.js 16 Frontend<br/>(Vercel)"]
     end
 
-    subgraph Agent["LangGraph Agent"]
-        ChatNode["chat node\nLLM reasoning + tool binding"]
-        ToolNode["tool_call node\nfunction dispatch"]
-        ChatNode -->|"tool_calls present"| ToolNode
-        ToolNode -->|"ToolMessage results"| ChatNode
+    subgraph API["API Tier — FastAPI"]
+        MW["Middleware<br/>CORS · JWT Auth · slowapi RateLimit<br/>LoggingContext · Prometheus"]
+        REST["REST Endpoints<br/>/auth · /preferences · /listings<br/>/applications · /settings · /tutorial"]
+        STREAM["SSE Stream<br/>/chatbot/chat/stream<br/>/chatbot/plan-execute"]
     end
 
-    subgraph Persistence["Persistence"]
-        PG[("PostgreSQL\nusers · sessions · threads\napplications · listings\npreferences · checkpoints")]
-        Vec[("pgvector\nmem0 long-term memory")]
+    subgraph App["Application Tier"]
+        Agent["LangGraph Agent<br/>chat ⇄ tool_call ReAct loop<br/>plan-execute sub-agent (HITL interrupt)"]
+        LLMSvc["LLMService<br/>circular fallback across 5 models<br/>tenacity exponential backoff"]
+        Tools["15 Tools<br/>search · analysis · generation<br/>persistence · meta"]
+        Sched["APScheduler<br/>daily_job_search · cron 08:00"]
     end
 
-    subgraph Sched["APScheduler"]
-        Cron["daily_job_search\nCronTrigger 08:00"]
+    subgraph Data["Data Tier"]
+        PG[("PostgreSQL<br/>users · sessions · applications<br/>listings · preferences<br/>LangGraph checkpoints")]
+        Vec[("pgvector<br/>mem0 long-term memory<br/>per-user semantic embeddings")]
+        Files[("Resume PDF artifacts<br/>signed-URL downloads")]
+    end
+
+    subgraph Ext["External Services"]
+        Google["Google OAuth<br/>ID token verification"]
+        LLMs["LLM Providers<br/>DeepSeek · Groq · Gemini"]
+        DDG["DuckDuckGo<br/>web search"]
     end
 
     subgraph Obs["Observability"]
-        LF["Langfuse\nLLM traces"]
-        Prom["Prometheus\nGrafana"]
+        LF["Langfuse<br/>LLM traces + evals"]
+        Prom["Prometheus + Grafana<br/>LLM / mem0 / tool metrics"]
     end
 
-    Client --> MW
-    MW --> Routes
-    Chat --> Agent
-    Agent --> PG
-    Agent --> Vec
-    Cron --> PG
-    Agent --> LF
-    FastAPI --> Prom
+    Web -->|HTTPS| MW
+    Web <-->|SSE| STREAM
+    MW --> REST
+    MW --> STREAM
+    REST --> Agent
+    STREAM --> Agent
+    Agent <--> LLMSvc
+    Agent --> Tools
+    Tools --> PG
+    Tools --> Files
+    Agent <--> Vec
+    LLMSvc -->|OpenAI-compatible| LLMs
+    Tools --> DDG
+    REST -->|verify| Google
+    Sched --> Tools
+    Agent -.-> LF
+    MW -.-> Prom
 ```
 
-### LangGraph Graph & Function Calls
+<details>
+<summary><b>LangGraph Agent — internal ReAct loop & tool catalog</b></summary>
 
 ```mermaid
 flowchart LR
     START(["START"]) --> ChatNode
 
     subgraph Graph["LangGraph StateGraph"]
-        ChatNode["💬 chat\nLLM call · load long-term memory\napply system prompt"]
-        ToolNode["🔧 tool_call\ndispatch to named tool\ncollect ToolMessages"]
+        ChatNode["💬 chat<br/>LLM + long-term memory<br/>apply system prompt"]
+        ToolNode["🔧 tool_call<br/>dispatch + collect ToolMessages"]
         END_N(["END"])
-
-        ChatNode -->|"tool_calls present"| ToolNode
-        ToolNode -->|"results → goto chat"| ChatNode
-        ChatNode -->|"no tool_calls"| END_N
+        ChatNode -->|tool_calls| ToolNode
+        ToolNode -->|results| ChatNode
+        ChatNode -->|no tool_calls| END_N
     end
 
-    subgraph Tools["Available Tools (15 function calls)"]
-        T1["🔍 Search\njob_search · duckduckgo_search\ncompany_research"]
-        T2["📊 Analysis\nscore_jd_match · analyze_jd_gap\ngenerate_interview_questions"]
-        T3["✉️ Generation\ncover_letter · resume_studio\nresume_pdf"]
-        T4["💾 Persistence\napplication_tracker\nsave_company_research\nsave_tailored_resume\njob_preferences"]
-        T5["🚀 Meta\nstart_plan_execute\n(spawn HITL sub-agent)"]
+    subgraph Tools["15 Tools"]
+        T1["🔍 Search · job / web / company"]
+        T2["📊 Analysis · jd_match · gap · interview_qs"]
+        T3["✉️ Generation · cover_letter · resume · pdf"]
+        T4["💾 Persistence · tracker · preferences"]
+        T5["🚀 Meta · start_plan_execute (HITL)"]
     end
 
-    ToolNode --> T1
-    ToolNode --> T2
-    ToolNode --> T3
-    ToolNode --> T4
-    ToolNode --> T5
+    ToolNode --> T1 & T2 & T3 & T4 & T5
 
     subgraph LLMSvc["LLMService — Circular Fallback"]
-        M1["deepseek-chat\n(primary · native reasoning)"]
-        M2["llama-3.3-70b-versatile\n(Groq)"]
-        M3["gemini-2.5-flash"]
-        M4["gemini-2.0-flash"]
-        M5["gemini-2.0-flash-lite"]
-        M1 -->|"fail + retry"| M2
-        M2 -->|"fail + retry"| M3
-        M3 -->|"fail + retry"| M4
-        M4 -->|"fail + retry"| M5
-        M5 -->|"fail + retry"| M1
-    end
-
-    subgraph Mem["Long-Term Memory (mem0 + pgvector)"]
-        MR["retrieve\nbefore each invoke\nsemantic search on user_id"]
-        MU["async update\nafter response completes"]
+        M1[deepseek-chat] --> M2[llama-3.3-70b]
+        M2 --> M3[gemini-2.5-flash]
+        M3 --> M4[gemini-2.0-flash]
+        M4 --> M5[gemini-2.0-flash-lite]
+        M5 --> M1
     end
 
     ChatNode <--> LLMSvc
-    ChatNode --> MR
-    ChatNode -.->|"background task"| MU
 ```
+
+</details>
 
 ---
 
@@ -193,43 +168,14 @@ make dev
 
 Open Swagger UI at `http://localhost:8000/docs`.
 
-### Environment Variables
+### Required Environment Variables
 
-```bash
-# App
-APP_ENV=development
-PROJECT_NAME="Job Hunter Agent"
+See [`.env.example`](.env.example) for the full list. Minimum to boot:
 
-# Database
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_DB=jobhunter
-POSTGRES_USER=myuser
-POSTGRES_PASSWORD=mypassword
-
-# LLM — at least one provider required; LLMService cycles through all available
-DEEPSEEK_API_KEY=your_deepseek_key      # primary
-GROQ_API_KEY=your_groq_key              # for llama-3.3-70b fallback
-OPENAI_API_KEY=your_openai_or_gemini_key  # for Gemini via OpenAI-compatible endpoint
-LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/  # optional
-DEFAULT_LLM_MODEL=deepseek-chat
-
-# Long-Term Memory
-LONG_TERM_MEMORY_COLLECTION_NAME=agent_memories
-LONG_TERM_MEMORY_MODEL=gpt-5-nano
-LONG_TERM_MEMORY_EMBEDDER_MODEL=gemini-embedding-001
-
-# Observability
-LANGFUSE_PUBLIC_KEY=your_public_key
-LANGFUSE_SECRET_KEY=your_secret_key
-LANGFUSE_HOST=https://cloud.langfuse.com
-
-# Auth
-GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
-JWT_SECRET_KEY=your_jwt_secret
-JWT_ALGORITHM=HS256
-JWT_ACCESS_TOKEN_EXPIRE_DAYS=30
-```
+- **Database** — `POSTGRES_*` (host / port / db / user / password)
+- **LLM** — at least one of `DEEPSEEK_API_KEY` / `GROQ_API_KEY` / `OPENAI_API_KEY` (Gemini via OpenAI-compatible endpoint)
+- **Auth** — `GOOGLE_CLIENT_ID` + `JWT_SECRET_KEY`
+- **Observability** (optional) — `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY`
 
 ### Docker
 
@@ -237,182 +183,64 @@ JWT_ACCESS_TOKEN_EXPIRE_DAYS=30
 make docker-run                    # development
 make docker-run-env ENV=staging    # staging
 make docker-logs ENV=development
-make docker-stop ENV=development
 ```
 
-Monitoring stack:
-- Prometheus: `http://localhost:9090`
-- Grafana: `http://localhost:3000` (admin / admin)
+Monitoring: Prometheus on `:9090`, Grafana on `:3000` (admin / admin).
 
 ---
 
 ## API Reference
 
-### Auth
-| Method | Path | Description |
-|---|---|---|
-| POST | `/api/v1/auth/google` | Google OAuth login (verify Google ID token → issue JWT) |
-| POST | `/api/v1/auth/session` | Create a new chat session |
-| PATCH | `/api/v1/auth/session/{id}/name` | Rename a session |
-| DELETE | `/api/v1/auth/session/{id}` | Delete a session |
-| GET | `/api/v1/auth/sessions` | List user sessions |
+Full schema at `http://localhost:8000/docs` (Swagger). Key surface:
 
-### Chat
-| Method | Path | Description |
-|---|---|---|
-| POST | `/api/v1/chatbot/chat/stream` | SSE streaming response (content / tool_call / tool_result / done events) |
-| POST | `/api/v1/chatbot/plan-execute` | Start / resume Plan-and-Execute sub-agent (SSE + HITL) |
-| GET | `/api/v1/chatbot/messages` | Get conversation history |
-| DELETE | `/api/v1/chatbot/messages` | Clear conversation history |
-
-### Job Data
-| Method | Path | Description |
-|---|---|---|
-| GET/PUT | `/api/v1/preferences` | Get/update daily search config |
-| GET | `/api/v1/listings` | List today's auto-discovered jobs |
-| GET/POST/PATCH/DELETE | `/api/v1/applications` | Application tracker CRUD (+ `/batch` for scheduler bulk insert) |
-
-### Resume
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/v1/resume/download/{token}` | Download tailored resume PDF via signed token |
-
-### Tutorial
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/v1/tutorial/status` | Get onboarding state (has_tutorial_session / completed / resume_is_default) |
-| POST | `/api/v1/tutorial/seed` | Idempotently create tutorial session + default resume |
-| POST | `/api/v1/tutorial/replay` | Reset tutorial completion + ensure session |
-| POST | `/api/v1/tutorial/dismiss` | Mark tutorial as completed |
-
-### Search
-| Method | Path | Description |
-|---|---|---|
-| GET/PUT | `/api/v1/search/config` | Get/update target sites + cron schedule |
-| POST | `/api/v1/search/run` | Trigger a manual search now |
-
-### Settings
-| Method | Path | Description |
-|---|---|---|
-| GET/PUT/DELETE | `/api/v1/settings/system-prompt` | Get/update/reset custom system prompt |
-| GET/PUT | `/api/v1/settings/resume` | Get/update the user's plain-text resume |
-| GET | `/api/v1/settings/langfuse-url` | Get Langfuse project base URL for trace links |
-
-### Health
-| Method | Path | Description |
-|---|---|---|
-| GET | `/health` | Health check with DB status |
-| GET | `/metrics` | Prometheus metrics |
+| Group | Endpoints |
+|---|---|
+| **Auth** | `POST /auth/google` · session CRUD on `/auth/session(s)` |
+| **Chat** | `POST /chatbot/chat/stream` (SSE) · `POST /chatbot/plan-execute` (HITL) · `GET/DELETE /chatbot/messages` |
+| **Job Data** | `GET/PUT /preferences` · `GET /listings` · `GET/POST/PATCH/DELETE /applications` (+ `/batch`) |
+| **Resume** | `GET /resume/download/{token}` (signed PDF URL) |
+| **Tutorial** | `/tutorial/status` · `/seed` · `/replay` · `/dismiss` |
+| **Search** | `GET/PUT /search/config` · `POST /search/run` |
+| **Settings** | `/settings/system-prompt` · `/settings/resume` · `/settings/langfuse-url` |
+| **Ops** | `GET /health` · `GET /metrics` (Prometheus) |
 
 ---
 
-## Testing
-
-### Backend
+## Testing & Evaluation
 
 ```bash
-make test         # run all tests (requires local Postgres on :5432)
-make test-fast    # skip @pytest.mark.slow tests
-uv run pytest tests/integration -v   # integration only
-uv run pytest -k "auth"              # filter by name
+make test          # 49 tests (unit + integration); requires Postgres on :5432
+make test-fast     # skip @pytest.mark.slow
+
+cd frontend && pnpm test   # Vitest + RTL
+
+make eval          # score recent Langfuse traces against evals/metrics/prompts/*.md
 ```
 
-Tests live in `tests/` (`tests/unit/`, `tests/integration/`, `tests/support/`). The conftest auto-creates `jha_test` DB at import time, so the only pre-req is a running Postgres reachable as `myuser/mypassword`. Every integration test uses an in-process httpx ASGI client against the real FastAPI app.
-
-**Layers covered:**
-- 8 router integration tests (auth / listings / preferences / settings / applications / tutorial / chatbot / search)
-- 4 LLMService resilience unit tests (retry + circular model fallback)
-- 4 main LangGraph tests (3 node units + 1 ReAct loop integration)
-- 8 plan-execute tests (3 routes + 3 nodes + 2 HITL integration)
-- 3 SSE streaming contract tests for `/chat/stream`
-- 3 tool parser tests
-- 1 migration idempotency regression test
-- 1 `/health` smoke test
-
-All LLM calls mocked at the `BaseChatModel` boundary via shared helpers in `tests/support/fake_llm.py`.
-
-### Frontend
-
-```bash
-cd frontend
-pnpm test         # vitest run
-pnpm test:watch   # watch mode
-pnpm test:ui      # vitest browser UI
-```
-
-Vitest + React Testing Library + jsdom. Covers `lib/i18n.ts` pure function + `SessionContext` provider wiring.
-
-### CI
-
-`.github/workflows/test.yaml` runs backend (Postgres service container) + frontend jobs on every PR and every push to `master`. Deploy (`deploy.yaml`) is gated via `workflow_run` — it only fires after Tests succeed (with `workflow_dispatch force=true` as emergency escape hatch).
-
----
-
-## Model Evaluation
-
-```bash
-make eval           # interactive mode
-make eval-quick     # non-interactive, default settings
-make eval-no-report # skip JSON report
-```
-
-The evaluator fetches Langfuse traces from the last 24 hours, scores them with OpenAI structured output against metric prompts in `evals/metrics/prompts/*.md`, and writes a JSON report to `evals/reports/`.
-
-To add a custom metric, create a new `.md` file in `evals/metrics/prompts/` — it is auto-discovered at runtime.
+Backend uses an in-process httpx ASGI client; LLM calls mocked at the `BaseChatModel` boundary (`tests/support/fake_llm.py`). CI runs both jobs on every PR; deploy is gated on tests passing.
 
 ---
 
 ## Project Structure
 
 ```
-Job-Hunter-Agent/
-├── app/
-│   ├── api/v1/
-│   │   ├── auth.py              # Google OAuth + session CRUD
-│   │   ├── chatbot.py           # /chat/stream (SSE) + /plan-execute (HITL) + /messages
-│   │   ├── preferences.py       # Job search keywords/location config
-│   │   ├── listings.py          # Today's auto-discovered picks
-│   │   ├── applications.py      # Kanban tracker CRUD + batch
-│   │   ├── resume.py            # Tailored-resume PDF download (signed token)
-│   │   ├── search.py            # Search config + manual trigger
-│   │   ├── settings.py          # System prompt + resume + langfuse URL
-│   │   ├── tutorial.py          # Onboarding: status / seed / replay / dismiss
-│   │   └── api.py               # Router aggregation
-│   ├── core/
-│   │   ├── config.py            # Settings (env-aware per APP_ENV)
-│   │   ├── logging.py           # structlog setup
-│   │   ├── metrics.py           # Prometheus counters/histograms
-│   │   ├── middleware.py        # LoggingContext + Metrics middleware
-│   │   ├── limiter.py           # slowapi rate limiter (per-endpoint)
-│   │   ├── scheduler.py         # APScheduler cron (daily auto-search)
-│   │   ├── pdf_cleanup.py       # Expired PDF artifact sweeper
-│   │   ├── langgraph/
-│   │   │   ├── graph.py         # Main LangGraphAgent (chat ⇄ tool_call ReAct)
-│   │   │   ├── plan_execute.py  # PE sub-agent (planner / approval / executor / replanner, HITL interrupt)
-│   │   │   └── tools/           # 15 tools: search / analysis / generation / persistence / meta
-│   │   ├── tutorial/            # Bilingual onboarding content (default resume + mock card)
-│   │   └── prompts/             # System prompt + planner/replanner prompt templates
-│   ├── models/                  # SQLModel: User / Session / Application / JobListing / JobPreference / SearchConfig
-│   ├── schemas/                 # Pydantic: auth / chat / graph / plan_execute / resume
-│   ├── services/
-│   │   ├── database.py          # DatabaseService (SQLModel + asyncpg)
-│   │   ├── llm.py               # LLMService (circular fallback across 5 models)
-│   │   ├── job_service.py       # Application/listing/preference DB ops
-│   │   ├── scoring_service.py   # JD↔resume match weighted score
-│   │   └── resume_pdf_service.py  # weasyprint subprocess + signed URLs
-│   ├── utils/                   # JWT, LangGraph message helpers, sanitization
-│   └── main.py                  # FastAPI entry point
-├── tests/                       # pytest (49 tests): unit/ + integration/ + support/fake_llm.py
-├── frontend/                    # Next.js 16 + React 19 + Tailwind 4 + Vitest
-├── evals/                       # Langfuse-based evaluation harness
-├── scripts/                     # migrate.py (idempotent DB migration)
-├── docs/superpowers/            # specs/ (design docs) + plans/ (implementation plans)
-├── grafana/                     # Dashboard configs
-├── prometheus/                  # Scrape config
-├── .github/workflows/           # test.yaml (PR + push CI) + deploy.yaml (gated on tests)
-├── docker-compose.yml
-├── Dockerfile
-└── Makefile
+app/
+├── api/v1/         # auth · chatbot · preferences · listings · applications · resume · search · settings · tutorial
+├── core/
+│   ├── config · logging · metrics · middleware · limiter · scheduler · pdf_cleanup
+│   ├── langgraph/  # graph.py (ReAct) · plan_execute.py (HITL) · tools/ (15 fns)
+│   ├── tutorial/   # bilingual onboarding content
+│   └── prompts/    # system + planner/replanner templates
+├── models/         # SQLModel ORM
+├── schemas/        # Pydantic I/O
+├── services/       # database · llm (5-model fallback) · job · scoring · resume_pdf
+└── utils/          # JWT · message helpers · sanitization
+
+frontend/           # Next.js 16 + React 19 + Tailwind 4
+tests/              # unit + integration + support/fake_llm.py
+evals/              # Langfuse-based eval harness
+scripts/            # migrate.py (idempotent)
+grafana/ prometheus/  # observability stack configs
 ```
 
 ---
