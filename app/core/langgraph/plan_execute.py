@@ -501,21 +501,7 @@ class PlanExecuteAgent:
                 round=next_round,
                 reason="eval" if is_eval else "continuation",
             )
-            ready_sends = self._get_ready_sends(state)
-            running_ids: list[str] = []
-            for s in ready_sends:
-                step = s.arg.get("step") if isinstance(s.arg, dict) else None
-                if step:
-                    running_ids.append(step.id if hasattr(step, "id") else str(step))
-            status_update = {
-                **state.step_status,
-                **{sid: StepStatus.RUNNING.value for sid in running_ids},
-            }
-            return {
-                "approval_round": next_round,
-                "pending_revise": False,
-                "step_status": status_update,
-            }
+            return self._build_approve_dispatch(state, next_round)
 
         payload = interrupt(
             {
@@ -550,22 +536,42 @@ class PlanExecuteAgent:
                 "approval_round": next_round,
                 "pending_revise": True,
             }
-        # default: user approved — also pre-mark ready steps as RUNNING in the
-        # node return (conditional edges in LangGraph 1.x can't carry state
-        # updates, so we do it here).
+        # default: user approved
         logger.info("pe_approval_approved", round=next_round)
+        return self._build_approve_dispatch(state, next_round)
+
+    def _build_approve_dispatch(
+        self, state: PlanExecuteState, next_round: int
+    ) -> Command | dict:
+        """Atomically mark ready steps RUNNING and fan-out to executors.
+
+        We must dispatch + flip step_status in a single Command return because
+        the conditional edge that follows re-scans PENDING steps via
+        _get_ready_sends; if we updated step_status in a plain dict return,
+        the conditional edge would observe RUNNING and skip the dispatch,
+        causing approval_gate→collector→replanner to spin until the recursion
+        limit fires.
+
+        When no steps are ready (edge case after all dependencies failed or a
+        replan produced nothing dispatchable), fall back to a plain dict so
+        the conditional edge can route to collector / END as before.
+        """
         ready_sends = self._get_ready_sends(state)
+        if not ready_sends:
+            return {"approval_round": next_round, "pending_revise": False}
         running_ids: list[str] = []
         for s in ready_sends:
             step = s.arg.get("step") if isinstance(s.arg, dict) else None
             if step:
                 running_ids.append(step.id if hasattr(step, "id") else str(step))
-        status_update = {**state.step_status, **{sid: StepStatus.RUNNING.value for sid in running_ids}}
-        return {
-            "approval_round": next_round,
-            "pending_revise": False,
-            "step_status": status_update,
-        }
+        return Command(
+            update={
+                "approval_round": next_round,
+                "pending_revise": False,
+                "step_status": {sid: StepStatus.RUNNING.value for sid in running_ids},
+            },
+            goto=ready_sends,
+        )
 
     def _dispatch_ready_steps(
         self, state: PlanExecuteState, config: RunnableConfig | None = None
