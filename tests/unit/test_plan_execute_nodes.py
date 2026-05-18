@@ -326,4 +326,90 @@ async def test_prune_satisfied_steps_handles_missing_user_id():
     agent = PlanExecuteAgent()
     state = _make_state(plan=[], step_status={})
     result = await agent._prune_satisfied_steps(state, config={"configurable": {}})
-    assert result == {}
+
+
+# ---- _tool_budget_hook ---------------------------------------------------
+
+from langchain_core.messages import AIMessage, ToolMessage  # noqa: E402
+
+from app.core.langgraph.plan_execute import (  # noqa: E402
+    EXECUTOR_TOOL_BUDGET,
+    _tool_budget_hook,
+)
+
+
+def _ai_with_calls(call_specs, msg_id="ai-id"):
+    """Build an AIMessage carrying given tool_calls."""
+    return AIMessage(
+        id=msg_id,
+        content="",
+        tool_calls=[
+            {"name": name, "args": args, "id": f"tc-{i}"}
+            for i, (name, args) in enumerate(call_specs)
+        ],
+    )
+
+
+def test_tool_budget_hook_passes_through_when_under_budget():
+    """Under budget → no state change (return {})."""
+    msgs = [_ai_with_calls([("duckduckgo_results_json", {"q": "foo"})])]
+    assert _tool_budget_hook({"messages": msgs}) == {}
+
+
+def test_tool_budget_hook_passes_through_when_last_msg_has_no_tool_calls():
+    """If LLM already produced a final answer (no tool_calls), hook is a no-op."""
+    msgs = [AIMessage(id="final", content="here is the answer")]
+    # Even with prior tool history, the last message has no tool_calls
+    for i in range(EXECUTOR_TOOL_BUDGET + 2):
+        msgs.insert(
+            0,
+            _ai_with_calls(
+                [("duckduckgo_results_json", {"q": f"q{i}"})], msg_id=f"prev-{i}"
+            ),
+        )
+    assert _tool_budget_hook({"messages": msgs}) == {}
+
+
+def test_tool_budget_hook_rewrites_when_budget_exceeded_varied_args():
+    """Element of element of the production bug:
+    multiple tool_calls with *different* args still hit the budget.
+    Existing _detect_repeated_tool_call misses this — _tool_budget_hook catches it.
+    """
+    msgs = []
+    # Fill history with EXECUTOR_TOOL_BUDGET tool calls (varied queries)
+    for i in range(EXECUTOR_TOOL_BUDGET):
+        msgs.append(
+            _ai_with_calls(
+                [("duckduckgo_results_json", {"q": f"元聚 query {i}"})],
+                msg_id=f"hist-{i}",
+            )
+        )
+        msgs.append(
+            ToolMessage(content=f"result-{i}", tool_call_id=f"tc-0")
+        )
+    # Latest AIMessage tries yet another search
+    last = _ai_with_calls(
+        [("duckduckgo_results_json", {"q": "元聚 final attempt"})], msg_id="last"
+    )
+    msgs.append(last)
+
+    result = _tool_budget_hook({"messages": msgs})
+
+    assert "messages" in result
+    new_msg = result["messages"][0]
+    assert isinstance(new_msg, AIMessage)
+    assert not new_msg.tool_calls, "rewritten message must drop tool_calls"
+    assert "信息不足" in new_msg.content
+    assert new_msg.id == "last", "must reuse last AIMessage id so it replaces, not appends"
+
+
+def test_tool_budget_hook_counts_across_multi_call_messages():
+    """A single AIMessage may carry multiple tool_calls — they all count."""
+    # One message with EXECUTOR_TOOL_BUDGET tool_calls — already at budget
+    one_big_msg = _ai_with_calls(
+        [("duckduckgo_results_json", {"q": f"q{i}"}) for i in range(EXECUTOR_TOOL_BUDGET)],
+        msg_id="big",
+    )
+    result = _tool_budget_hook({"messages": [one_big_msg]})
+    assert "messages" in result
+    assert not result["messages"][0].tool_calls
