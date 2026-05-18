@@ -413,3 +413,13 @@ def test_tool_budget_hook_counts_across_multi_call_messages():
     result = _tool_budget_hook({"messages": [one_big_msg]})
     assert "messages" in result
     assert not result["messages"][0].tool_calls
+
+
+def test_executor_compiled_with_post_model_hook():
+    """Smoke test: ensure _get_executor wires the budget hook into the ReAct graph."""
+    agent = PlanExecuteAgent()
+    executor = agent._get_executor()
+    # post_model_hook becomes a node named "post_model_hook" in the compiled graph
+    assert "post_model_hook" in executor.nodes, (
+        "executor must have post_model_hook node — check create_react_agent kwargs"
+    )

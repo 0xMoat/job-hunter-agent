@@ -521,6 +521,8 @@ class PlanExecuteAgent:
                 executor_llm,
                 tools=tools,
                 state_schema=_ExecutorState,
+                post_model_hook=_tool_budget_hook,
+                version="v2",
             )
         return self._executor
 
