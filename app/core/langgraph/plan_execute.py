@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, AsyncGenerator, Optional
 from urllib.parse import quote_plus
 
-from langchain_core.messages import AIMessageChunk, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, SystemMessage, ToolMessage
 from langchain_deepseek import ChatDeepSeek
 from langfuse.langchain import CallbackHandler
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
@@ -53,6 +53,14 @@ EXECUTOR_RECURSION_LIMIT = 25
 # we call it a loop. LLMs can legitimately retry a tool once after a
 # corrected arg, but not three times in a row with unchanged args.
 MAX_REPEATED_TOOL_CALLS = 3
+
+# Single-step tool-call budget. When the executor's ReAct loop accumulates
+# this many tool_calls across all messages, _tool_budget_hook rewrites the
+# next AIMessage to a final answer instead of letting the loop spiral into
+# GraphRecursionError. Distinct from MAX_REPEATED_TOOL_CALLS — that one only
+# catches *identical* (name+args) repeats, this one catches breadth-style
+# loops on information-sparse targets (e.g. researching obscure companies).
+EXECUTOR_TOOL_BUDGET = 5
 
 # Module-level registry of PE thread ids with an active streaming generator.
 # Read by the `/plan-execute/inflight` endpoint so the deploy pipeline can
@@ -122,6 +130,46 @@ def _detect_repeated_tool_call(messages: list) -> Optional[str]:
             if counts[key] > MAX_REPEATED_TOOL_CALLS:
                 return name
     return None
+
+
+def _tool_budget_hook(state: dict) -> dict:
+    """In-flight tool-call budget guard for the executor ReAct subgraph.
+
+    Runs as create_react_agent's post_model_hook. If the cumulative tool_calls
+    across all messages reach EXECUTOR_TOOL_BUDGET *and* the latest AIMessage
+    is asking for yet more tools, rewrite that AIMessage to a budget-exhausted
+    final answer so should_continue routes the graph to END gracefully.
+
+    Returns {} to leave state untouched, or {"messages": [<rewritten>]} so the
+    add_messages reducer replaces the last AIMessage by id (graceful exit
+    without raising GraphRecursionError).
+    """
+    messages = state.get("messages") or []
+    if not messages:
+        return {}
+    last = messages[-1]
+    last_tool_calls = getattr(last, "tool_calls", None) or []
+    if not last_tool_calls:
+        return {}
+
+    total_calls = 0
+    for msg in messages:
+        total_calls += len(getattr(msg, "tool_calls", None) or [])
+    if total_calls < EXECUTOR_TOOL_BUDGET:
+        return {}
+
+    return {
+        "messages": [
+            AIMessage(
+                id=getattr(last, "id", None),
+                content=(
+                    f"BUDGET_EXHAUSTED: 工具调用累计 {total_calls} 次已达预算上限"
+                    f" ({EXECUTOR_TOOL_BUDGET})。基于已收集信息收尾——信息不足，"
+                    "已尝试多轮搜索但未获得足够公开资料。"
+                ),
+            )
+        ]
+    }
 
 
 class _ExecutorState(AgentState):
@@ -473,6 +521,8 @@ class PlanExecuteAgent:
                 executor_llm,
                 tools=tools,
                 state_schema=_ExecutorState,
+                post_model_hook=_tool_budget_hook,
+                version="v2",
             )
         return self._executor
 
@@ -498,6 +548,11 @@ class PlanExecuteAgent:
             f"LOOP GUARDRAIL — do not invoke the same tool with the same arguments more "
             f"than twice. If a tool returns an error, adjust your args meaningfully or "
             f"give up the step with a brief explanation instead of retrying verbatim.\n\n"
+            f"HARD RULE — RESEARCH BUDGET: 对调研 / research / 检索类任务，工具调用累计"
+            f"不得超过 {EXECUTOR_TOOL_BUDGET} 次。若 3 次搜索后仍未获得结构化有效信息，"
+            f"立即停止换关键词重试；如本步骤涉及公司调研，请调用 save_company_research"
+            f"(application_id, '信息不足：已尝试关键词 X、Y、Z，未获得有效公开资料') 收尾；"
+            f"否则直接以 final answer 说明信息不足。不要为了'再试一个角度'消耗预算。\n\n"
             f"User profile (use when helpful):\n{long_term_memory or '(none)'}\n\n"
             f"Pending jobs snapshot:\n{pending_applications or '(none)'}"
         )

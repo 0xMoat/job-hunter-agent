@@ -294,3 +294,115 @@ class TestDAGValidatorNode:
         assert validate_dag(final_plan) == [], (
             f"_dag_validator must always produce a valid DAG, errors: {validate_dag(final_plan)}"
         )
+
+
+# ============================================================================
+# e. Tool budget hook — end-to-end reproduction of the 元聚 production failure
+# ============================================================================
+
+
+class TestExecutorToolBudgetHook:
+    """E2E reproduction of the production GraphRecursionError on sparse-info
+    research targets (trace 0ffdddfa..., step A1 调研 元聚).
+
+    Construction is the real one: PlanExecuteAgent._get_executor() builds the
+    same create_react_agent call production uses (post_model_hook + version="v2").
+    We only swap the LLM (scripted to never stop calling tools) and the tools
+    list (single no-op fake tool, so we don't hit the network or DB).
+
+    Pre-fix: this exact scenario raised GraphRecursionError.
+    Post-fix: hook rewrites the budget-busting AIMessage, graph reaches END
+    with content matching "BUDGET_EXHAUSTED".
+    """
+
+    @pytest.mark.asyncio
+    async def test_executor_graceful_exit_on_endless_varied_tool_calls(
+        self, monkeypatch
+    ):
+        from langchain_core.language_models.fake_chat_models import (
+            GenericFakeChatModel,
+        )
+        from langchain_core.messages import AIMessage, HumanMessage
+        from langchain_core.tools import tool
+
+        from app.core.langgraph import plan_execute as pe_mod
+
+        @tool
+        def fake_search(query: str) -> str:
+            """No-op search returning empty results — simulates information-sparse target."""
+            return "[]"
+
+        class _ToolBindingFakeChatModel(GenericFakeChatModel):
+            """GenericFakeChatModel + a no-op bind_tools so create_react_agent works.
+
+            The default GenericFakeChatModel raises NotImplementedError on
+            bind_tools; pydantic forbids monkeypatching the method onto an
+            instance, so we subclass instead.
+            """
+
+            def bind_tools(self, _tools, **_kwargs):
+                return self
+
+        # Script the fake LLM to behave like the production LLM did on 元聚:
+        # endlessly emit duckduckgo-shaped tool_calls with *varied* args.
+        # Provide many more responses than EXECUTOR_TOOL_BUDGET so the test
+        # would loop indefinitely without the hook.
+        scripted = [
+            AIMessage(
+                id=f"ai-{i}",
+                content="",
+                tool_calls=[
+                    {
+                        "name": "fake_search",
+                        "args": {"query": f"元聚 attempt {i}"},
+                        "id": f"call-{i}",
+                    }
+                ],
+            )
+            for i in range(pe_mod.EXECUTOR_TOOL_BUDGET * 4)  # 20 — far past the cap
+        ]
+        fake_llm = _ToolBindingFakeChatModel(messages=iter(scripted))
+
+        # Swap the real ChatDeepSeek constructor used inside _get_executor.
+        monkeypatch.setattr(
+            pe_mod, "ChatDeepSeek", lambda **_kwargs: fake_llm
+        )
+        # Swap the imported tools list with our single no-op tool.
+        monkeypatch.setattr(pe_mod, "tools", [fake_search])
+
+        agent = pe_mod.PlanExecuteAgent()
+        executor = agent._get_executor()
+
+        # Sanity: the budget hook is actually wired.
+        assert "post_model_hook" in executor.nodes
+
+        # Invoke with a low outer recursion_limit too — proves we're NOT relying
+        # on hitting the recursion ceiling. The hook must finish earlier.
+        result = await executor.ainvoke(
+            {
+                "messages": [HumanMessage(content="调研 元聚")],
+                "long_term_memory": "",
+                "pending_applications": "",
+            },
+            config={"recursion_limit": pe_mod.EXECUTOR_RECURSION_LIMIT},
+        )
+
+        messages = result["messages"]
+        final = messages[-1]
+        assert isinstance(final, AIMessage)
+        # The hook rewrites with this token; loose contains check survives copy edits.
+        assert "BUDGET_EXHAUSTED" in final.content, (
+            f"final message should be the budget-exhausted notice, got: {final.content!r}"
+        )
+        assert not final.tool_calls, "final message must not request more tool calls"
+
+        # Hook fires the moment total tool_calls reaches EXECUTOR_TOOL_BUDGET (5).
+        # Because the budget-busting message is rewritten via same-id replacement,
+        # only the prior (BUDGET-1) successful rounds keep their tool_calls.
+        total_tool_calls = sum(
+            len(getattr(m, "tool_calls", None) or []) for m in messages
+        )
+        assert total_tool_calls < pe_mod.EXECUTOR_TOOL_BUDGET, (
+            f"total tool_calls ({total_tool_calls}) must be under the budget cap "
+            f"({pe_mod.EXECUTOR_TOOL_BUDGET}) once the rewrite lands"
+        )
