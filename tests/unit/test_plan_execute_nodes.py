@@ -371,9 +371,10 @@ def test_tool_budget_hook_passes_through_when_last_msg_has_no_tool_calls():
 
 
 def test_tool_budget_hook_rewrites_when_budget_exceeded_varied_args():
-    """Element of element of the production bug:
-    multiple tool_calls with *different* args still hit the budget.
-    Existing _detect_repeated_tool_call misses this — _tool_budget_hook catches it.
+    """Core regression of the production bug.
+
+    Multiple tool_calls with *different* args still hit the budget — existing
+    _detect_repeated_tool_call misses this case; _tool_budget_hook catches it.
     """
     msgs = []
     # Fill history with EXECUTOR_TOOL_BUDGET tool calls (varied queries)
@@ -385,7 +386,7 @@ def test_tool_budget_hook_rewrites_when_budget_exceeded_varied_args():
             )
         )
         msgs.append(
-            ToolMessage(content=f"result-{i}", tool_call_id=f"tc-0")
+            ToolMessage(content=f"result-{i}", tool_call_id="tc-0")
         )
     # Latest AIMessage tries yet another search
     last = _ai_with_calls(
@@ -423,3 +424,11 @@ def test_executor_compiled_with_post_model_hook():
     assert "post_model_hook" in executor.nodes, (
         "executor must have post_model_hook node — check create_react_agent kwargs"
     )
+
+
+def test_execute_step_prompt_contains_research_budget_rule():
+    """Lightweight regex assertion that the HARD RULE survives accidental rewrites."""
+    import re
+    src = open("app/core/langgraph/plan_execute.py").read()
+    assert re.search(r"RESEARCH BUDGET", src), "HARD RULE for research budget missing"
+    assert "EXECUTOR_TOOL_BUDGET" in src

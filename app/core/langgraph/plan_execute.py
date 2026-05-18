@@ -548,6 +548,11 @@ class PlanExecuteAgent:
             f"LOOP GUARDRAIL — do not invoke the same tool with the same arguments more "
             f"than twice. If a tool returns an error, adjust your args meaningfully or "
             f"give up the step with a brief explanation instead of retrying verbatim.\n\n"
+            f"HARD RULE — RESEARCH BUDGET: 对调研 / research / 检索类任务，工具调用累计"
+            f"不得超过 {EXECUTOR_TOOL_BUDGET} 次。若 3 次搜索后仍未获得结构化有效信息，"
+            f"立即停止换关键词重试；如本步骤涉及公司调研，请调用 save_company_research"
+            f"(application_id, '信息不足：已尝试关键词 X、Y、Z，未获得有效公开资料') 收尾；"
+            f"否则直接以 final answer 说明信息不足。不要为了'再试一个角度'消耗预算。\n\n"
             f"User profile (use when helpful):\n{long_term_memory or '(none)'}\n\n"
             f"Pending jobs snapshot:\n{pending_applications or '(none)'}"
         )
