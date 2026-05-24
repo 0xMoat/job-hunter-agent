@@ -44,10 +44,18 @@ MAX_ITERATIONS = 20
 # almost certainly an LLM self-correction loop or a hung upstream call.
 EXECUTOR_STEP_TIMEOUT_SECONDS = 180
 
-# Inner ReAct agent recursion budget. Sized generously enough for the
-# planner, one tool call, and a final answer (≈6 node traversals per
-# tool call), while staying well below anything that could spin overnight.
+# Inner ReAct agent recursion budget. Each tool round costs ≈2 supersteps
+# (agent + tool), plus initial agent call + final answer + post_model_hook —
+# so default budget=5 needs ≥12 supersteps; 25 gives generous headroom.
+# Overridden per step kind by EXECUTOR_RECURSION_LIMIT_BY_KIND below for
+# kinds whose EXECUTOR_TOOL_BUDGET is raised.
 EXECUTOR_RECURSION_LIMIT = 25
+
+# Step-kind-specific overrides. Must scale with EXECUTOR_TOOL_BUDGET_BY_KIND:
+# resume gets budget=10 → ≈22 supersteps → recursion=40 leaves margin.
+EXECUTOR_RECURSION_LIMIT_BY_KIND: dict[str, int] = {
+    "resume": 40,
+}
 
 # Max identical (tool_name, args_fingerprint) invocations per step before
 # we call it a loop. LLMs can legitimately retry a tool once after a
@@ -549,6 +557,7 @@ class PlanExecuteAgent:
 
         kind = _classify_step_artifact(step.text)
         budget = EXECUTOR_TOOL_BUDGET_BY_KIND.get(kind, EXECUTOR_TOOL_BUDGET)
+        recursion_limit = EXECUTOR_RECURSION_LIMIT_BY_KIND.get(kind, EXECUTOR_RECURSION_LIMIT)
 
         step_prompt = (
             f"You are executing step [{step.id}] of a larger plan.\n\n"
@@ -573,7 +582,7 @@ class PlanExecuteAgent:
         # Give the ReAct sub-graph its own bounded recursion budget so a stuck
         # step can't consume the outer graph's allowance.
         child_config = dict(config or {})
-        child_config["recursion_limit"] = EXECUTOR_RECURSION_LIMIT
+        child_config["recursion_limit"] = recursion_limit
 
         status = StepStatus.DONE.value
         step_start = time.time()

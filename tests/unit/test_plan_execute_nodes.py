@@ -474,3 +474,36 @@ def test_execute_step_prompt_contains_research_budget_rule():
     src = open("app/core/langgraph/plan_execute.py").read()
     assert re.search(r"RESEARCH BUDGET", src), "HARD RULE for research budget missing"
     assert "EXECUTOR_TOOL_BUDGET" in src
+
+
+# ---- per-kind recursion limit + pending_revise reducer ---------------------
+
+
+def test_executor_recursion_limit_by_kind_resume_is_higher():
+    """Resume budget=10 needs ≈22 supersteps; default 25 is too tight."""
+    from app.core.langgraph.plan_execute import (
+        EXECUTOR_RECURSION_LIMIT,
+        EXECUTOR_RECURSION_LIMIT_BY_KIND,
+    )
+
+    assert EXECUTOR_RECURSION_LIMIT_BY_KIND["resume"] == 40
+    assert EXECUTOR_RECURSION_LIMIT_BY_KIND.get("research", EXECUTOR_RECURSION_LIMIT) == 25
+
+
+def test_pending_revise_reducer_accepts_multiple_writes():
+    """Without _last_value reducer, two writes per superstep raise InvalidUpdateError."""
+    from langgraph.channels.last_value import LastValue
+    from typing import get_args, get_origin
+
+    from app.schemas.plan_execute import PlanExecuteState, _last_value
+
+    # Confirm the field actually has the reducer attached via Annotated metadata.
+    fields = PlanExecuteState.model_fields
+    annotation = fields["pending_revise"].metadata
+    assert _last_value in annotation, (
+        f"pending_revise must use _last_value reducer; got metadata={annotation}"
+    )
+
+    # Confirm the reducer itself takes the right value.
+    assert _last_value(True, False) is False
+    assert _last_value(False, True) is True
