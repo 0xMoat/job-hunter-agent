@@ -626,6 +626,23 @@ class PlanExecuteAgent:
         budget = EXECUTOR_TOOL_BUDGET_BY_KIND.get(kind, EXECUTOR_TOOL_BUDGET)
         recursion_limit = EXECUTOR_RECURSION_LIMIT_BY_KIND.get(kind, EXECUTOR_RECURSION_LIMIT)
 
+        # Kind-specific tool discipline (resume bundle should not detour into
+        # duckduckgo / company_research_tool — the JD card already has the
+        # research saved by the prior research step).
+        kind_rule = ""
+        if kind == "resume":
+            kind_rule = (
+                "HARD RULE — RESUME BUNDLE 专用纪律：本步骤的 ONLY 合法工具是 "
+                "`trigger_resume_studio_skill` → `save_tailored_resume` → `generate_resume_pdf` "
+                "(3 个一组)。**严禁** 调用 `duckduckgo_results_json` / `company_research_tool` "
+                "去搜 JD 或公司背景 —— JD 卡片 (application_id) 本身就含完整 JD 内容 + "
+                "前置 research step 已保存的调研摘要。`trigger_resume_studio_skill` 返回时"
+                "自动注入用户简历和 JD 上下文，**直接** 据此产出 tailored resume Markdown，"
+                "调 save_tailored_resume 落盘，再调 generate_resume_pdf 生成 PDF。"
+                "整步预算 10 次工具调用足够 (3 个 bundle + 最多 2 次重试)，**任何**搜索"
+                "尝试都是浪费预算并最终导致 BUDGET_EXHAUSTED 失败。\n\n"
+            )
+
         step_prompt = (
             f"You are executing step [{step.id}] of a larger plan.\n\n"
             f"Your task now: {step.text}\n\n"
@@ -634,6 +651,7 @@ class PlanExecuteAgent:
             f"with the actual content. Describing the action in your final reply without "
             f"calling the tool leaves the kanban card blank — the system verifies via tool "
             f"calls, not prose.\n\n"
+            f"{kind_rule}"
             f"LOOP GUARDRAIL — do not invoke the same tool with the same arguments more "
             f"than twice. If a tool returns an error, adjust your args meaningfully or "
             f"give up the step with a brief explanation instead of retrying verbatim.\n\n"

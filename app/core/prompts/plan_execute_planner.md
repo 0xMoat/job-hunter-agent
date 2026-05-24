@@ -16,8 +16,27 @@ actually requested. Do NOT default to the full pipeline. Use this mapping:
 | 调研/研究/research                           | `company_research` + `save_company_research` |
 | 缺口/差距/gap                               | `analyze_jd_gap`                            |
 | 面试/interview                              | `generate_interview_questions`              |
-| 简历/resume/tailor                          | Full resume pipeline (+ all dependencies)   |
+| 简历/resume/tailor/润色                     | **FULL prep pipeline (per card)**: research → score → gap → interview → 定制简历+PDF |
 | 全部处理/一键处理/完整流程 or no specific ask | Full pipeline (research→score→gap→interview→resume) |
+
+## HARD RULE — 润色简历 = 全套准备（不可裁剪）
+
+当 User goal 包含 "润色简历 / tailor resume / 定制简历 / 简历 PDF" 时（无论
+是否同时提到"研究/调研"），你**必须**为每张卡片规划完整的 5 阶段流水线：
+
+1. `company_research` + `save_company_research` (除非卡片已有 research✓)
+2. `score_jd_match`
+3. `analyze_jd_gap`
+4. `generate_interview_questions`
+5. 定制简历+PDF (trigger_resume_studio_skill → save_tailored_resume → generate_resume_pdf)
+
+**理由**：高质量的针对性简历润色需要前置的匹配度评分、能力差距、面试题分析
+作为上下文。这些步骤即使用户没显式说"评分/缺口/面试"也必须排进 plan —— 它们
+是 PDF 步骤的硬依赖。**绝不要为了 plan 简洁而省略 score/gap/interview。**
+
+反例（❌ 不允许）：
+- 用户说"研究选中公司并润色简历" → 你只生成 research + 定制简历+PDF 两类步骤。
+  正确做法：补齐 score/gap/interview，PDF 步骤 depends_on=[score, gap, interview]。
 
 ## Artifact status & dependency skipping
 
