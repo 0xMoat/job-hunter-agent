@@ -334,6 +334,7 @@ from langchain_core.messages import AIMessage, ToolMessage  # noqa: E402
 
 from app.core.langgraph.plan_execute import (  # noqa: E402
     EXECUTOR_TOOL_BUDGET,
+    EXECUTOR_TOOL_BUDGET_BY_KIND,
     _tool_budget_hook,
 )
 
@@ -414,6 +415,47 @@ def test_tool_budget_hook_counts_across_multi_call_messages():
     result = _tool_budget_hook({"messages": [one_big_msg]})
     assert "messages" in result
     assert not result["messages"][0].tool_calls
+
+
+def test_tool_budget_hook_respects_higher_per_step_budget():
+    """A per-step budget passed in state overrides the module default."""
+    msgs = []
+    for i in range(EXECUTOR_TOOL_BUDGET):
+        msgs.append(
+            _ai_with_calls(
+                [("save_tailored_resume", {"i": i})], msg_id=f"hist-{i}"
+            )
+        )
+        msgs.append(ToolMessage(content=f"r-{i}", tool_call_id="tc-0"))
+    msgs.append(_ai_with_calls([("generate_resume_pdf", {})], msg_id="last"))
+
+    result = _tool_budget_hook({"messages": msgs, "tool_budget": 10})
+    assert result == {}
+
+
+def test_tool_budget_hook_reports_actual_budget_in_message():
+    """Rewritten message must report the per-step budget, not the module default."""
+    msgs = []
+    for i in range(9):
+        msgs.append(
+            _ai_with_calls(
+                [("save_tailored_resume", {"i": i})], msg_id=f"hist-{i}"
+            )
+        )
+        msgs.append(ToolMessage(content=f"r-{i}", tool_call_id="tc-0"))
+    msgs.append(_ai_with_calls([("generate_resume_pdf", {})], msg_id="last"))
+
+    result = _tool_budget_hook({"messages": msgs, "tool_budget": 10})
+    assert "messages" in result
+    content = result["messages"][0].content
+    assert "10 次" in content
+    assert "(10)" in content
+
+
+def test_executor_tool_budget_by_kind_resume_is_higher():
+    """Resume bundles 3 tool calls, so its per-step budget must exceed the default."""
+    assert EXECUTOR_TOOL_BUDGET_BY_KIND["resume"] == 10
+    assert EXECUTOR_TOOL_BUDGET_BY_KIND.get("research", EXECUTOR_TOOL_BUDGET) == 5
 
 
 def test_executor_compiled_with_post_model_hook():
