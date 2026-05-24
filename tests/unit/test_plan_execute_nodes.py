@@ -490,6 +490,18 @@ def test_executor_recursion_limit_by_kind_resume_is_higher():
     assert EXECUTOR_RECURSION_LIMIT_BY_KIND.get("research", EXECUTOR_RECURSION_LIMIT) == 25
 
 
+def test_is_synthetic_tool_name_filters_underscore_prefixed():
+    """Synthetic with_structured_output schemas (e.g. _Breakdown) must be filtered."""
+    from app.core.langgraph.plan_execute import _is_synthetic_tool_name
+
+    assert _is_synthetic_tool_name("_Breakdown") is True
+    assert _is_synthetic_tool_name("_Dim") is True
+    assert _is_synthetic_tool_name("score_jd_match") is False
+    assert _is_synthetic_tool_name("duckduckgo_results_json") is False
+    assert _is_synthetic_tool_name(None) is False
+    assert _is_synthetic_tool_name("") is False
+
+
 def test_pending_revise_reducer_accepts_multiple_writes():
     """Without _last_value reducer, two writes per superstep raise InvalidUpdateError."""
     from langgraph.channels.last_value import LastValue

@@ -63,6 +63,16 @@ function savePlanExecuteCache(sessionId: string, messages: ChatMessage[]): void 
   }
 }
 
+/**
+ * Pydantic schemas used with LangChain's with_structured_output become
+ * synthetic tool calls on the wire (e.g. _Breakdown from score_jd_match).
+ * By convention these schemas start with `_`. Backend filters them, this
+ * is defense-in-depth so a missed event never paints a placeholder card.
+ */
+function isSyntheticToolName(name: string | null | undefined): boolean {
+  return !!name && name.startsWith("_")
+}
+
 function applyPlanChunkToMessage(
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>,
   assistantId: string,
@@ -132,6 +142,7 @@ function applyPlanChunkToMessage(
     return
   }
   if (chunk.type === "step_tool_call") {
+    if (isSyntheticToolName(chunk.tool_name)) return
     setMessages((prev) =>
       prev.map((m) => {
         if (m.id !== assistantId || !m.planExecute) return m
@@ -170,6 +181,7 @@ function applyPlanChunkToMessage(
     return
   }
   if (chunk.type === "step_tool_result") {
+    if (isSyntheticToolName(chunk.tool_name)) return
     setMessages((prev) =>
       prev.map((m) => {
         if (m.id !== assistantId || !m.planExecute) return m
@@ -639,6 +651,7 @@ export function useChat({
                 ),
               )
             } else if (chunk.type === "tool_call" && chunk.tool_name) {
+              if (isSyntheticToolName(chunk.tool_name)) continue
               const entry: ToolCallEntry = {
                 toolCallId: chunk.tool_call_id ?? makeId(),
                 toolName: chunk.tool_name,
@@ -699,6 +712,7 @@ export function useChat({
                 )
               }
             } else if (chunk.type === "tool_result" && chunk.tool_call_id) {
+              if (isSyntheticToolName(chunk.tool_name)) continue
               setMessages((prev) =>
                 prev.map((m) => {
                   if (m.id !== assistantId) return m
