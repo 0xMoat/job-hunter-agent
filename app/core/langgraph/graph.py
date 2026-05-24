@@ -762,3 +762,84 @@ class LangGraphAgent:
         except Exception as e:
             logger.error("Failed to clear chat history", error=str(e))
             raise
+
+    async def annotate_pe_outcome(
+        self,
+        session_id: str,
+        outcome: str,
+        user_feedback: str | None = None,
+    ) -> bool:
+        """Stamp the latest start_plan_execute ToolMessage with the PE outcome.
+
+        After a Plan-Execute run terminates (cancel / completed / failed), the
+        chat agent's thread has a stale tool-result message saying only that a
+        handoff happened. Without an outcome marker, when the user repeats the
+        same multi-step request, the chat LLM sees the prior handoff and
+        infers PE succeeded — then handles the work inline instead of
+        re-triggering PE. This method enriches that tool-result message with
+        a `status` field (and optional `user_feedback`) so the next turn's
+        LLM has the signal it needs.
+
+        Walks backward through the chat thread's message history, finds the
+        most recent ToolMessage whose JSON content carries
+        HANDOFF_MARKER_KEY, rewrites it in place (same id), and returns True.
+        If no handoff message is found (PE was started via direct API call,
+        not via chat handoff), returns False without raising.
+        """
+        from app.core.langgraph.tools.start_plan_execute import HANDOFF_MARKER_KEY
+
+        if self._graph is None:
+            self._graph = await self.create_graph()
+        if self._graph is None:
+            return False
+
+        config: RunnableConfig = {"configurable": {"thread_id": session_id}}
+        try:
+            state: StateSnapshot = await self._graph.aget_state(config=config)
+        except Exception:
+            logger.exception("annotate_pe_outcome_get_state_failed", session_id=session_id)
+            return False
+        if not state or not state.values:
+            return False
+
+        messages = state.values.get("messages") or []
+        for msg in reversed(messages):
+            if not isinstance(msg, ToolMessage):
+                continue
+            content = msg.content if isinstance(msg.content, str) else None
+            if not content:
+                continue
+            try:
+                payload = _json.loads(content)
+            except (ValueError, TypeError):
+                continue
+            if not isinstance(payload, dict) or not payload.get(HANDOFF_MARKER_KEY):
+                continue
+
+            payload["status"] = outcome
+            if user_feedback:
+                payload["user_feedback"] = user_feedback
+
+            new_msg = ToolMessage(
+                id=msg.id,
+                tool_call_id=msg.tool_call_id,
+                content=_json.dumps(payload, ensure_ascii=False),
+            )
+            try:
+                await self._graph.aupdate_state(config, {"messages": [new_msg]})
+            except Exception:
+                logger.exception(
+                    "annotate_pe_outcome_update_failed",
+                    session_id=session_id,
+                    outcome=outcome,
+                )
+                return False
+            logger.info(
+                "pe_outcome_annotated",
+                session_id=session_id,
+                outcome=outcome,
+                has_feedback=bool(user_feedback),
+            )
+            return True
+
+        return False

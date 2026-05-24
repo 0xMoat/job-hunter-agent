@@ -224,6 +224,12 @@ async def plan_execute(
         start = time.monotonic()
         first_token_time: float | None = None
         output_chars: int = 0
+        # Track terminal outcome so the chat agent's handoff tool-result
+        # message can be annotated afterward. Without this, when the user
+        # repeats the same multi-step request, the chat LLM sees the prior
+        # handoff and infers PE succeeded — then handles inline instead of
+        # re-triggering PE.
+        pe_outcome: str | None = "cancelled_by_user" if body.resume_action == "cancel" else None
         try:
             resume_payload = None
             if is_resume:
@@ -245,10 +251,15 @@ async def plan_execute(
                         llm_ttft_seconds.labels(agent="plan_execute").observe(first_token_time - start)
                     if chunk_type == "step_text_delta" and parsed.get("content"):
                         output_chars += len(parsed["content"])
+                    if chunk_type == "final_response":
+                        pe_outcome = "completed"
+                    elif chunk_type == "error":
+                        pe_outcome = "failed"
                 except Exception:
                     pass
                 yield f"data: {chunk}\n\n"
         except Exception as e:
+            pe_outcome = "failed"
             logger.exception("plan_execute_stream_failed", session_id=session.id)
             yield f"data: {_json.dumps({'type': 'error', 'message': str(e), 'done': True})}\n\n"
         finally:
@@ -259,6 +270,22 @@ async def plan_execute(
                 est_tokens = max(output_chars / 4.0, 1.0)
                 llm_tpot_seconds.labels(agent="plan_execute").observe(decode_time / est_tokens)
             active_streams.labels(agent="plan_execute").dec()
+            # Best-effort: stamp the chat agent's prior handoff message with
+            # this run's outcome. Failure here is non-fatal (the SSE has
+            # already been delivered to the client).
+            if pe_outcome:
+                try:
+                    await agent.annotate_pe_outcome(
+                        session.id,
+                        pe_outcome,
+                        user_feedback=body.feedback if body.resume_action == "revise" else None,
+                    )
+                except Exception:
+                    logger.exception(
+                        "annotate_pe_outcome_failed",
+                        session_id=session.id,
+                        outcome=pe_outcome,
+                    )
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 

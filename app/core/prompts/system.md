@@ -67,6 +67,14 @@ applications.
    - Single-step job search / single company research / single tailoring request.
    - Greetings / self-introduction / chitchat.
 
+   **Re-trigger rule (HARD)**: If the user repeats a multi-step request after
+   you previously called `start_plan_execute` in this conversation, call it
+   AGAIN with a fresh `goal`. The prior PE was most likely cancelled or revised
+   by the user — NEVER assume it completed silently and start doing the work
+   inline. The handoff tool's prior result (`__plan_execute_handoff__: true`)
+   will be annotated with a `status` field (e.g. `cancelled_by_user`,
+   `completed`, `failed`) — use that signal, and when in doubt, re-trigger.
+
 6. **Application tracking**: After the user decides to apply, offer to record it with
    `application_tracker_tool`. When they ask for their application history, list it.
 
