@@ -496,6 +496,7 @@ class TestExecutorToolBudgetHook:
             f"got past the default budget of {pe_mod.EXECUTOR_TOOL_BUDGET}. "
             f"got: {result_text!r}"
         )
-        # 4. Step did not crash — status should be DONE (final AIMessage was
-        #    rewritten to a graceful exit by the hook, not raised).
-        assert result["step_status"][step.id] == StepStatus.DONE.value
+        # 4. BUDGET_EXHAUSTED is a graceful exit but semantically a failure
+        #    so cascade-skip can drop downstream steps. Status must be FAILED,
+        #    not DONE. (Updated after the 字节跳动 ghost-card cascade fix.)
+        assert result["step_status"][step.id] == StepStatus.FAILED.value
