@@ -60,7 +60,15 @@ MAX_REPEATED_TOOL_CALLS = 3
 # GraphRecursionError. Distinct from MAX_REPEATED_TOOL_CALLS — that one only
 # catches *identical* (name+args) repeats, this one catches breadth-style
 # loops on information-sparse targets (e.g. researching obscure companies).
+# Overridden per step kind by EXECUTOR_TOOL_BUDGET_BY_KIND below.
 EXECUTOR_TOOL_BUDGET = 5
+
+# Step-kind-specific overrides. Resume bundles 3 sequential tool calls
+# (trigger_resume_studio_skill → save_tailored_resume → generate_resume_pdf)
+# plus 1-2 prep calls, so the default 5 cuts the bundle off mid-flight.
+EXECUTOR_TOOL_BUDGET_BY_KIND: dict[str, int] = {
+    "resume": 10,
+}
 
 # Module-level registry of PE thread ids with an active streaming generator.
 # Read by the `/plan-execute/inflight` endpoint so the deploy pipeline can
@@ -152,10 +160,11 @@ def _tool_budget_hook(state: dict) -> dict:
     if not last_tool_calls:
         return {}
 
+    budget = state.get("tool_budget") or EXECUTOR_TOOL_BUDGET
     total_calls = 0
     for msg in messages:
         total_calls += len(getattr(msg, "tool_calls", None) or [])
-    if total_calls < EXECUTOR_TOOL_BUDGET:
+    if total_calls < budget:
         return {}
 
     return {
@@ -164,7 +173,7 @@ def _tool_budget_hook(state: dict) -> dict:
                 id=getattr(last, "id", None),
                 content=(
                     f"BUDGET_EXHAUSTED: 工具调用累计 {total_calls} 次已达预算上限"
-                    f" ({EXECUTOR_TOOL_BUDGET})。基于已收集信息收尾——信息不足，"
+                    f" ({budget})。基于已收集信息收尾——信息不足，"
                     "已尝试多轮搜索但未获得足够公开资料。"
                 ),
             )
@@ -182,6 +191,7 @@ class _ExecutorState(AgentState):
 
     long_term_memory: str
     pending_applications: str
+    tool_budget: int
 
 
 class PlanExecuteAgent:
@@ -537,6 +547,9 @@ class PlanExecuteAgent:
         long_term_memory: str = state.get("long_term_memory", "")
         pending_applications: str = state.get("pending_applications", "")
 
+        kind = _classify_step_artifact(step.text)
+        budget = EXECUTOR_TOOL_BUDGET_BY_KIND.get(kind, EXECUTOR_TOOL_BUDGET)
+
         step_prompt = (
             f"You are executing step [{step.id}] of a larger plan.\n\n"
             f"Your task now: {step.text}\n\n"
@@ -549,7 +562,7 @@ class PlanExecuteAgent:
             f"than twice. If a tool returns an error, adjust your args meaningfully or "
             f"give up the step with a brief explanation instead of retrying verbatim.\n\n"
             f"HARD RULE — RESEARCH BUDGET: 对调研 / research / 检索类任务，工具调用累计"
-            f"不得超过 {EXECUTOR_TOOL_BUDGET} 次。若 3 次搜索后仍未获得结构化有效信息，"
+            f"不得超过 {budget} 次。若 3 次搜索后仍未获得结构化有效信息，"
             f"立即停止换关键词重试；如本步骤涉及公司调研，请调用 save_company_research"
             f"(application_id, '信息不足：已尝试关键词 X、Y、Z，未获得有效公开资料') 收尾；"
             f"否则直接以 final answer 说明信息不足。不要为了'再试一个角度'消耗预算。\n\n"
@@ -572,6 +585,7 @@ class PlanExecuteAgent:
                         "messages": [HumanMessage(content=step_prompt)],
                         "long_term_memory": long_term_memory,
                         "pending_applications": pending_applications,
+                        "tool_budget": budget,
                     },
                     config=child_config,
                 ),
