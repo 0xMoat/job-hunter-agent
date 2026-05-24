@@ -28,6 +28,13 @@ async def start_plan_execute(goal: str, reason: str) -> str:
     research, one resume tailor). Those run faster directly via the chat
     agent without the planning overhead.
 
+    If you previously called this tool in the same conversation and the
+    user repeats a multi-step request, ALWAYS call this tool again with a
+    fresh `goal`. The prior PE was most likely cancelled or revised by the
+    user — never assume it completed and resort to inline tool calls.
+    Check the prior handoff result's `status` field if present
+    (`cancelled_by_user`, `completed`, `failed`).
+
     Args:
         goal: A self-contained one-sentence restatement of the user's
             intent, in the user's language. The PE planner will use this
