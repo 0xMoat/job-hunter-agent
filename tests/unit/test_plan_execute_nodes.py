@@ -615,3 +615,113 @@ def test_pending_revise_reducer_accepts_multiple_writes():
     # Confirm the reducer itself takes the right value.
     assert _last_value(True, False) is False
     assert _last_value(False, True) is True
+
+
+# ---- Fix 1: BUDGET_EXHAUSTED → FAILED status -----------------------------
+
+
+async def test_execute_step_marks_budget_exhausted_as_failed(monkeypatch):
+    """When executor returns a BUDGET_EXHAUSTED message, _execute_step must
+    record the step as FAILED (not DONE) so cascade-skip can drop downstream
+    work. Regression guard for the 字节跳动 incident chain.
+    """
+    from app.core.langgraph.plan_execute import PlanExecuteAgent, StepStatus
+    from app.schemas.plan_execute import PlanStep
+
+    agent = PlanExecuteAgent()
+
+    class _FakeExecutor:
+        async def ainvoke(self, _inputs, config=None):
+            return {
+                "messages": [
+                    AIMessage(
+                        content="BUDGET_EXHAUSTED: 工具调用累计 5 次已达预算上限 (5)。基于已收集信息收尾。",
+                        id="final",
+                    )
+                ]
+            }
+
+    monkeypatch.setattr(agent, "_get_executor", lambda: _FakeExecutor())
+    # Bypass orphan-Send guard for this isolated unit test.
+    async def _no_orphan(*args, **kwargs):
+        class _S:
+            values = None
+        return _S()
+    monkeypatch.setattr(agent, "_graph", type("G", (), {"aget_state": staticmethod(_no_orphan)})())
+
+    step = PlanStep(id="B1", text="company_research(card=51)", depends_on=[])
+    result = await agent._execute_step(
+        {"step": step, "long_term_memory": "", "pending_applications": ""},
+        config={"configurable": {"thread_id": "t1"}},
+    )
+    assert result["step_status"]["B1"] == StepStatus.FAILED.value, (
+        f"BUDGET_EXHAUSTED must mark step FAILED, got {result['step_status']}"
+    )
+    assert "BUDGET_EXHAUSTED" in result["step_results"]["B1"]
+
+
+# ---- Fix 2: orphan-Send guard --------------------------------------------
+
+
+async def test_execute_step_skips_orphan_send_when_step_not_in_current_plan(monkeypatch):
+    """If replanner removed this step from the plan between Send dispatch and
+    executor entry, _execute_step should mark SKIPPED and return early —
+    without invoking the inner ReAct agent.
+    """
+    from app.core.langgraph.plan_execute import PlanExecuteAgent, StepStatus
+    from app.schemas.plan_execute import PlanStep
+
+    agent = PlanExecuteAgent()
+
+    # Fake outer state with a plan that DOES NOT contain step "B5".
+    class _FakeState:
+        values = {"plan": [PlanStep(id="A2", text="x", depends_on=[])]}
+
+    async def _aget_state(_config):
+        return _FakeState()
+    monkeypatch.setattr(agent, "_graph", type("G", (), {"aget_state": staticmethod(_aget_state)})())
+
+    # If the orphan guard fails, executor would be invoked. Make it explode
+    # so the test catches that regression loudly.
+    class _ExplodingExecutor:
+        async def ainvoke(self, *a, **k):
+            raise AssertionError("orphan guard should have prevented executor invocation")
+    monkeypatch.setattr(agent, "_get_executor", lambda: _ExplodingExecutor())
+
+    step = PlanStep(id="B5", text="为 application_id=51 PDF", depends_on=["B2","B3","B4"])
+    result = await agent._execute_step(
+        {"step": step, "long_term_memory": "", "pending_applications": ""},
+        config={"configurable": {"thread_id": "t1"}},
+    )
+    assert result["step_status"]["B5"] == StepStatus.SKIPPED.value
+    assert "已被 replanner" in result["step_results"]["B5"]
+
+
+async def test_execute_step_proceeds_when_step_still_in_plan(monkeypatch):
+    """Negative control: when step IS in current plan, orphan guard is a no-op
+    and executor runs normally.
+    """
+    from app.core.langgraph.plan_execute import PlanExecuteAgent, StepStatus
+    from app.schemas.plan_execute import PlanStep
+
+    agent = PlanExecuteAgent()
+
+    target_step = PlanStep(id="A1", text="research", depends_on=[])
+
+    class _FakeState:
+        values = {"plan": [target_step]}
+
+    async def _aget_state(_config):
+        return _FakeState()
+    monkeypatch.setattr(agent, "_graph", type("G", (), {"aget_state": staticmethod(_aget_state)})())
+
+    class _FakeExecutor:
+        async def ainvoke(self, _inputs, config=None):
+            return {"messages": [AIMessage(content="done!", id="x")]}
+    monkeypatch.setattr(agent, "_get_executor", lambda: _FakeExecutor())
+
+    result = await agent._execute_step(
+        {"step": target_step, "long_term_memory": "", "pending_applications": ""},
+        config={"configurable": {"thread_id": "t1"}},
+    )
+    assert result["step_status"]["A1"] == StepStatus.DONE.value
