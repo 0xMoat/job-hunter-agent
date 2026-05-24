@@ -434,22 +434,81 @@ def test_tool_budget_hook_respects_higher_per_step_budget():
 
 
 def test_tool_budget_hook_reports_actual_budget_in_message():
-    """Rewritten message must report the per-step budget, not the module default."""
+    """Rewritten message must report the per-step budget, not the module default.
+    Uses non-commit (research) tools so the commit exemption doesn't bypass.
+    """
     msgs = []
     for i in range(9):
         msgs.append(
             _ai_with_calls(
-                [("save_tailored_resume", {"i": i})], msg_id=f"hist-{i}"
+                [("duckduckgo_results_json", {"q": f"hist-{i}"})], msg_id=f"hist-{i}"
             )
         )
         msgs.append(ToolMessage(content=f"r-{i}", tool_call_id="tc-0"))
-    msgs.append(_ai_with_calls([("generate_resume_pdf", {})], msg_id="last"))
+    msgs.append(_ai_with_calls([("company_research_tool", {"company_name": "X"})], msg_id="last"))
 
     result = _tool_budget_hook({"messages": msgs, "tool_budget": 10})
     assert "messages" in result
     content = result["messages"][0].content
     assert "10 次" in content
     assert "(10)" in content
+
+
+def test_is_commit_tool_recognises_save_and_generate_prefixes():
+    """save_* / generate_* tools persist already-collected work and must be
+    exempt from the budget cap (regression guard for 字节跳动 incident).
+    """
+    from app.core.langgraph.plan_execute import _is_commit_tool
+
+    assert _is_commit_tool("save_company_research") is True
+    assert _is_commit_tool("save_tailored_resume") is True
+    assert _is_commit_tool("generate_resume_pdf") is True
+    assert _is_commit_tool("duckduckgo_results_json") is False
+    assert _is_commit_tool("company_research_tool") is False
+    assert _is_commit_tool(None) is False
+    assert _is_commit_tool("") is False
+
+
+def test_tool_budget_hook_lets_commit_call_through_at_budget_cap():
+    """The 5th call being a save_* must not be blocked, even when total reaches
+    the budget — otherwise we lose the entire step's collected research.
+    Reproduction of the 字节跳动 incident.
+    """
+    # 4 research calls already in history
+    msgs = []
+    for i in range(4):
+        msgs.append(_ai_with_calls([("duckduckgo_results_json", {"q": f"字节跳动 q{i}"})], msg_id=f"hist-{i}"))
+        msgs.append(ToolMessage(content=f"r-{i}", tool_call_id="tc-0"))
+    # 5th call wants to save — this is the productive commit
+    msgs.append(_ai_with_calls([("save_company_research", {"application_id": 51, "content": "report"})], msg_id="last"))
+
+    result = _tool_budget_hook({"messages": msgs})
+    assert result == {}, "commit-style 5th call must pass through, not get rewritten"
+
+
+def test_tool_budget_hook_lets_generate_through_at_budget_cap():
+    msgs = []
+    for i in range(EXECUTOR_TOOL_BUDGET - 1):
+        msgs.append(_ai_with_calls([("duckduckgo_results_json", {"q": f"q{i}"})], msg_id=f"hist-{i}"))
+        msgs.append(ToolMessage(content=f"r-{i}", tool_call_id="tc-0"))
+    msgs.append(_ai_with_calls([("generate_resume_pdf", {"application_id": 1, "resume_json": "{}"})], msg_id="last"))
+
+    result = _tool_budget_hook({"messages": msgs})
+    assert result == {}
+
+
+def test_tool_budget_hook_still_blocks_non_commit_at_cap():
+    """Regression guard: non-commit calls (research) are STILL blocked at cap."""
+    msgs = []
+    for i in range(EXECUTOR_TOOL_BUDGET - 1):
+        msgs.append(_ai_with_calls([("duckduckgo_results_json", {"q": f"q{i}"})], msg_id=f"hist-{i}"))
+        msgs.append(ToolMessage(content=f"r-{i}", tool_call_id="tc-0"))
+    # Non-commit 5th call — should be blocked
+    msgs.append(_ai_with_calls([("duckduckgo_results_json", {"q": "one more"})], msg_id="last"))
+
+    result = _tool_budget_hook({"messages": msgs})
+    assert "messages" in result
+    assert "BUDGET_EXHAUSTED" in result["messages"][0].content
 
 
 def test_executor_tool_budget_by_kind_resume_is_higher():
@@ -490,6 +549,43 @@ def test_executor_recursion_limit_by_kind_resume_is_higher():
     assert EXECUTOR_RECURSION_LIMIT_BY_KIND.get("research", EXECUTOR_RECURSION_LIMIT) == 25
 
 
+def test_ready_sends_carry_step_id_for_namespace_mapping():
+    """Send arg must include step_id so the outer streaming layer can bind
+    executor namespaces to their plan step deterministically (not FIFO).
+    """
+    from app.core.langgraph.plan_execute import PlanExecuteAgent
+    from app.schemas.plan_execute import PlanExecuteState, PlanStep, StepStatus
+
+    state = PlanExecuteState(
+        input="x",
+        plan=[
+            PlanStep(id="A1", text="调研 X", depends_on=[]),
+            PlanStep(id="A2", text="调研 Y", depends_on=[]),
+        ],
+        step_status={
+            "A1": StepStatus.PENDING.value,
+            "A2": StepStatus.PENDING.value,
+        },
+    )
+    sends = PlanExecuteAgent()._get_ready_sends(state)
+    assert len(sends) == 2
+    for s in sends:
+        assert "step_id" in s.arg, "every Send arg must carry step_id"
+        assert s.arg["step_id"] == s.arg["step"].id
+
+
+def test_executor_state_declares_step_id_channel():
+    """_ExecutorState must declare step_id so the subgraph emits it in
+    values events (used by the outer streamer for namespace mapping).
+    """
+    from app.core.langgraph.plan_execute import _ExecutorState
+
+    annotations = getattr(_ExecutorState, "__annotations__", {})
+    assert "step_id" in annotations, (
+        "_ExecutorState must annotate step_id so the channel is created"
+    )
+
+
 def test_is_synthetic_tool_name_filters_underscore_prefixed():
     """Synthetic with_structured_output schemas (e.g. _Breakdown) must be filtered."""
     from app.core.langgraph.plan_execute import _is_synthetic_tool_name
@@ -519,3 +615,113 @@ def test_pending_revise_reducer_accepts_multiple_writes():
     # Confirm the reducer itself takes the right value.
     assert _last_value(True, False) is False
     assert _last_value(False, True) is True
+
+
+# ---- Fix 1: BUDGET_EXHAUSTED → FAILED status -----------------------------
+
+
+async def test_execute_step_marks_budget_exhausted_as_failed(monkeypatch):
+    """When executor returns a BUDGET_EXHAUSTED message, _execute_step must
+    record the step as FAILED (not DONE) so cascade-skip can drop downstream
+    work. Regression guard for the 字节跳动 incident chain.
+    """
+    from app.core.langgraph.plan_execute import PlanExecuteAgent, StepStatus
+    from app.schemas.plan_execute import PlanStep
+
+    agent = PlanExecuteAgent()
+
+    class _FakeExecutor:
+        async def ainvoke(self, _inputs, config=None):
+            return {
+                "messages": [
+                    AIMessage(
+                        content="BUDGET_EXHAUSTED: 工具调用累计 5 次已达预算上限 (5)。基于已收集信息收尾。",
+                        id="final",
+                    )
+                ]
+            }
+
+    monkeypatch.setattr(agent, "_get_executor", lambda: _FakeExecutor())
+    # Bypass orphan-Send guard for this isolated unit test.
+    async def _no_orphan(*args, **kwargs):
+        class _S:
+            values = None
+        return _S()
+    monkeypatch.setattr(agent, "_graph", type("G", (), {"aget_state": staticmethod(_no_orphan)})())
+
+    step = PlanStep(id="B1", text="company_research(card=51)", depends_on=[])
+    result = await agent._execute_step(
+        {"step": step, "long_term_memory": "", "pending_applications": ""},
+        config={"configurable": {"thread_id": "t1"}},
+    )
+    assert result["step_status"]["B1"] == StepStatus.FAILED.value, (
+        f"BUDGET_EXHAUSTED must mark step FAILED, got {result['step_status']}"
+    )
+    assert "BUDGET_EXHAUSTED" in result["step_results"]["B1"]
+
+
+# ---- Fix 2: orphan-Send guard --------------------------------------------
+
+
+async def test_execute_step_skips_orphan_send_when_step_not_in_current_plan(monkeypatch):
+    """If replanner removed this step from the plan between Send dispatch and
+    executor entry, _execute_step should mark SKIPPED and return early —
+    without invoking the inner ReAct agent.
+    """
+    from app.core.langgraph.plan_execute import PlanExecuteAgent, StepStatus
+    from app.schemas.plan_execute import PlanStep
+
+    agent = PlanExecuteAgent()
+
+    # Fake outer state with a plan that DOES NOT contain step "B5".
+    class _FakeState:
+        values = {"plan": [PlanStep(id="A2", text="x", depends_on=[])]}
+
+    async def _aget_state(_config):
+        return _FakeState()
+    monkeypatch.setattr(agent, "_graph", type("G", (), {"aget_state": staticmethod(_aget_state)})())
+
+    # If the orphan guard fails, executor would be invoked. Make it explode
+    # so the test catches that regression loudly.
+    class _ExplodingExecutor:
+        async def ainvoke(self, *a, **k):
+            raise AssertionError("orphan guard should have prevented executor invocation")
+    monkeypatch.setattr(agent, "_get_executor", lambda: _ExplodingExecutor())
+
+    step = PlanStep(id="B5", text="为 application_id=51 PDF", depends_on=["B2","B3","B4"])
+    result = await agent._execute_step(
+        {"step": step, "long_term_memory": "", "pending_applications": ""},
+        config={"configurable": {"thread_id": "t1"}},
+    )
+    assert result["step_status"]["B5"] == StepStatus.SKIPPED.value
+    assert "已被 replanner" in result["step_results"]["B5"]
+
+
+async def test_execute_step_proceeds_when_step_still_in_plan(monkeypatch):
+    """Negative control: when step IS in current plan, orphan guard is a no-op
+    and executor runs normally.
+    """
+    from app.core.langgraph.plan_execute import PlanExecuteAgent, StepStatus
+    from app.schemas.plan_execute import PlanStep
+
+    agent = PlanExecuteAgent()
+
+    target_step = PlanStep(id="A1", text="research", depends_on=[])
+
+    class _FakeState:
+        values = {"plan": [target_step]}
+
+    async def _aget_state(_config):
+        return _FakeState()
+    monkeypatch.setattr(agent, "_graph", type("G", (), {"aget_state": staticmethod(_aget_state)})())
+
+    class _FakeExecutor:
+        async def ainvoke(self, _inputs, config=None):
+            return {"messages": [AIMessage(content="done!", id="x")]}
+    monkeypatch.setattr(agent, "_get_executor", lambda: _FakeExecutor())
+
+    result = await agent._execute_step(
+        {"step": target_step, "long_term_memory": "", "pending_applications": ""},
+        config={"configurable": {"thread_id": "t1"}},
+    )
+    assert result["step_status"]["A1"] == StepStatus.DONE.value

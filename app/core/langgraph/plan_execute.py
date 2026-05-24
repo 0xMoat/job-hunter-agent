@@ -17,6 +17,7 @@ from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, Sys
 from langchain_deepseek import ChatDeepSeek
 from langfuse.langchain import CallbackHandler
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+from langgraph.config import get_stream_writer
 from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
@@ -131,6 +132,15 @@ def _is_synthetic_tool_name(name: Optional[str]) -> bool:
     return bool(name) and name.startswith("_")
 
 
+def _is_commit_tool(name: Optional[str]) -> bool:
+    """Commit-style tools persist already-collected work (save_company_research,
+    save_tailored_resume, generate_resume_pdf, etc.). The budget hook must
+    never kill them — doing so loses the entire step's output, which is what
+    caused the 字节跳动 BUDGET_EXHAUSTED-with-no-saved-research incident.
+    """
+    return bool(name) and (name.startswith("save_") or name.startswith("generate_"))
+
+
 def _detect_repeated_tool_call(messages: list) -> Optional[str]:
     """Return tool name if one was invoked with identical args beyond the cap.
 
@@ -178,6 +188,15 @@ def _tool_budget_hook(state: dict) -> dict:
     if not last_tool_calls:
         return {}
 
+    # Never block commit-style calls (save_* / generate_*) — they persist the
+    # step's already-collected work. Killing the save loses the whole step,
+    # which is what caused the 字节跳动 incident (4 successful researches
+    # discarded because the 5th call was the save).
+    def _name_of(tc):
+        return tc.get("name") if isinstance(tc, dict) else getattr(tc, "name", None)
+    if all(_is_commit_tool(_name_of(tc)) for tc in last_tool_calls):
+        return {}
+
     budget = state.get("tool_budget") or EXECUTOR_TOOL_BUDGET
     total_calls = 0
     for msg in messages:
@@ -204,12 +223,15 @@ class _ExecutorState(AgentState):
 
     Adds `long_term_memory` and `pending_applications` so tools using
     `InjectedState(...)` (e.g. trigger_resume_studio_skill) can read them
-    from graph state.
+    from graph state. `step_id` is set from the Send arg so the outer
+    streaming layer can deterministically map executor namespaces to
+    their plan step (replacing the buggy FIFO-by-message-arrival heuristic).
     """
 
     long_term_memory: str
     pending_applications: str
     tool_budget: int
+    step_id: str
 
 
 class PlanExecuteAgent:
@@ -522,6 +544,7 @@ class PlanExecuteAgent:
                         "executor",
                         {
                             "step": step,
+                            "step_id": step.id,
                             "long_term_memory": state.long_term_memory or "",
                             "pending_applications": state.pending_applications or "",
                         },
@@ -564,6 +587,40 @@ class PlanExecuteAgent:
         step: PlanStep = state["step"]
         long_term_memory: str = state.get("long_term_memory", "")
         pending_applications: str = state.get("pending_applications", "")
+
+        # Orphan-Send guard: replanner may have dropped this step from the plan
+        # between when the Send was queued and now. Send.arg captures the OLD
+        # step snapshot, so we must verify against the current outer state.
+        # Without this, a dropped step's executor still runs and writes
+        # step_status — producing ghost cards in the UI.
+        try:
+            current = await self._graph.aget_state(config)
+            current_plan = current.values.get("plan", []) if current and current.values else []
+            current_plan_ids = {s.id for s in current_plan if hasattr(s, "id")}
+            if current_plan_ids and step.id not in current_plan_ids:
+                logger.info(
+                    "pe_orphan_send_skipped",
+                    step_id=step.id,
+                    step_text=step.text,
+                    reason="step removed from plan by replanner",
+                )
+                return {
+                    "step_results": {step.id: "SKIPPED: 该步骤已被 replanner 从最新计划中移除"},
+                    "step_status": {step.id: StepStatus.SKIPPED.value},
+                    "step_duration_ms": {step.id: 0},
+                }
+        except Exception:
+            logger.debug("pe_orphan_check_failed", step_id=step.id)
+
+        # Emit a custom stream event so the outer streamer can deterministically
+        # bind this task's namespace to step.id BEFORE any LLM token streams.
+        # Fixes the WAVE-1 mis-mapping where parallel executors' messages would
+        # race and the FIFO fallback would assign content to the wrong card.
+        try:
+            writer = get_stream_writer()
+            writer({"_executor_started": True, "step_id": step.id})
+        except Exception:
+            logger.debug("pe_stream_writer_unavailable", step_id=step.id)
 
         kind = _classify_step_artifact(step.text)
         budget = EXECUTOR_TOOL_BUDGET_BY_KIND.get(kind, EXECUTOR_TOOL_BUDGET)
@@ -631,6 +688,17 @@ class PlanExecuteAgent:
                     status = StepStatus.FAILED.value
                 else:
                     result_text = final_msg.content if isinstance(final_msg.content, str) else str(final_msg.content)
+                    # BUDGET_EXHAUSTED is a graceful exit but semantically a
+                    # failure — collector's cascade-skip needs FAILED to drop
+                    # downstream steps. Without this, the step lands DONE with
+                    # a "信息不足" body and replanner is forced to second-guess.
+                    if isinstance(result_text, str) and result_text.startswith("BUDGET_EXHAUSTED"):
+                        status = StepStatus.FAILED.value
+                        logger.warning(
+                            "pe_step_budget_exhausted",
+                            step_id=step.id,
+                            step_text=step.text,
+                        )
                 logger.info("pe_step_executed", step_id=step.id, step_text=step.text)
         except asyncio.TimeoutError:
             result_text = f"TIMEOUT: 该步骤执行超过 {EXECUTOR_STEP_TIMEOUT_SECONDS} 秒未完成，已中止。"
@@ -1174,6 +1242,9 @@ class PlanExecuteAgent:
         last_pending_revise_state = False
         # Track previous step_status to detect transitions across snapshots.
         prev_step_status: dict[str, str] = {}
+        # Snapshot of last emitted plan structure (set of step ids) so we can
+        # detect auto-replanner-driven plan replacement (not just user revise).
+        prev_plan_ids: frozenset[str] = frozenset()
         wave_counter = 0
         # Accumulate tool call args per id across streaming AIMessageChunk
         # fragments. Mirrors the pattern in graph.py::get_stream_response.
@@ -1200,7 +1271,7 @@ class PlanExecuteAgent:
             step_started, step_completed, step_skipped, and plan_revised
             events.
             """
-            nonlocal emitted_plan, prev_step_status, wave_counter
+            nonlocal emitted_plan, prev_step_status, wave_counter, prev_plan_ids
             nonlocal last_pending_revise_state, running_but_unassigned, ns_to_step
             out: list[str] = []
 
@@ -1208,6 +1279,7 @@ class PlanExecuteAgent:
             current_status: dict[str, str] = values_event.get("step_status", {}) or {}
             current_results: dict[str, str] = values_event.get("step_results", {}) or {}
             pending_revise_local = values_event.get("pending_revise", False)
+            current_plan_ids = frozenset(s.id for s in plan_steps)
 
             # First time seeing a plan → emit plan_created with depends_on.
             if not emitted_plan and plan_steps:
@@ -1223,20 +1295,23 @@ class PlanExecuteAgent:
                 )
                 # Bootstrap prev_step_status from current or all-PENDING.
                 prev_step_status = {s.id: current_status.get(s.id, StepStatus.PENDING.value) for s in plan_steps}
+                prev_plan_ids = current_plan_ids
 
-            # Revise-cycle transition: was pending_revise, no longer; the
-            # replanner produced a rewritten plan.
-            if last_pending_revise_state and not pending_revise_local and emitted_plan and plan_steps:
-                # Reset tracking for the new plan.
+            # Plan structure changed mid-execution (auto-replanner OR user-driven
+            # revise). Either way, emit plan_revised so the UI swaps cards to
+            # the new structure instead of leaving orphan cards forever PENDING.
+            elif emitted_plan and plan_steps and current_plan_ids != prev_plan_ids:
+                reason = "user_feedback" if last_pending_revise_state and not pending_revise_local else "auto_replan"
                 running_but_unassigned = []
                 ns_to_step = {}
                 prev_step_status = {s.id: current_status.get(s.id, StepStatus.PENDING.value) for s in plan_steps}
+                prev_plan_ids = current_plan_ids
                 out.append(
                     _json.dumps(
                         {
                             "type": "plan_revised",
                             "plan": [{"id": s.id, "text": s.text, "depends_on": s.depends_on} for s in plan_steps],
-                            "reason": "user_feedback",
+                            "reason": reason,
                             "done": False,
                         }
                     )
@@ -1313,7 +1388,7 @@ class PlanExecuteAgent:
             async for stream_event in self._graph.astream(
                 graph_input,
                 config,
-                stream_mode=["values", "messages"],
+                stream_mode=["values", "messages", "custom"],
                 subgraphs=True,
             ):
                 # With subgraphs=True + multi-mode, every event is a
@@ -1321,9 +1396,30 @@ class PlanExecuteAgent:
                 # the ReAct executor sub-graph has ns=("executor:<uid>",).
                 ns, event_mode, payload = stream_event
 
+                if event_mode == "custom":
+                    # Executor emits {_executor_started, step_id} at the very
+                    # start of _execute_step, before any LLM token streams.
+                    # Use it to bind namespace -> step.id deterministically.
+                    if ns and isinstance(payload, dict) and payload.get("_executor_started"):
+                        sid = payload.get("step_id")
+                        if sid and ns not in ns_to_step:
+                            ns_to_step[ns] = sid
+                            if sid in running_but_unassigned:
+                                running_but_unassigned.remove(sid)
+                    continue
+
                 if event_mode == "values":
-                    # Only the outer graph publishes values we care about.
                     if ns:
+                        # Subgraph state snapshot — defense in depth. The
+                        # custom-event handler above usually registers the
+                        # mapping first; this catches edge cases where the
+                        # custom event was missed.
+                        if ns not in ns_to_step:
+                            sid = payload.get("step_id") if isinstance(payload, dict) else None
+                            if sid:
+                                ns_to_step[ns] = sid
+                                if sid in running_but_unassigned:
+                                    running_but_unassigned.remove(sid)
                         continue
                     event = payload
                     event_counter += 1
