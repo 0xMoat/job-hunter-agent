@@ -60,6 +60,19 @@ one of:
 `depends_on` 只能引用已完成步骤的 id（见 "Steps already executed"）或本次新 Plan 内部步骤的 id。
 不要引用已失败或已跳过步骤的 id 作为依赖。
 
+**关键 — dep 失败 ≠ 步骤必须删**：如果某个剩余步骤的 dep 是失败的 step，
+但这个步骤实际可以**独立运行**（不强依赖失败 step 的产出），请**保留该
+步骤并把 depends_on 改为 `[]` 或仅引用成功的前置**。只有当步骤**真的**
+无法在失败前置的产出缺失时进行（如：需要拿到 research summary 才能写综合
+分析报告），才允许整步删除。
+典型可独立运行的步骤（不要因为 research 失败就一并删除）：
+- 任何 **定制简历+PDF / trigger_resume_studio_skill / save_tailored_resume /
+  generate_resume_pdf** 步骤 —— 数据源是看板 JD + 用户简历，不依赖 research summary。
+- **score_jd_match / analyze_jd_gap / generate_interview_questions** —— 同上，
+  主要消费 JD 卡片与简历，research 只是可选上下文。
+- 上述步骤若原本 `depends_on=[A1]` 且 A1 (research) 失败，正确做法是
+  **保留步骤，改写 depends_on=[]**，而不是删除。
+
 ## 最终 Response 的写法
 
 当工作已完成（无剩余 plan 步骤或所有步骤都是 Response 触发），请在 `Response.content` 中用中文简要列出**本次已更新的卡片**（按公司 / 职位简述即可）。若不确定，可以参考已执行步骤中状态为 `done` 的 `save_*` / `score_*` / `analyze_*` / `generate_*` tool 调用。示例格式：

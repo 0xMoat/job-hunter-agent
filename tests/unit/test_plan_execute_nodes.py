@@ -725,3 +725,105 @@ async def test_execute_step_proceeds_when_step_still_in_plan(monkeypatch):
         config={"configurable": {"thread_id": "t1"}},
     )
     assert result["step_status"]["A1"] == StepStatus.DONE.value
+
+
+def test_replanner_prompt_keeps_independent_steps_when_deps_fail():
+    """Regression guard for the C114-PDF-dropped bug: replanner prompt must
+    instruct keeping PDF/score/gap/interview steps even when their research
+    dep failed, by rewriting depends_on=[] rather than dropping them.
+    """
+    with open("app/core/prompts/plan_execute_replanner.md", encoding="utf-8") as f:
+        content = f.read()
+    # Two assertions: the principle, and the concrete PDF example.
+    assert "dep 失败 ≠ 步骤必须删" in content, (
+        "replanner prompt must contain the 'failed dep does not mean drop' rule"
+    )
+    assert "定制简历+PDF" in content and "depends_on=[]" in content, (
+        "replanner prompt must show the keep-PDF-with-empty-deps positive pattern"
+    )
+
+
+def test_planner_prompt_demands_full_pipeline_for_tailor_resume_request():
+    """When the user asks for 'research + tailor resume', the planner must
+    include the FULL 5-stage pipeline per card (research→score→gap→interview→PDF).
+    Without this, score/gap/interview pills don't appear in the bubble for
+    demo flows. Regression guard for the missing-pills bug.
+    """
+    with open("app/core/prompts/plan_execute_planner.md", encoding="utf-8") as f:
+        content = f.read()
+    # The HARD RULE block must be present
+    assert "润色简历 = 全套准备" in content, (
+        "planner prompt must contain the 'tailor = full prep pipeline' HARD RULE"
+    )
+    # The 5-stage list must mention each tool by name
+    for tool in ("company_research", "score_jd_match", "analyze_jd_gap",
+                 "generate_interview_questions", "trigger_resume_studio_skill"):
+        assert tool in content, f"prompt must reference {tool} in the pipeline"
+
+
+async def test_execute_step_resume_kind_injects_resume_only_rule(monkeypatch):
+    """Resume PDF steps must get a kind-specific HARD RULE forbidding
+    duckduckgo / company_research detours that waste the budget (regression
+    guard for the 上海AI BUDGET_EXHAUSTED on PDF step bug).
+    """
+    captured: dict = {}
+    agent = PlanExecuteAgent()
+
+    class _FakeExecutor:
+        async def ainvoke(self, inputs, config=None):
+            captured["messages"] = inputs.get("messages", [])
+            return {"messages": [AIMessage(content="done", id="x")]}
+
+    monkeypatch.setattr(agent, "_get_executor", lambda: _FakeExecutor())
+
+    class _FakeState:
+        values = None
+    async def _no_orphan(*a, **k):
+        return _FakeState()
+    monkeypatch.setattr(agent, "_graph", type("G", (), {"aget_state": staticmethod(_no_orphan)})())
+
+    from app.schemas.plan_execute import PlanStep
+    step = PlanStep(id="A2", text="为 application_id=10 定制简历+PDF", depends_on=[])
+    await agent._execute_step(
+        {"step": step, "long_term_memory": "", "pending_applications": ""},
+        config={"configurable": {"thread_id": "t1"}},
+    )
+
+    prompt = captured["messages"][0].content
+    assert "RESUME BUNDLE 专用纪律" in prompt, (
+        "resume-kind step must include the resume-only HARD RULE"
+    )
+    assert "严禁" in prompt and "duckduckgo" in prompt, (
+        "rule must explicitly forbid duckduckgo on resume steps"
+    )
+
+
+async def test_execute_step_research_kind_does_not_get_resume_rule(monkeypatch):
+    """Negative control: research kind steps must NOT see the resume-only rule
+    (otherwise it would block legitimate duckduckgo use in research).
+    """
+    captured: dict = {}
+    agent = PlanExecuteAgent()
+
+    class _FakeExecutor:
+        async def ainvoke(self, inputs, config=None):
+            captured["messages"] = inputs.get("messages", [])
+            return {"messages": [AIMessage(content="done", id="x")]}
+
+    monkeypatch.setattr(agent, "_get_executor", lambda: _FakeExecutor())
+
+    class _FakeState:
+        values = None
+    async def _no_orphan(*a, **k):
+        return _FakeState()
+    monkeypatch.setattr(agent, "_graph", type("G", (), {"aget_state": staticmethod(_no_orphan)})())
+
+    from app.schemas.plan_execute import PlanStep
+    step = PlanStep(id="A1", text="company_research(card=10) 并 save_company_research(...)", depends_on=[])
+    await agent._execute_step(
+        {"step": step, "long_term_memory": "", "pending_applications": ""},
+        config={"configurable": {"thread_id": "t1"}},
+    )
+
+    prompt = captured["messages"][0].content
+    assert "RESUME BUNDLE 专用纪律" not in prompt

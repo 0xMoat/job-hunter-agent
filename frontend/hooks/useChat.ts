@@ -303,18 +303,48 @@ function applyPlanChunkToMessage(
     setMessages((prev) =>
       prev.map((m) => {
         if (m.id !== assistantId || !m.planExecute) return m
-        const steps: PlanStep[] = chunk.plan.map((s) => ({
-          id: s.id,
-          text: s.text,
-          status: "pending" as const,
-          dependsOn: s.depends_on || [],
-        }))
+        // user_feedback (true revise cycle): user rewrote the plan, start fresh.
+        // auto_replan: replanner trimmed already-completed steps from "remaining".
+        //   The new plan intentionally omits done steps — if we just REPLACE,
+        //   completed cards (e.g. Wave 1 公司调研 ✓) vanish from the bubble.
+        //   Instead, MERGE: keep historically terminal steps (done / failed /
+        //   skipped) that aren't in the new plan, and graft on the new ones.
+        const isAutoReplan = chunk.reason === "auto_replan"
+        const newIds = new Set(chunk.plan.map((s) => s.id))
+        let nextSteps: PlanStep[]
+        if (isAutoReplan) {
+          const existingById = new Map(m.planExecute.steps.map((s) => [s.id, s]))
+          const keptHistorical = m.planExecute.steps.filter(
+            (s) => !newIds.has(s.id) && (s.status === "done" || s.status === "failed" || s.status === "skipped"),
+          )
+          const merged: PlanStep[] = chunk.plan.map((s) => {
+            const prior = existingById.get(s.id)
+            // Preserve prior status if step already progressed; otherwise pending.
+            return prior ?? {
+              id: s.id,
+              text: s.text,
+              status: "pending" as const,
+              dependsOn: s.depends_on || [],
+            }
+          })
+          nextSteps = [...keptHistorical, ...merged]
+        } else {
+          nextSteps = chunk.plan.map((s) => ({
+            id: s.id,
+            text: s.text,
+            status: "pending" as const,
+            dependsOn: s.depends_on || [],
+          }))
+        }
         return {
           ...m,
           planExecute: {
             ...m.planExecute,
-            steps,
-            revisionReason: chunk.reason,
+            steps: nextSteps,
+            // Only flag a user-visible "based on your feedback" banner for
+            // true revise cycles. auto_replan is silent housekeeping and
+            // shouldn't claim the user provided feedback they didn't give.
+            revisionReason: isAutoReplan ? null : chunk.reason,
           },
         }
       }),

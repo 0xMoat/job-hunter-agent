@@ -101,10 +101,23 @@ export function ChatPanel({ onStreamingChange, onRequestOpenSettings, onJumpToCa
     const token = getSessionToken()
     if (!token) return
     const { applications } = await apiListApplications(token)
-    const scored = applications
-      .filter((a) => a.status === "pending" && a.match_score != null)
+    const pending = applications.filter((a) => a.status === "pending")
+    // Primary: highest-scored pending card. Many PE plans skip score_jd_match
+    // entirely (e.g. research+PDF only), so match_score may be null on all
+    // cards — without a fallback the button silently does nothing.
+    const scored = pending
+      .filter((a) => a.match_score != null)
       .sort((a, b) => (b.match_score ?? 0) - (a.match_score ?? 0))
-    const top = scored[0]
+    const top =
+      scored[0] ??
+      // Fallback 1: any pending card that got a tailored resume or PDF.
+      pending.find((a) => a.tailored_resume_text || a.pdf_download_url) ??
+      // Fallback 2: the most recently updated pending card.
+      [...pending].sort((a, b) => {
+        const ta = a.updated_at ? Date.parse(a.updated_at) : 0
+        const tb = b.updated_at ? Date.parse(b.updated_at) : 0
+        return tb - ta
+      })[0]
     if (top) onJumpToCard(top.id)
   }, [onJumpToCard])
 
