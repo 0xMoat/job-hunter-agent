@@ -17,6 +17,7 @@ from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, Sys
 from langchain_deepseek import ChatDeepSeek
 from langfuse.langchain import CallbackHandler
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+from langgraph.config import get_stream_writer
 from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
@@ -131,6 +132,15 @@ def _is_synthetic_tool_name(name: Optional[str]) -> bool:
     return bool(name) and name.startswith("_")
 
 
+def _is_commit_tool(name: Optional[str]) -> bool:
+    """Commit-style tools persist already-collected work (save_company_research,
+    save_tailored_resume, generate_resume_pdf, etc.). The budget hook must
+    never kill them — doing so loses the entire step's output, which is what
+    caused the 字节跳动 BUDGET_EXHAUSTED-with-no-saved-research incident.
+    """
+    return bool(name) and (name.startswith("save_") or name.startswith("generate_"))
+
+
 def _detect_repeated_tool_call(messages: list) -> Optional[str]:
     """Return tool name if one was invoked with identical args beyond the cap.
 
@@ -178,6 +188,15 @@ def _tool_budget_hook(state: dict) -> dict:
     if not last_tool_calls:
         return {}
 
+    # Never block commit-style calls (save_* / generate_*) — they persist the
+    # step's already-collected work. Killing the save loses the whole step,
+    # which is what caused the 字节跳动 incident (4 successful researches
+    # discarded because the 5th call was the save).
+    def _name_of(tc):
+        return tc.get("name") if isinstance(tc, dict) else getattr(tc, "name", None)
+    if all(_is_commit_tool(_name_of(tc)) for tc in last_tool_calls):
+        return {}
+
     budget = state.get("tool_budget") or EXECUTOR_TOOL_BUDGET
     total_calls = 0
     for msg in messages:
@@ -204,12 +223,15 @@ class _ExecutorState(AgentState):
 
     Adds `long_term_memory` and `pending_applications` so tools using
     `InjectedState(...)` (e.g. trigger_resume_studio_skill) can read them
-    from graph state.
+    from graph state. `step_id` is set from the Send arg so the outer
+    streaming layer can deterministically map executor namespaces to
+    their plan step (replacing the buggy FIFO-by-message-arrival heuristic).
     """
 
     long_term_memory: str
     pending_applications: str
     tool_budget: int
+    step_id: str
 
 
 class PlanExecuteAgent:
@@ -522,6 +544,7 @@ class PlanExecuteAgent:
                         "executor",
                         {
                             "step": step,
+                            "step_id": step.id,
                             "long_term_memory": state.long_term_memory or "",
                             "pending_applications": state.pending_applications or "",
                         },
@@ -564,6 +587,16 @@ class PlanExecuteAgent:
         step: PlanStep = state["step"]
         long_term_memory: str = state.get("long_term_memory", "")
         pending_applications: str = state.get("pending_applications", "")
+
+        # Emit a custom stream event so the outer streamer can deterministically
+        # bind this task's namespace to step.id BEFORE any LLM token streams.
+        # Fixes the WAVE-1 mis-mapping where parallel executors' messages would
+        # race and the FIFO fallback would assign content to the wrong card.
+        try:
+            writer = get_stream_writer()
+            writer({"_executor_started": True, "step_id": step.id})
+        except Exception:
+            logger.debug("pe_stream_writer_unavailable", step_id=step.id)
 
         kind = _classify_step_artifact(step.text)
         budget = EXECUTOR_TOOL_BUDGET_BY_KIND.get(kind, EXECUTOR_TOOL_BUDGET)
@@ -1313,7 +1346,7 @@ class PlanExecuteAgent:
             async for stream_event in self._graph.astream(
                 graph_input,
                 config,
-                stream_mode=["values", "messages"],
+                stream_mode=["values", "messages", "custom"],
                 subgraphs=True,
             ):
                 # With subgraphs=True + multi-mode, every event is a
@@ -1321,9 +1354,30 @@ class PlanExecuteAgent:
                 # the ReAct executor sub-graph has ns=("executor:<uid>",).
                 ns, event_mode, payload = stream_event
 
+                if event_mode == "custom":
+                    # Executor emits {_executor_started, step_id} at the very
+                    # start of _execute_step, before any LLM token streams.
+                    # Use it to bind namespace -> step.id deterministically.
+                    if ns and isinstance(payload, dict) and payload.get("_executor_started"):
+                        sid = payload.get("step_id")
+                        if sid and ns not in ns_to_step:
+                            ns_to_step[ns] = sid
+                            if sid in running_but_unassigned:
+                                running_but_unassigned.remove(sid)
+                    continue
+
                 if event_mode == "values":
-                    # Only the outer graph publishes values we care about.
                     if ns:
+                        # Subgraph state snapshot — defense in depth. The
+                        # custom-event handler above usually registers the
+                        # mapping first; this catches edge cases where the
+                        # custom event was missed.
+                        if ns not in ns_to_step:
+                            sid = payload.get("step_id") if isinstance(payload, dict) else None
+                            if sid:
+                                ns_to_step[ns] = sid
+                                if sid in running_but_unassigned:
+                                    running_but_unassigned.remove(sid)
                         continue
                     event = payload
                     event_counter += 1
