@@ -406,3 +406,96 @@ class TestExecutorToolBudgetHook:
             f"total tool_calls ({total_tool_calls}) must be under the budget cap "
             f"({pe_mod.EXECUTOR_TOOL_BUDGET}) once the rewrite lands"
         )
+
+    @pytest.mark.asyncio
+    async def test_resume_step_gets_per_kind_budget_of_10(self, monkeypatch):
+        """E2E: a resume-kind step in _execute_step gets budget=10, not the default 5.
+
+        Verifies the full wiring: _execute_step classifies '定制简历' as kind='resume',
+        looks up EXECUTOR_TOOL_BUDGET_BY_KIND['resume']=10, injects tool_budget=10
+        into the executor state, and _tool_budget_hook honors it — letting the
+        ReAct loop accumulate >5 tool calls before tripping BUDGET_EXHAUSTED.
+        """
+        from langchain_core.language_models.fake_chat_models import (
+            GenericFakeChatModel,
+        )
+        from langchain_core.messages import AIMessage
+        from langchain_core.tools import tool
+
+        from app.core.langgraph import plan_execute as pe_mod
+
+        @tool
+        def fake_save_resume(application_id: int) -> str:
+            """No-op resume tool — varied args avoid the loop detector."""
+            return "ok"
+
+        class _ToolBindingFakeChatModel(GenericFakeChatModel):
+            def bind_tools(self, _tools, **_kwargs):
+                return self
+
+        # Script >10 varied tool calls so we'd cleanly hit the resume budget (10)
+        # without triggering _detect_repeated_tool_call (>3 identical args).
+        resume_budget = pe_mod.EXECUTOR_TOOL_BUDGET_BY_KIND["resume"]
+        scripted = [
+            AIMessage(
+                id=f"ai-{i}",
+                content="",
+                tool_calls=[
+                    {
+                        "name": "fake_save_resume",
+                        "args": {"application_id": 42 + i},  # vary args per call
+                        "id": f"call-{i}",
+                    }
+                ],
+            )
+            for i in range(resume_budget + 5)  # 15 — enough to bust budget=10
+        ]
+        fake_llm = _ToolBindingFakeChatModel(messages=iter(scripted))
+
+        monkeypatch.setattr(pe_mod, "ChatDeepSeek", lambda **_kwargs: fake_llm)
+        monkeypatch.setattr(pe_mod, "tools", [fake_save_resume])
+        # budget=10 needs ~21 ReAct supersteps (10 model + 10 tool + rewrite) plus
+        # langgraph orchestration overhead. The production default of 25 is fine
+        # for real resume bundles (3-5 calls) but too tight for this stress test
+        # that forces all 10 calls. Bump it so the test isolates the *budget*
+        # wiring, not the recursion ceiling.
+        monkeypatch.setattr(pe_mod, "EXECUTOR_RECURSION_LIMIT", 50)
+
+        agent = pe_mod.PlanExecuteAgent()
+
+        # Sanity: the step text triggers the 'resume' kind classification.
+        step = PlanStep(
+            id="A2",
+            text="定制简历 application_id=42",
+            depends_on=[],
+        )
+        assert pe_mod._classify_step_artifact(step.text) == "resume"
+
+        state = {
+            "step": step,
+            "long_term_memory": "",
+            "pending_applications": "",
+        }
+        result = await agent._execute_step(state, config={})
+
+        result_text = result["step_results"][step.id]
+
+        # 1. Budget-exhausted token reached — proves the hook fired.
+        assert "BUDGET_EXHAUSTED" in result_text, (
+            f"expected BUDGET_EXHAUSTED in result, got: {result_text!r}"
+        )
+        # 2. The (10) literal proves the *resume* per-kind budget was used,
+        #    not the default 5 — would be "(5)" if wiring were broken.
+        assert f"({resume_budget})" in result_text, (
+            f"expected budget cap ({resume_budget}) literal in message, got: {result_text!r}"
+        )
+        # 3. The total_calls count in the message must be >= resume budget (10).
+        #    If the default 5 had leaked through, total_calls would be 5, not 10.
+        assert f"{resume_budget} 次" in result_text, (
+            f"expected total_calls >= {resume_budget} in message — proves the loop "
+            f"got past the default budget of {pe_mod.EXECUTOR_TOOL_BUDGET}. "
+            f"got: {result_text!r}"
+        )
+        # 4. Step did not crash — status should be DONE (final AIMessage was
+        #    rewritten to a graceful exit by the hook, not raised).
+        assert result["step_status"][step.id] == StepStatus.DONE.value
