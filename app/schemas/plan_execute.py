@@ -13,6 +13,16 @@ def _merge_dicts(left: dict, right: dict) -> dict:
     return merged
 
 
+def _last_value(left, right):
+    """LangGraph state reducer: accept multiple writes per superstep, last wins.
+
+    For control-flag fields (pending_revise) that LangGraph routing can write
+    from more than one node in the same superstep — without this reducer the
+    default LastValue channel raises INVALID_CONCURRENT_GRAPH_UPDATE.
+    """
+    return right
+
+
 class StepStatus(str, Enum):
     PENDING = "pending"
     RUNNING = "running"
@@ -81,7 +91,7 @@ class PlanExecuteState(BaseModel):
         description="revise 动作时用户输入的修改意见",
     )
     approval_round: int = Field(default=0, description="审批轮次")
-    pending_revise: bool = Field(
+    pending_revise: Annotated[bool, _last_value] = Field(
         default=False,
         description="路由 hint：True 时 Replanner 产出的新 plan 送回 approval_gate",
     )

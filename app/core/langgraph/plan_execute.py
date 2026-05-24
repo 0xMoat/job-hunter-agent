@@ -44,10 +44,18 @@ MAX_ITERATIONS = 20
 # almost certainly an LLM self-correction loop or a hung upstream call.
 EXECUTOR_STEP_TIMEOUT_SECONDS = 180
 
-# Inner ReAct agent recursion budget. Sized generously enough for the
-# planner, one tool call, and a final answer (≈6 node traversals per
-# tool call), while staying well below anything that could spin overnight.
+# Inner ReAct agent recursion budget. Each tool round costs ≈2 supersteps
+# (agent + tool), plus initial agent call + final answer + post_model_hook —
+# so default budget=5 needs ≥12 supersteps; 25 gives generous headroom.
+# Overridden per step kind by EXECUTOR_RECURSION_LIMIT_BY_KIND below for
+# kinds whose EXECUTOR_TOOL_BUDGET is raised.
 EXECUTOR_RECURSION_LIMIT = 25
+
+# Step-kind-specific overrides. Must scale with EXECUTOR_TOOL_BUDGET_BY_KIND:
+# resume gets budget=10 → ≈22 supersteps → recursion=40 leaves margin.
+EXECUTOR_RECURSION_LIMIT_BY_KIND: dict[str, int] = {
+    "resume": 40,
+}
 
 # Max identical (tool_name, args_fingerprint) invocations per step before
 # we call it a loop. LLMs can legitimately retry a tool once after a
@@ -111,6 +119,16 @@ def _extract_application_id(text: str) -> Optional[int]:
     """Pull the target application_id out of a step's natural-language text."""
     m = _APP_ID_RE.search(text) or _CARD_ID_RE.search(text)
     return int(m.group(1)) if m else None
+
+
+def _is_synthetic_tool_name(name: Optional[str]) -> bool:
+    """LangChain's with_structured_output uses tool-calling under the hood,
+    creating synthetic tools named after the Pydantic schema class. By
+    convention internal schemas start with `_` (e.g. _Breakdown, _Dim) —
+    we filter these from SSE emit so they don't surface in the chat UI as
+    fake tool cards.
+    """
+    return bool(name) and name.startswith("_")
 
 
 def _detect_repeated_tool_call(messages: list) -> Optional[str]:
@@ -549,6 +567,7 @@ class PlanExecuteAgent:
 
         kind = _classify_step_artifact(step.text)
         budget = EXECUTOR_TOOL_BUDGET_BY_KIND.get(kind, EXECUTOR_TOOL_BUDGET)
+        recursion_limit = EXECUTOR_RECURSION_LIMIT_BY_KIND.get(kind, EXECUTOR_RECURSION_LIMIT)
 
         step_prompt = (
             f"You are executing step [{step.id}] of a larger plan.\n\n"
@@ -573,7 +592,7 @@ class PlanExecuteAgent:
         # Give the ReAct sub-graph its own bounded recursion budget so a stuck
         # step can't consume the outer graph's allowance.
         child_config = dict(config or {})
-        child_config["recursion_limit"] = EXECUTOR_RECURSION_LIMIT
+        child_config["recursion_limit"] = recursion_limit
 
         status = StepStatus.DONE.value
         step_start = time.time()
@@ -1159,6 +1178,10 @@ class PlanExecuteAgent:
         # Accumulate tool call args per id across streaming AIMessageChunk
         # fragments. Mirrors the pattern in graph.py::get_stream_response.
         tool_call_args: dict[str, str] = {}
+        # Tool-call ids belonging to synthetic with_structured_output schemas
+        # (e.g. _Breakdown from score_jd_match). Tracked so later arg-delta
+        # chunks for the same id can be silently dropped.
+        synthetic_tc_ids: set[str] = set()
         event: dict = {}
         # Namespace → step_id mapping for parallel executor streaming.
         # When _emit_step_event emits step_started for a step, that id is
@@ -1358,6 +1381,9 @@ class PlanExecuteAgent:
                             for tc in token.tool_call_chunks:
                                 tc_id = tc.get("id") or ""
                                 if tc.get("name"):
+                                    if _is_synthetic_tool_name(tc["name"]):
+                                        synthetic_tc_ids.add(tc_id)
+                                        continue
                                     tool_call_args[tc_id] = tc.get("args", "") or ""
                                     yield _json.dumps(
                                         {
@@ -1369,6 +1395,8 @@ class PlanExecuteAgent:
                                             "done": False,
                                         }
                                     )
+                                elif tc_id in synthetic_tc_ids:
+                                    continue
                                 elif tc_id in tool_call_args:
                                     tool_call_args[tc_id] += tc.get("args", "") or ""
                                     # Forward deltas so the UI can show args
@@ -1398,6 +1426,8 @@ class PlanExecuteAgent:
                                 }
                             )
                     elif isinstance(token, ToolMessage):
+                        if _is_synthetic_tool_name(token.name) or token.tool_call_id in synthetic_tc_ids:
+                            continue
                         yield _json.dumps(
                             {
                                 "type": "step_tool_result",

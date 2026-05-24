@@ -77,6 +77,15 @@ def _patched_generate_response(self, messages, *args, **kwargs):
 mem0.llms.openai.OpenAILLM.generate_response = _patched_generate_response
 
 
+def _is_synthetic_tool_name(name: str | None) -> bool:
+    """Pydantic schemas used with with_structured_output become synthetic
+    tool names in the LLM tool-calling layer (e.g. _Breakdown). Convention:
+    such internal schemas start with `_`. Filter them out of SSE so the UI
+    doesn't render them as fake tool cards.
+    """
+    return bool(name) and name.startswith("_")
+
+
 class LangGraphAgent:
     """Manages the LangGraph Agent/workflow and interactions with the LLM.
 
@@ -504,6 +513,10 @@ class LangGraphAgent:
 
         # Accumulate tool call args per tool_call_id across streaming chunks
         tool_call_args: dict[str, str] = {}
+        # Tool-call ids belonging to synthetic with_structured_output schemas
+        # (e.g. _Breakdown). Tracked so later arg-delta chunks and the
+        # matching ToolMessage are silently dropped from the SSE feed.
+        synthetic_tc_ids: set[str] = set()
 
         # Track current LangGraph node for node_enter / node_exit events
         _current_node: str | None = None
@@ -555,6 +568,12 @@ class LangGraphAgent:
                             for tc in token.tool_call_chunks:
                                 tool_call_id = tc.get("id", "")
                                 if tc.get("name"):
+                                    # Skip synthetic tool calls from with_structured_output
+                                    # (e.g. _Breakdown from score_jd_match) so they don't
+                                    # surface in the chat UI as fake tool cards.
+                                    if _is_synthetic_tool_name(tc["name"]):
+                                        synthetic_tc_ids.add(tool_call_id)
+                                        continue
                                     # First chunk for this tool call — emit the card, start accumulating args
                                     tool_call_args[tool_call_id] = tc.get("args", "")
                                     yield _json.dumps(
@@ -566,6 +585,8 @@ class LangGraphAgent:
                                             "done": False,
                                         }
                                     )
+                                elif tool_call_id in synthetic_tc_ids:
+                                    continue
                                 elif tool_call_id in tool_call_args:
                                     # Subsequent arg chunks — accumulate, don't emit
                                     tool_call_args[tool_call_id] += tc.get("args", "")
@@ -590,6 +611,8 @@ class LangGraphAgent:
                                     }
                                 )
                     elif isinstance(token, ToolMessage):
+                        if _is_synthetic_tool_name(token.name) or token.tool_call_id in synthetic_tc_ids:
+                            continue
                         yield _json.dumps(
                             {
                                 "type": "tool_result",
